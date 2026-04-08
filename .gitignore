@@ -36,5 +36,4 @@ uploads/
 logs/
 *.log
 
-# Frontend (separate repo)
-frontend/
+
