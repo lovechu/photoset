@@ -52,6 +52,10 @@ func InitMySQL(cfg *config.Config) error {
 	return nil
 }
 
+func GetMySQL() *gorm.DB {
+	return MySQL
+}
+
 func CloseMySQL() error {
 	if MySQL != nil {
 		sqlDB, err := MySQL.DB()

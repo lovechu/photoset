@@ -4,8 +4,10 @@ import (
 	"net/http"
 	"strconv"
 
+	"photoset/internal/database"
 	"photoset/internal/domain"
 	"photoset/internal/pkg/response"
+	"photoset/internal/repository"
 	"photoset/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -24,6 +26,8 @@ type ListRequest struct {
 	Page     int    `form:"page" binding:"min=1"`
 	PageSize int    `form:"page_size" binding:"min=1,max=100"`
 	Tag      string `form:"tag"`
+	Mine     bool   `form:"mine"`
+	Keyword  string `form:"keyword"`
 }
 
 // CreateRequest 创建套图请求
@@ -60,7 +64,13 @@ func (h *PhotoSetHandler) List(c *gin.Context) {
 		req.PageSize = 20
 	}
 
-	photosets, total, err := h.service.GetPhotoSetList(req.Page, req.PageSize, req.Tag)
+	// 获取当前用户ID（可选）
+	var userID uint
+	if uid, exists := c.Get("user_id"); exists {
+		userID = uid.(uint)
+	}
+
+	photosets, total, err := h.service.GetPhotoSetList(req.Page, req.PageSize, req.Tag, req.Keyword, userID, req.Mine)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "获取套图列表失败")
 		return
@@ -116,6 +126,13 @@ func (h *PhotoSetHandler) Detail(c *gin.Context) {
 	} else {
 		// 不能查看完整图片列表，只返回封面和基础信息
 		photoset.Photos = []domain.Photo{}
+	}
+
+	// 如果已登录，查询收藏状态
+	if isLoggedIn {
+		favRepo := repository.NewFavoriteRepository(database.GetMySQL())
+		isFav, _ := favRepo.IsFavorited(userID, uint(id))
+		photoset.IsFavorited = isFav
 	}
 
 	response.Success(c, photoset)

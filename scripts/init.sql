@@ -71,6 +71,18 @@ CREATE TABLE IF NOT EXISTS photoset_tags (
     FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 收藏表
+CREATE TABLE IF NOT EXISTS favorites (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    created_at DATETIME(3) NULL,
+    user_id BIGINT UNSIGNED NOT NULL,
+    photoset_id BIGINT UNSIGNED NOT NULL,
+    UNIQUE KEY uk_user_photoset (user_id, photoset_id),
+    INDEX idx_favorites_user_id (user_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (photoset_id) REFERENCES photosets(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- 插入测试管理员账号 (密码: admin123)
 INSERT INTO users (created_at, updated_at, nickname, email, password_hash, role, status) VALUES
 (NOW(), NOW(), 'admin', 'admin@photoset.com', '$2a$10$rJZK5x5Y5Y5Y5Y5Y5Y5Y5e1x5x5x5x5x5x5x5x5x5x5x5x5x', 'admin', 1);

@@ -13,6 +13,9 @@ import (
 func Setup(r *gin.Engine) {
 	healthHandler := handlers.NewHealthHandler()
 
+	// 静态文件服务
+	r.Static("/uploads", "./uploads")
+
 	r.Use(middleware.CORS())
 	r.Use(middleware.Logger())
 	r.Use(middleware.Recovery())
@@ -29,6 +32,13 @@ func Setup(r *gin.Engine) {
 	photosetHandler := handlers.NewPhotoSetHandler(photosetService)
 	tagHandler := handlers.NewTagHandler(photosetService)
 
+	// 收藏路由
+	favRepo := repository.NewFavoriteRepository(database.GetMySQL())
+	favHandler := handlers.NewFavoriteHandler(favRepo)
+
+	// 上传路由
+	uploadHandler := handlers.NewUploadHandler("./uploads")
+
 	api := r.Group("/api")
 	{
 		auth := api.Group("/auth")
@@ -41,7 +51,7 @@ func Setup(r *gin.Engine) {
 		// 套图路由
 		photosets := api.Group("/photosets")
 		{
-			photosets.GET("", photosetHandler.List)
+			photosets.GET("", middleware.OptionalAuth(), photosetHandler.List)
 			photosets.GET("/:id", middleware.OptionalAuth(), photosetHandler.Detail)
 			photosets.POST("", middleware.Auth(), middleware.RequireRoles("creator", "admin"), photosetHandler.Create)
 		}
@@ -49,16 +59,26 @@ func Setup(r *gin.Engine) {
 		// 标签路由
 		api.GET("/tags", tagHandler.List)
 
+		// 收藏路由
+		favorites := api.Group("/favorites")
+		{
+			favorites.Use(middleware.Auth())
+			favorites.POST("/:photosetId", favHandler.Add)
+			favorites.DELETE("/:photosetId", favHandler.Remove)
+			favorites.GET("", favHandler.List)
+		}
+
+		// 上传路由
+		upload := api.Group("/upload")
+		{
+			upload.Use(middleware.Auth(), middleware.RequireRoles("creator", "admin"))
+			upload.POST("/image", uploadHandler.UploadImage)
+		}
+
 		// 用户路由（后续实现）
 		// user := api.Group("/user")
 		// {
 		// 	user.GET("/profile", middleware.Auth(), userHandler.GetProfile)
-		// }
-
-		// 上传路由（后续实现）
-		// upload := api.Group("/upload")
-		// {
-		// 	upload.POST("/image", middleware.Auth(), uploadHandler.UploadImage)
 		// }
 
 		// 订单路由（后续实现）

@@ -70,8 +70,8 @@ func (s *PhotoSetService) CreatePhotoSet(photoset *domain.PhotoSet, tagNames []s
 }
 
 // GetPhotoSetList 获取套图列表
-func (s *PhotoSetService) GetPhotoSetList(page, pageSize int, tag string) ([]domain.PhotoSet, int64, error) {
-	return s.repo.List(page, pageSize, tag)
+func (s *PhotoSetService) GetPhotoSetList(page, pageSize int, tag string, keyword string, userID uint, onlyMine bool) ([]domain.PhotoSet, int64, error) {
+	return s.repo.List(page, pageSize, tag, keyword, userID, onlyMine)
 }
 
 // GetPhotoSetDetail 获取套图详情（带完整图片列表）

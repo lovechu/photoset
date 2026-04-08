@@ -4,6 +4,7 @@ import (
 	"log"
 	"photoset/internal/config"
 	"photoset/internal/database"
+	"photoset/internal/domain"
 	"photoset/internal/http/routes"
 	"photoset/internal/pkg/jwt"
 
@@ -18,6 +19,16 @@ func main() {
 		log.Fatalf("Failed to initialize MySQL: %v", err)
 	}
 	defer database.CloseMySQL()
+
+	// 自动建表
+	if err := database.GetMySQL().AutoMigrate(
+		&domain.User{},
+		&domain.PhotoSet{},
+		&domain.Photo{},
+		&domain.Tag{},
+	); err != nil {
+		log.Fatalf("Failed to auto migrate: %v", err)
+	}
 
 	// 初始化 Redis
 	if err := database.InitRedis(cfg); err != nil {

@@ -42,7 +42,7 @@ func (r *PhotoSetRepository) FindByIDWithoutPhotos(id uint) (*domain.PhotoSet, e
 }
 
 // List 查询套图列表
-func (r *PhotoSetRepository) List(page, pageSize int, tag string) ([]domain.PhotoSet, int64, error) {
+func (r *PhotoSetRepository) List(page, pageSize int, tag string, keyword string, userID uint, onlyMine bool) ([]domain.PhotoSet, int64, error) {
 	var photosets []domain.PhotoSet
 	var total int64
 
@@ -55,20 +55,38 @@ func (r *PhotoSetRepository) List(page, pageSize int, tag string) ([]domain.Phot
 			Where("tags.name = ?", tag)
 	}
 
+	// 关键词搜索
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		query = query.Where("photosets.title LIKE ? OR photosets.description LIKE ?", like, like)
+	}
+
+	// 只看自己的套图
+	if onlyMine && userID > 0 {
+		query = query.Where("user_id = ?", userID)
+	}
+
 	// 计算总数
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	// 分页查询
+	// 分页查询，使用子查询获取 photo_count
 	offset := (page - 1) * pageSize
-	err := query.Preload("User").Preload("Tags").
+	err := r.db.Table("photosets").
+		Select("photosets.*, (SELECT COUNT(*) FROM photos WHERE photos.photoset_id = photosets.id) AS photo_count").
+		Preload("User").Preload("Tags").
+		Where(query).
 		Offset(offset).
 		Limit(pageSize).
 		Order("created_at DESC").
-		Find(&photosets).Error
+		Scan(&photosets).Error
 
-	return photosets, total, err
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return photosets, total, nil
 }
 
 // FindByName 根据标签名查询标签
@@ -103,7 +121,7 @@ func (r *PhotoSetRepository) CreatePhotoSetTags(photosetID uint, tagIDs []uint) 
 	for _, tagID := range tagIDs {
 		photosetTag := map[string]interface{}{
 			"photoset_id": photosetID,
-			"tag_id":      tagID,
+			"tag_id":     tagID,
 		}
 		if err := r.db.Table("photoset_tags").Create(&photosetTag).Error; err != nil {
 			return err

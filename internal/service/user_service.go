@@ -24,13 +24,13 @@ func NewUserService(userRepo repository.UserRepository) UserService {
 	}
 }
 
-func (s *userService) Register(nickname, email, password string) (*domain.User, error) {
+func (s *userService) Register(nickname, email, pwd string) (*domain.User, error) {
 	existing, _ := s.userRepo.FindByEmail(email)
 	if existing != nil {
 		return nil, errors.New("email already exists")
 	}
 
-	hashedPassword, err := password.Hash(password)
+	hashedPassword, err := password.Hash(pwd)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (s *userService) Register(nickname, email, password string) (*domain.User, 
 	return user, nil
 }
 
-func (s *userService) Login(email, password string) (*domain.User, error) {
+func (s *userService) Login(email, pwd string) (*domain.User, error) {
 	user, err := s.userRepo.FindByEmail(email)
 	if err != nil {
 		return nil, errors.New("invalid email or password")
@@ -60,7 +60,7 @@ func (s *userService) Login(email, password string) (*domain.User, error) {
 		return nil, errors.New("invalid email or password")
 	}
 
-	if !password.Check(password, user.PasswordHash) {
+	if !password.Check(pwd, user.PasswordHash) {
 		return nil, errors.New("invalid email or password")
 	}
 
