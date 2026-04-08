@@ -75,11 +75,8 @@ func Setup(r *gin.Engine) {
 			upload.POST("/image", uploadHandler.UploadImage)
 		}
 
-		// 用户路由（后续实现）
-		// user := api.Group("/user")
-		// {
-		// 	user.GET("/profile", middleware.Auth(), userHandler.GetProfile)
-		// }
+		// 用户路由
+		api.GET("/users/profile", middleware.Auth(), authHandler.Me)
 
 		// 订单路由（后续实现）
 		// order := api.Group("/order")

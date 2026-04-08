@@ -74,7 +74,7 @@ func (r *PhotoSetRepository) List(page, pageSize int, tag string, keyword string
 	// 分页查询，使用子查询获取 photo_count
 	offset := (page - 1) * pageSize
 	err := r.db.Table("photosets").
-		Select("photosets.*, (SELECT COUNT(*) FROM photos WHERE photos.photoset_id = photosets.id) AS photo_count").
+		Select("photosets.*, (SELECT COUNT(*) FROM photos WHERE photos.photo_set_id = photosets.id) AS photo_count").
 		Preload("User").Preload("Tags").
 		Where(query).
 		Offset(offset).

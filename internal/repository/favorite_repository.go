@@ -37,16 +37,20 @@ func (r *FavoriteRepository) List(userID uint, page, pageSize int) ([]domain.Fav
 	var favorites []domain.Favorite
 	var total int64
 
-	query := r.db.Where("user_id = ?", userID)
-	if err := query.Count(&total).Error; err != nil {
+	if err := r.db.Model(&domain.Favorite{}).Where("user_id = ?", userID).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	offset := (page - 1) * pageSize
-	err := query.Preload("PhotoSet.User").Preload("PhotoSet.Tags").
+	err := r.db.Where("user_id = ?", userID).
+		Preload("PhotoSet.User").Preload("PhotoSet.Tags").
 		Order("created_at DESC").
 		Offset(offset).Limit(pageSize).
 		Find(&favorites).Error
 
-	return favorites, total, err
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return favorites, total, nil
 }
