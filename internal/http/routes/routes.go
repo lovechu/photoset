@@ -19,9 +19,15 @@ func Setup(r *gin.Engine) {
 
 	r.GET("/api/health", healthHandler.Check)
 
+	// 初始化服务和处理器
 	userRepo := repository.NewUserRepository()
 	userService := service.NewUserService(userRepo)
 	authHandler := handlers.NewAuthHandler(userService)
+
+	photosetRepo := repository.NewPhotoSetRepository(database.GetMySQL())
+	photosetService := service.NewPhotoSetService(photosetRepo)
+	photosetHandler := handlers.NewPhotoSetHandler(photosetService)
+	tagHandler := handlers.NewTagHandler(photosetService)
 
 	api := r.Group("/api")
 	{
@@ -32,17 +38,21 @@ func Setup(r *gin.Engine) {
 			auth.GET("/me", middleware.Auth(), authHandler.Me)
 		}
 
+		// 套图路由
+		photosets := api.Group("/photosets")
+		{
+			photosets.GET("", photosetHandler.List)
+			photosets.GET("/:id", photosetHandler.Detail)
+			photosets.POST("", middleware.Auth(), middleware.RequireRoles("creator", "admin"), photosetHandler.Create)
+		}
+
+		// 标签路由
+		api.GET("/tags", tagHandler.List)
+
 		// 用户路由（后续实现）
 		// user := api.Group("/user")
 		// {
 		// 	user.GET("/profile", middleware.Auth(), userHandler.GetProfile)
-		// }
-
-		// 套图路由（后续实现）
-		// photoset := api.Group("/photoset")
-		// {
-		// 	photoset.GET("/list", photosetHandler.List)
-		// 	photoset.GET("/:id", photosetHandler.Detail)
 		// }
 
 		// 上传路由（后续实现）
