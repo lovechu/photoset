@@ -8,10 +8,46 @@
 - ✅ `photoset.go` Detail 和 Create 统一使用 `"user_role"` 和 `"user_id"`
 
 ### 2. 详情接口支持可选鉴权
-- ✅ 路由配置: `photosets.GET("/:id", photosetHandler.Detail)` 无强制鉴权
+- ✅ 实现 `OptionalAuth()` 中间件
+- ✅ 路由配置: `photosets.GET("/:id", middleware.OptionalAuth(), photosetHandler.Detail)`
 - ✅ Handler 逻辑:
   - 不带 token: `userRole=""`, `isLoggedIn=false` → 按游客处理
   - 带 token: `userRole` 和 `userID` 正常读取 → 按角色权限处理
+
+## OptionalAuth 中间件实现
+
+```go
+func OptionalAuth() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        authHeader := c.GetHeader("Authorization")
+        if authHeader == "" {
+            // 没有提供 token,按游客处理,直接放行
+            c.Next()
+            return
+        }
+
+        parts := strings.SplitN(authHeader, " ", 2)
+        if len(parts) != 2 || parts[0] != "Bearer" {
+            // token 格式错误,按游客处理,直接放行
+            c.Next()
+            return
+        }
+
+        claims, err := jwt.ParseToken(parts[1])
+        if err != nil {
+            // token 无效或过期,按游客处理,直接放行
+            c.Next()
+            return
+        }
+
+        // token 有效,写入上下文
+        c.Set(UserKey, claims.UserID)
+        c.Set(RoleKey, claims.Role)
+
+        c.Next()
+    }
+}
+```
 
 ## 自查验证场景
 
@@ -74,7 +110,8 @@ GET /api/photosets/1
 ```
 
 **预期结果**:
-- 无 token,`c.Get("user_role")` 返回 false,`userRole=""`, `isLoggedIn=false`
+- `OptionalAuth()` 检测到无 Authorization header,直接放行
+- Handler 中 `c.Get("user_role")` 返回 false,`userRole=""`, `isLoggedIn=false`
 - 调用 `CanViewFullPhotos(photoset, "", 0, false)`
 - 逻辑判断: 不是作者、不是 admin、不是 member、未登录
 - `canViewFull = false`
@@ -92,7 +129,8 @@ Authorization: Bearer <admin_token>
 ```
 
 **预期结果**:
-- 有 token,`c.Get("user_role")` 返回 `admin`, `userRole="admin"`, `isLoggedIn=true`
+- `OptionalAuth()` 解析 token,将 `user_id` 和 `user_role` 写入上下文
+- Handler 中 `c.Get("user_role")` 返回 `admin`, `userRole="admin"`, `isLoggedIn=true`
 - 调用 `CanViewFullPhotos(photoset, "admin", <admin_id>, true)`
 - 逻辑判断: 角色 `admin` 在允许列表中
 - `canViewFull = true`
@@ -111,7 +149,8 @@ Authorization: Bearer <author_token>
 ```
 
 **预期结果**:
-- 有 token,`userRole="creator"`, `userID=123`, `isLoggedIn=true`
+- `OptionalAuth()` 解析 token,将 `user_id=123` 和 `user_role=creator` 写入上下文
+- Handler 中 `userRole="creator"`, `userID=123`, `isLoggedIn=true`
 - 调用 `CanViewFullPhotos(photoset, "creator", 123, true)`
 - 逻辑判断: `userID == photoset.UserID` (123 == 123)
 - `canViewFull = true`
@@ -129,11 +168,44 @@ Authorization: Bearer <member_token>
 ```
 
 **预期结果**:
-- 有 token,`userRole="member"`, `userID=789`, `isLoggedIn=true`
+- `OptionalAuth()` 解析 token,将 `user_id=789` 和 `user_role=member` 写入上下文
+- Handler 中 `userRole="member"`, `userID=789`, `isLoggedIn=true`
 - 调用 `CanViewFullPhotos(photoset, "member", 789, true)`
 - 逻辑判断: 不是作者,但角色 `member` 在允许列表中
 - `canViewFull = true`
 - 返回套图完整信息,包含 `photos` 数组
+
+### 场景 7: 访问付费套图详情时 token 格式错误
+**前提**:
+- 数据库存在付费套图 (is_free=0)
+- 请求头格式错误,如 `Authorization: InvalidToken` 或 `Authorization: <token>` (无 Bearer 前缀)
+
+**请求**:
+```bash
+GET /api/photosets/1
+Authorization: InvalidToken
+```
+
+**预期结果**:
+- `OptionalAuth()` 检测到格式错误,直接放行,按游客处理
+- Handler 中 `userRole=""`, `isLoggedIn=false`
+- 返回套图基础信息,`photos.Photos = []` (空数组)
+
+### 场景 8: 访问付费套图详情时 token 无效或过期
+**前提**:
+- 数据库存在付费套图 (is_free=0)
+- 请求头携带无效或过期的 token
+
+**请求**:
+```bash
+GET /api/photosets/1
+Authorization: Bearer invalid_or_expired_token
+```
+
+**预期结果**:
+- `OptionalAuth()` 解析失败,直接放行,按游客处理
+- Handler 中 `userRole=""`, `isLoggedIn=false`
+- 返回套图基础信息,`photos.Photos = []` (空数组)
 
 ## 代码检查要点
 
@@ -155,7 +227,26 @@ if uid, exists := c.Get("user_id"); exists {  // 读取 "user_id"
 }
 ```
 
-### 可选鉴权逻辑
+### OptionalAuth 中间件行为
+```go
+// auth.go - OptionalAuth
+func OptionalAuth() gin.HandlerFunc {
+    // 1. 无 Authorization header → 直接放行 (游客)
+    // 2. 格式错误 (无 Bearer 前缀) → 直接放行 (游客)
+    // 3. Token 解析失败 (无效/过期) → 直接放行 (游客)
+    // 4. Token 有效 → 写入 user_id 和 user_role 到上下文
+}
+```
+
+### 路由配置
+```go
+// routes.go
+photosets.GET("/:id", middleware.OptionalAuth(), photosetHandler.Detail)
+// OptionalAuth 先执行,解析 token (如果提供)
+// 然后进入 Detail handler,从上下文读取 user_id 和 user_role
+```
+
+### Handler 读取逻辑
 ```go
 // photoset.go - Detail 方法
 var userRole string
@@ -171,12 +262,17 @@ if uid, exists := c.Get("user_id"); exists {  // 可选读取
 }
 
 // isLoggedIn=false 时,userRole 和 userID 为空值,按游客处理
+// isLoggedIn=true 时,按角色权限处理
 ```
 
 ## 修复验证结果
 
 - ✅ 键名已统一: 全项目使用 `"user_role"` 和 `"user_id"`
 - ✅ RequireRoles 中间件正确读取统一键名
+- ✅ OptionalAuth 中间件已实现并挂到详情接口
 - ✅ 详情接口支持可选鉴权: 不带 token 游客访问,带 token 按角色权限
 - ✅ 无 linter 错误
-- ✅ 路由配置正确: Detail 接口无强制鉴权中间件
+- ✅ 路由配置正确: Detail 接口使用 OptionalAuth 中间件
+- ✅ Handler 读取逻辑正确: 通过 `if exists` 判断,可选读取上下文
+- ✅ Token 无效/格式错误时按游客处理,行为统一
+

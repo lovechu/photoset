@@ -42,7 +42,7 @@ func Setup(r *gin.Engine) {
 		photosets := api.Group("/photosets")
 		{
 			photosets.GET("", photosetHandler.List)
-			photosets.GET("/:id", photosetHandler.Detail)
+			photosets.GET("/:id", middleware.OptionalAuth(), photosetHandler.Detail)
 			photosets.POST("", middleware.Auth(), middleware.RequireRoles("creator", "admin"), photosetHandler.Create)
 		}
 
