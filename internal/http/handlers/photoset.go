@@ -83,12 +83,12 @@ func (h *PhotoSetHandler) Detail(c *gin.Context) {
 		return
 	}
 
-	// 获取当前用户信息
+	// 获取当前用户信息(可选鉴权)
 	var userRole string
 	var userID uint
 	var isLoggedIn bool
 
-	if role, exists := c.Get("role"); exists {
+	if role, exists := c.Get("user_role"); exists {
 		userRole = role.(string)
 		isLoggedIn = true
 	}

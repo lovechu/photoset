@@ -13,7 +13,7 @@ import (
 func RequireRoles(allowedRoles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 从上下文获取用户角色
-		role, exists := c.Get("role")
+		role, exists := c.Get(RoleKey)
 		if !exists {
 			response.Error(c, http.StatusUnauthorized, "未登录")
 			c.Abort()
