@@ -220,6 +220,8 @@ npm run preview
 |------|------|------|------|----------|
 | `/api/tags` | GET | 公开 | 获取标签列表 | `api.getTags()` |
 | `/api/tags/hot` | GET | 公开 | 热门标签 | `api.getHotTags()` |
+| `/api/categories` | GET | 公开 | 分类列表 | `api.getCategories()` |
+| **新** `AdvancedSearch.vue` | — | 公开 | 动态分类搜索组件 | — |
 
 #### 个人中心功能
 | 接口 | 方法 | 权限 | 说明 | 封装位置 |

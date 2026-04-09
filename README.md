@@ -1,34 +1,59 @@
-﻿# PhotoSet Backend
+﻿# PhotoSet - 摄影套图浏览平台
 
-基于 Go + Gin 的摄影套图平台后端服务。
+基于 Go + Gin + Vue 3 + Flutter 的摄影套图平台。本项目为**前后端一体仓库**，包含完整后端服务、用户端Web、管理后台。
 
-## 项目结构
+## GitHub 仓库
+https://github.com/lovechu/photoset
+
+## 项目状态 ✅
+**全部功能开发完成，已具备生产部署条件**
+- Phase 1: 基础架构 ✅
+- Phase 2: 核心功能（收藏/个人中心/搜索/上传）✅
+- Phase 3: 会员订单系统 ✅
+- Phase 4: 管理后台+套图编辑+Cloudflare R2 ✅
+- Phase 5: 分类系统+Redis缓存+URL签名+全文搜索+订单退款 ✅
+
+## 核心功能
+
+| 模块 | 功能 |
+|------|------|
+| **后端 (Go)** | 用户/套图/订单/标签/分类/搜索/验证码/JWT/缓存/存储 |
+| **前端用户端 (Vue 3)** | 首页/详情/上传/编辑/个人中心/收藏/订单/搜索/分类筛选 |
+| **前段管理后台 (Vue 3)** | 登录/Dashboard/内容审核/用户管理/订单管理/标签管理/分类管理 |
+| **移动端 (Flutter)** | iOS/Android App（独立仓库） |
+| **API 接口** | 完整 RESTful + 安全中间件 + 签名防盗链 |
+
+## 项目结构（前后端一体）
 
 ```
-backend/
-├── cmd/
-│   └── api/
-│       └── main.go              # 程序入口
-├── internal/
-│   ├── config/                  # 配置管理
-│   ├── database/                # 数据库连接
-│   ├── domain/                  # 领域模型
-│   ├── http/
-│   │   ├── handlers/            # HTTP 处理器
-│   │   ├── middleware/          # 中间件
-│   │   └── routes/              # 路由配置
-│   ├── pkg/                     # 工具包
-│   │   ├── jwt/                 # JWT 工具
-│   │   ├── password/            # 密码加密
-│   │   ├── response/            # 统一响应格式
-│   │   └── signurl/             # URL 签名防盗链
-│   ├── repository/              # 数据仓储层
-│   └── service/                 # 业务逻辑层
-├── scripts/
-│   └── init.sql                 # 数据库初始化脚本
-├── .env.example                 # 环境变量示例
-├── go.mod                       # Go 模块文件
-└── README.md                    # 项目说明
+photoset/ (本仓库根目录)
+├── backend/                 # Go 后端服务
+│   ├── cmd/main.go         # 程序入口
+│   ├── internal/           # 核心业务代码
+│   │   ├── config/         # 配置管理
+│   │   ├── database/       # MySQL 连接
+│   │   ├── domain/         # 领域模型 (User/PhotoSet/Order/Tag/Category)
+│   │   ├── http/           # HTTP 层
+│   │   ├── pkg/            # 工具包 (jwt/password/response/signurl)
+│   │   ├── repository/     # 数据仓储层
+│   │   └── service/        # 业务逻辑层 (缓存/验证码/分类)
+│   ├── frontend/           # 用户端 Web (Vue 3 + Vite)
+│   │   ├── src/
+│   │   │   ├── views/      # 页面 (Home/Detail/CreateEditPhotoset/Profile/Favorites...)
+│   │   │   ├── components/ # 组件 (AppHeader/PhotosetCard/AdvancedSearch...)
+│   │   │   ├── api/        # API 封装
+│   │   │   └── stores/     # Pinia 状态管理
+│   │   └── vite.config.js
+│   ├── frontend-admin/     # 管理后台 Web (Vue 3 + Vite)
+│   │   ├── src/
+│   │   │   ├── views/      # 管理页面 (Dashboard/ContentReview/UserManage/OrderManage...)
+│   │   │   └── layout/     # AdminLayout 布局
+│   │   └── vite.config.js
+│   ├── scripts/init.sql    # 数据库初始化
+│   └── .env.example        # 环境变量模板
+└── README.md               # 本文件
+
+移动端 (Flutter) 独立仓库：https://github.com/lovechu/photoset-mobile
 ```
 
 ## 技术栈
@@ -43,7 +68,23 @@ backend/
 - **验证码**: base64Captcha
 - **对象存储**: AWS SDK v2（S3 兼容，支持 Cloudflare R2 / 本地存储）
 - **全文搜索**: MySQL FULLTEXT（ngram 分词）
-- **图片防盗链**: HMAC-SHA256 URL 签名
+-- **图片防盗链**: HMAC-SHA256 URL 签名
+- **前端框架**: Vue 3 + Vite + Pinia + Vue Router
+- **组件库**: Element Plus (用户端) + Naive UI (管理后台)
+- **CSS 框架**: Tailwind CSS
+- **移动端**: Flutter (iOS/Android)
+
+## Phase 5 新增功能 (2026-04-09)
+
+| 功能 | 说明 |
+|------|------|
+| **分类系统** | Category 模型/CRUD API，支持动态筛选、搜索、卡片标签、管理后台 |
+| **Redis 缓存** | 列表5min、详情10min、标签30min，静默降级保护 |
+| **全文搜索** | MySQL FULLTEXT ngram 中文分词，`search?q=` 高级搜索 |
+| **URL 签名防盗链** | HMAC-SHA256 签名，中间件验证，替换原 uploads 路由 |
+| **订单退款** | 用户48h自助退款 + admin 无限退款，状态机流转 |
+| **验证码与限流** | Captcha 验证码 + Redis 绑定，基于 IP 的限流中间件 |
+| **管理后台增强** | Dashboard 统计、OrderManage、TagManage、CategoryManage |
 
 ## 快速开始
 
