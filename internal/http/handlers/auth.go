@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"photoset/internal/http/middleware"
 	"photoset/internal/pkg/jwt"
@@ -9,25 +11,35 @@ import (
 )
 
 type AuthHandler struct {
-	userService service.UserService
+	userService    service.UserService
+	captchaService service.CaptchaService
 }
 
-func NewAuthHandler(userService service.UserService) *AuthHandler {
+func NewAuthHandler(userService service.UserService, captchaService service.CaptchaService) *AuthHandler {
 	return &AuthHandler{
-		userService: userService,
+		userService:    userService,
+		captchaService: captchaService,
 	}
 }
 
 type RegisterRequest struct {
-	Nickname string `json:"nickname" binding:"required"`
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=6"`
+	Nickname    string `json:"nickname" binding:"required"`
+	Email       string `json:"email" binding:"required,email"`
+	Password    string `json:"password" binding:"required,min=6"`
+	CaptchaID   string `json:"captcha_id" binding:"required"`
+	CaptchaCode string `json:"captcha_code" binding:"required"`
 }
 
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "invalid request: "+err.Error())
+		return
+	}
+
+	// 验证图形验证码
+	if !h.captchaService.Verify(req.CaptchaID, req.CaptchaCode, "register") {
+		response.Error(c, http.StatusBadRequest, "验证码错误或已过期")
 		return
 	}
 
@@ -43,14 +55,22 @@ func (h *AuthHandler) Register(c *gin.Context) {
 }
 
 type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+	Email       string `json:"email" binding:"required,email"`
+	Password    string `json:"password" binding:"required"`
+	CaptchaID   string `json:"captcha_id" binding:"required"`
+	CaptchaCode string `json:"captcha_code" binding:"required"`
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "invalid request: "+err.Error())
+		return
+	}
+
+	// 验证图形验证码
+	if !h.captchaService.Verify(req.CaptchaID, req.CaptchaCode, "login") {
+		response.Error(c, http.StatusBadRequest, "验证码错误或已过期")
 		return
 	}
 

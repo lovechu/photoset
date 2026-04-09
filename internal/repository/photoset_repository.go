@@ -55,10 +55,9 @@ func (r *PhotoSetRepository) List(page, pageSize int, tag string, keyword string
 			Where("tags.name = ?", tag)
 	}
 
-	// 关键词搜索
+	// 关键词搜索（FULLTEXT 全文检索）
 	if keyword != "" {
-		like := "%" + keyword + "%"
-		query = query.Where("photosets.title LIKE ? OR photosets.description LIKE ?", like, like)
+		query = query.Where("MATCH(photosets.title, photosets.description) AGAINST(? IN BOOLEAN MODE)", keyword)
 	}
 
 	// 只看自己的套图
@@ -128,4 +127,64 @@ func (r *PhotoSetRepository) CreatePhotoSetTags(photosetID uint, tagIDs []uint) 
 		}
 	}
 	return nil
+}
+
+// Update 更新套图基础信息（不包含图片列表）
+func (r *PhotoSetRepository) Update(id uint, updates map[string]interface{}) error {
+	return r.db.Model(&domain.PhotoSet{}).Where("id = ?", id).Updates(updates).Error
+}
+
+// ReplaceTags 替换套图标签（先删后插）
+func (r *PhotoSetRepository) ReplaceTags(photosetID uint, tagNames []string) error {
+	// 删除旧关联
+	if err := r.db.Exec("DELETE FROM photoset_tags WHERE photoset_id = ?", photosetID).Error; err != nil {
+		return err
+	}
+	if len(tagNames) == 0 {
+		return nil
+	}
+	// 写入新关联
+	for _, name := range tagNames {
+		tag, err := r.FindTagByName(name)
+		if err != nil {
+			tag = &domain.Tag{Name: name}
+			if err := r.CreateTag(tag); err != nil {
+				return err
+			}
+		}
+		photosetTag := map[string]interface{}{
+			"photoset_id": photosetID,
+			"tag_id":      tag.ID,
+		}
+		r.db.Table("photoset_tags").Create(&photosetTag)
+	}
+	return nil
+}
+
+// Delete 软删除套图（GORM 软删除，同时级联删除关联 photos 和 tags）
+func (r *PhotoSetRepository) Delete(id uint) error {
+	// 先删除关联的 photos
+	if err := r.db.Where("photo_set_id = ?", id).Delete(&domain.Photo{}).Error; err != nil {
+		return err
+	}
+	// 删除关联的 photoset_tags
+	if err := r.db.Exec("DELETE FROM photoset_tags WHERE photoset_id = ?", id).Error; err != nil {
+		return err
+	}
+	// 软删除套图本身
+	return r.db.Delete(&domain.PhotoSet{}, id).Error
+}
+
+// ReplacePhotos 替换套图图片（先删后插）
+func (r *PhotoSetRepository) ReplacePhotos(photosetID uint, photos []domain.Photo) error {
+	if err := r.db.Where("photo_set_id = ?", photosetID).Delete(&domain.Photo{}).Error; err != nil {
+		return err
+	}
+	if len(photos) == 0 {
+		return nil
+	}
+	for i := range photos {
+		photos[i].PhotoSetID = photosetID
+	}
+	return r.db.Create(&photos).Error
 }

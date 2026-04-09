@@ -36,6 +36,12 @@ const routes = [
     meta: { title: '创建套图', requiresCreator: true }
   },
   {
+    path: '/photoset/:id/edit',
+    name: 'EditPhotoset',
+    component: () => import('@/views/EditPhotoset.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/favorites',
     name: 'Favorites',
     component: () => import('@/views/Favorites.vue'),
@@ -46,6 +52,18 @@ const routes = [
     name: 'Profile',
     component: () => import('@/views/Profile.vue'),
     meta: { title: '个人中心', requiresAuth: true }
+  },
+  {
+    path: '/membership',
+    name: 'Membership',
+    component: () => import('@/views/Membership.vue'),
+    meta: { title: '会员订阅' }
+  },
+  {
+    path: '/orders',
+    name: 'Orders',
+    component: () => import('@/views/Orders.vue'),
+    meta: { title: '我的订单', requiresAuth: true }
   },
   {
     path: '/:pathMatch(.*)*',

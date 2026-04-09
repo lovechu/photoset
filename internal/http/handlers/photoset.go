@@ -138,6 +138,111 @@ func (h *PhotoSetHandler) Detail(c *gin.Context) {
 	response.Success(c, photoset)
 }
 
+// UpdateRequest 更新套图请求
+type UpdateRequest struct {
+	Title       string   `json:"title" binding:"required,max=200"`
+	Cover       string   `json:"cover" binding:"required,max=500"`
+	Description string   `json:"description"`
+	IsFree      int8     `json:"is_free" binding:"oneof=0 1"`
+	Price       float64  `json:"price"`
+	Tags        []string `json:"tags"`
+	Photos      []Photo  `json:"photos"`
+	Status      string   `json:"status" binding:"oneof=draft published pending"`
+}
+
+// Update 更新套图（creator 更新自己的 / admin 更新任意）
+func (h *PhotoSetHandler) Update(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "无效的套图ID")
+		return
+	}
+
+	var req UpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "参数错误: "+err.Error())
+		return
+	}
+
+	userID, _ := c.Get("user_id")
+	userRole, _ := c.Get("user_role")
+
+	// 查找套图
+	photoset, err := h.service.GetPhotoSetDetailBasic(uint(id))
+	if err != nil {
+		response.Error(c, http.StatusNotFound, "套图不存在")
+		return
+	}
+
+	// 权限校验：creator 只能改自己的，admin 无限制
+	if userRole.(string) != "admin" && photoset.UserID != userID.(uint) {
+		response.Error(c, http.StatusForbidden, "无权编辑此套图")
+		return
+	}
+
+	// 更新基础字段
+	updates := map[string]interface{}{
+		"title":       req.Title,
+		"cover":       req.Cover,
+		"description": req.Description,
+		"is_free":     req.IsFree,
+		"price":       req.Price,
+		"status":      req.Status,
+	}
+	if err := h.service.UpdatePhotoSet(uint(id), updates, req.Tags, toPhotos(req.Photos, uint(id))); err != nil {
+		response.Error(c, http.StatusInternalServerError, "更新失败: "+err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{"message": "更新成功"})
+}
+
+// Delete 删除套图（creator 删除自己的 / admin 删除任意）
+func (h *PhotoSetHandler) Delete(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "无效的套图ID")
+		return
+	}
+
+	userID, _ := c.Get("user_id")
+	userRole, _ := c.Get("user_role")
+
+	// 查找套图
+	photoset, err := h.service.GetPhotoSetDetailBasic(uint(id))
+	if err != nil {
+		response.Error(c, http.StatusNotFound, "套图不存在")
+		return
+	}
+
+	// 权限校验：creator 只能删自己的，admin 无限制
+	if userRole.(string) != "admin" && photoset.UserID != userID.(uint) {
+		response.Error(c, http.StatusForbidden, "无权删除此套图")
+		return
+	}
+
+	if err := h.service.DeletePhotoSet(uint(id)); err != nil {
+		response.Error(c, http.StatusInternalServerError, "删除失败: "+err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{"message": "删除成功"})
+}
+
+func toPhotos(ps []Photo, photosetID uint) []domain.Photo {
+	var result []domain.Photo
+	for _, p := range ps {
+		result = append(result, domain.Photo{
+			PhotoSetID: photosetID,
+			URL:        p.URL,
+			SortOrder:  p.SortOrder,
+		})
+	}
+	return result
+}
+
 // Create 创建套图
 func (h *PhotoSetHandler) Create(c *gin.Context) {
 	var req CreateRequest
@@ -181,3 +286,4 @@ func (h *PhotoSetHandler) Create(c *gin.Context) {
 
 	response.Success(c, photoset)
 }
+

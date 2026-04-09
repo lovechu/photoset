@@ -23,12 +23,37 @@
       <span v-if="!data.is_free && data.price" class="price">
         ¥{{ data.price.toFixed(2) }}
       </span>
+      <!-- 删除按钮 -->
+      <div class="card-actions" v-if="isCreatorItem" @click.prevent>
+        <el-dropdown size="small" @command="(cmd) => cmd === 'delete' && handleDelete()">
+          <el-button text circle>
+            <el-icon><More /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="delete">
+                <el-icon color="#f56c6c"><Delete /></el-icon>
+                <span style="color: #f56c6c; margin-left: 8px">删除</span>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
     </div>
 
-    <!-- 卡片内容 -->
-    <div class="card-content">
-      <h3 class="card-title">{{ data.title }}</h3>
-      <p class="card-desc">{{ data.description || '暂无描述' }}</p>
+<!-- 卡片内容 -->
+  <div class="card-content">
+    <h3 class="card-title">
+      <!-- 关键词高亮 -->
+      <span v-if="searchKeyword && titleHighlighted" v-html="titleHighlighted"></span>
+      <span v-else>{{ data.title }}</span>
+    </h3>
+    <p class="card-desc" v-if="searchKeyword && descriptionHighlighted">
+      <span v-html="descriptionHighlighted"></span>
+    </p>
+    <p class="card-desc" v-else>
+      {{ data.description || '暂无描述' }}
+    </p>
 
       <!-- 标签 -->
       <div class="card-tags" v-if="data.tags?.length">
@@ -58,18 +83,90 @@
 </template>
 
 <script setup>
-import { Picture, PictureFilled } from '@element-plus/icons-vue'
+import { computed } from 'vue'
+import { Picture, PictureFilled, More, Delete } from '@element-plus/icons-vue'
+import { ElMessageBox, ElMessage } from 'element-plus'
+import { deletePhotoset } from '@/api'
+import { useUserStore } from '@/stores/user'
 
-defineProps({
+const props = defineProps({
   data: {
     type: Object,
     required: true
+  },
+  // 搜索关键词，用于高亮
+  searchKeyword: {
+    type: String,
+    default: ''
   }
 })
+
+const emit = defineEmits(['deleted'])
+
+const userStore = useUserStore()
+
+// 判断是否显示删除按钮
+const isCreatorItem = computed(() => {
+  return userStore.isCreatorOrAdmin && props.data.creator_id === userStore.user?.id
+})
+
+// 关键词高亮功能
+const titleHighlighted = computed(() => {
+  if (!props.searchKeyword || !props.data.title) return null
+  const keyword = props.searchKeyword.trim()
+  return highlightText(props.data.title, keyword)
+})
+
+const descriptionHighlighted = computed(() => {
+  if (!props.searchKeyword || !props.data.description) return null
+  const keyword = props.searchKeyword.trim()
+  return highlightText(props.data.description, keyword)
+})
+
+// 高亮文本函数
+function highlightText(text, keyword) {
+  if (!text || !keyword) return text
+  
+  const regex = new RegExp(`(${escapeRegExp(keyword)})`, 'gi')
+  return text.replace(regex, '<span class="highlight">$1</span>')
+}
+
+// 转义正则表达式特殊字符
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+const handleDelete = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '确定要删除这个套图吗？删除后无法恢复。',
+      '确认删除',
+      {
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+
+    await deletePhotoset(props.data.id)
+    ElMessage.success('删除成功')
+    emit('deleted', props.data.id)
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(error?.response?.data?.error || '删除失败')
+    }
+  }
+}
 </script>
 
 <style scoped>
-.photoset-card {
+.photoset-card .highlight {
+  background-color: #fff9c4;
+  padding: 1px 2px;
+  border-radius: 3px;
+  color: #d32f2f;
+  font-weight: 600;
+}
   display: block;
   background: #fff;
   border-radius: 12px;
@@ -139,6 +236,13 @@ defineProps({
   border-radius: 4px;
   font-size: 13px;
   font-weight: 600;
+}
+
+.card-actions {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
 }
 
 .card-content {

@@ -49,6 +49,16 @@
                 <Star v-else />
               </el-icon>
             </span>
+            <!-- 只对 creator 和 admin 显示编辑按钮 -->
+            <el-button
+              v-if="userStore.isCreatorOrAdmin && (detail.user_id === userStore.user?.id || userStore.user?.role === 'admin')"
+              type="primary"
+              plain
+              :icon="Edit"
+              @click="$router.push(`/photoset/${detail.id}/edit`)"
+            >
+              编辑套图
+            </el-button>
           </div>
           <p class="detail-desc" v-if="detail.description">
             {{ detail.description }}
@@ -139,7 +149,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { getPhotosetDetail, addFavorite, removeFavorite } from '@/api'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, Picture, Lock, Star, StarFilled } from '@element-plus/icons-vue'
+import { ArrowLeft, Picture, Lock, Star, StarFilled, Edit } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()

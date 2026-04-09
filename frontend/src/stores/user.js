@@ -46,6 +46,15 @@ export const useUserStore = defineStore('user', () => {
     return ['member', 'creator', 'admin'].includes(user.value?.role)
   })
 
+  // 计算属性：会员过期时间
+  const membershipExpires = computed(() => user.value?.membership_expires)
+
+  // 计算属性：会员是否有效
+  const isMembershipActive = computed(() => {
+    if (!membershipExpires.value) return false
+    return new Date(membershipExpires.value) > new Date()
+  })
+
   // 登录
   const login = async (data) => {
     const res = await apiLogin(data)
@@ -78,6 +87,14 @@ export const useUserStore = defineStore('user', () => {
     localStorage.setItem('photoset_user', JSON.stringify(user.value))
   }
 
+  // 支付订单后更新用户状态（接收后端返回的新 token + 用户信息）
+  const afterPayment = (newToken, userData) => {
+    token.value = newToken
+    user.value = userData
+    localStorage.setItem('photoset_token', newToken)
+    localStorage.setItem('photoset_user', JSON.stringify(userData))
+  }
+
   return {
     user,
     token,
@@ -85,10 +102,13 @@ export const useUserStore = defineStore('user', () => {
     isCreatorOrAdmin,
     isAdmin,
     isMember,
+    membershipExpires,
+    isMembershipActive,
     init,
     login,
     register,
     logout,
-    updateUser
+    updateUser,
+    afterPayment
   }
 })

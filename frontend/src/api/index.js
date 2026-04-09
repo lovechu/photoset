@@ -59,6 +59,24 @@ export function createPhotoset(data) {
   return request.post('/photosets', data)
 }
 
+/**
+ * 更新套图
+ * 需要 creator 或 admin 权限，且为套图所有者
+ * @param {Number} id 套图 ID
+ * @param {Object} data 套图数据
+ */
+export function updatePhotoset(id, data) {
+  return request.put(`/photosets/${id}`, data)
+}
+
+/**
+ * 删除套图
+ * @param {Number} id 套图ID
+ */
+export function deletePhotoset(id) {
+  return request.delete(`/photosets/${id}`)
+}
+
 // ============ 标签模块 ============
 
 /**
@@ -116,4 +134,48 @@ export function uploadImage(file) {
   return request.post('/upload/image', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   })
+}
+
+// ============ 会员模块 ============
+
+/**
+ * 获取会员套餐列表（公开接口）
+ */
+export function getMemberships() {
+  return request.get('/memberships')
+}
+
+// ============ 订单模块 ============
+
+/**
+ * 创建订单（会员订阅或单套图购买）
+ * @param {Object} data { type: 'membership'|'single', membership_id?: number, photoset_id?: number }
+ */
+export function createOrder(data) {
+  return request.post('/orders', data)
+}
+
+/**
+ * 模拟支付订单（开发环境用）
+ * @param {Number} id 订单 ID
+ * @returns { token, order } 返回新 Token（角色可能变更）
+ */
+export function payOrder(id) {
+  return request.post(`/orders/${id}/pay`)
+}
+
+/**
+ * 获取我的订单列表
+ * @param {Object} params { page, page_size }
+ */
+export function getOrders(params) {
+  return request.get('/orders', { params })
+}
+
+/**
+ * 申请订单退款
+ * @param {Number} id 订单ID
+ */
+export function refundOrder(id) {
+  return request.post(`/orders/${id}/refund`)
 }

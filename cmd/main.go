@@ -26,8 +26,27 @@ func main() {
 		&domain.PhotoSet{},
 		&domain.Photo{},
 		&domain.Tag{},
+		&domain.Favorite{},
+		&domain.MembershipPlan{},
+		&domain.Order{},
 	); err != nil {
 		log.Fatalf("Failed to auto migrate: %v", err)
+	}
+
+	// 确保 FULLTEXT 索引存在（容错方式）
+	var count int64
+	database.GetMySQL().Raw(`
+		SELECT COUNT(*) FROM information_schema.STATISTICS
+		WHERE table_schema = DATABASE() AND table_name = 'photosets'
+		AND index_name = 'ft_title_description'
+	`).Scan(&count)
+	if count == 0 {
+		if err := database.GetMySQL().Exec(`
+			CREATE FULLTEXT INDEX ft_title_description
+			ON photosets (title, description) WITH PARSER ngram
+		`).Error; err != nil {
+			log.Printf("Warning: Failed to create FULLTEXT index: %v", err)
+		}
 	}
 
 	// 初始化 Redis

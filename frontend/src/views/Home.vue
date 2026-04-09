@@ -40,6 +40,7 @@
         v-for="item in photosets"
         :key="item.id"
         :data="item"
+        :search-keyword="keyword"
         class="card-hover"
       />
     </div>

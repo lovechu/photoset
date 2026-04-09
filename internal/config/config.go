@@ -43,13 +43,17 @@ type JWTConfig struct {
 }
 
 type StorageConfig struct {
-	Type          string
-	LocalPath     string
-	S3Endpoint    string
-	S3AccessKey   string
-	S3SecretKey   string
-	S3Bucket      string
-	S3Region      string
+	Type        string
+	LocalPath   string
+	S3Endpoint  string
+	S3AccessKey string
+	S3SecretKey string
+	S3Bucket    string
+	S3Region    string
+	R2AccountID string // Cloudflare Account ID
+	R2PublicURL string // R2 自定义域名，如 https://assets.example.com
+	SignSecret  string // URL 签名密钥
+	SignExpire  int    // 签名过期时间（秒），默认 7200（2小时）
 }
 
 func Load() *Config {
@@ -88,6 +92,10 @@ func Load() *Config {
 			S3SecretKey: getEnv("S3_SECRET_KEY", ""),
 			S3Bucket:    getEnv("S3_BUCKET", ""),
 			S3Region:    getEnv("S3_REGION", ""),
+			R2AccountID: getEnv("R2_ACCOUNT_ID", ""),
+			R2PublicURL: getEnv("R2_PUBLIC_URL", ""),
+			SignSecret:  getEnv("SIGN_SECRET", "default-sign-secret-change-me"),
+			SignExpire:  getEnvAsInt("SIGN_EXPIRE", 7200),
 		},
 	}
 }

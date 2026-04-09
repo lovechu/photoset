@@ -1,0 +1,183 @@
+<template>
+  <div v-loading="loading || chartLoading" class="dashboard">
+    <!-- 统计数据卡片 -->
+    <el-row :gutter="20" style="margin-bottom: 24px">
+      <el-col :span="3" v-for="item in statCards" :key="item.key">
+        <el-card
+          shadow="hover"
+          :class="['stat-card', { 'stat-card--alert': item.key === 'pending_reviews' && stats.pending_reviews > 0 }]"
+        >
+          <div class="stat-card__icon" :style="{ backgroundColor: item.color + '15', color: item.color }">
+            <el-icon :size="24"><component :is="item.icon" /></el-icon>
+          </div>
+          <el-statistic
+            :value="formatStatValue(stats[item.key], item.format)"
+            :precision="item.precision || 0"
+            :prefix="item.prefix || ''"
+          />
+          <div class="stat-card__label">{{ item.label }}</div>
+          <div class="stat-card__trend" v-if="item.trend && stats[item.key + '_trend'] !== undefined">
+            <el-text :type="stats[item.key + '_trend'] >= 0 ? 'success' : 'danger'" size="small">
+              <el-icon v-if="stats[item.key + '_trend'] >= 0" size="12"><CaretTop /></el-icon>
+              <el-icon v-else size="12"><CaretBottom /></el-icon>
+              {{ Math.abs(stats[item.key + '_trend']) }}%
+            </el-text>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- 图表区域 -->
+    <el-row :gutter="20" style="margin-bottom: 24px">
+      <!-- 收入趋势图 -->
+      <el-col :span="16">
+        <el-card shadow="hover">
+          <template #header>
+            <div class="chart-header">
+              <span>收入趋势</span>
+              <el-select v-model="chartTimeRange" placeholder="时间范围" size="small" @change="fetchChartData">
+                <el-option label="最近7天" value="7d" />
+                <el-option label="最近30天" value="30d" />
+                <el-option label="最近90天" value="90d" />
+              </el-select>
+            </div>
+          </template>
+          <div class="chart-container" style="height: 320px">
+            <div v-if="revenueChartData.datasets[0].data.length === 0" class="chart-empty">
+              <el-empty description="暂无数据" />
+            </div>
+            <canvas ref="revenueChartRef"></canvas>
+          </div>
+        </el-card>
+      </el-col>
+      
+      <!-- 订单类型分布 -->
+      <el-col :span="8">
+        <el-card shadow="hover">
+          <template #header>
+            <span>订单类型分布</span>
+          </template>
+          <div class="chart-container" style="height: 320px">
+            <div v-if="Object.keys(orderTypeStats).length === 0" class="chart-empty">
+              <el-empty description="暂无数据" />
+            </div>
+            <canvas ref="orderTypeChartRef"></canvas>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- 近期活动 -->
+    <el-row>
+      <el-col :span="24">
+        <el-card shadow="hover">
+          <template #header>
+            <span>近期活动</span>
+          </template>
+          <el-table :data="recentActivities" style="width: 100%" stripe>
+            <el-table-column prop="time" label="时间" width="160">
+              <template #default="{ row }">
+                {{ row.time ? row.time : '--' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="type" label="类型" width="100">
+              <template #default="{ row }">
+                <el-tag :type="activityTypeTag(row.type)" size="small">
+                  {{ activityTypeLabel(row.type) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="content" label="内容" min-width="200" />
+            <el-table-column prop="user" label="用户" width="120">
+              <template #default="{ row }">
+                <el-text v-if="row.user">{{ row.user.nickname }}</el-text>
+                <el-text v-else type="info">系统</el-text>
+              </template>
+            </el-table-column>
+            <el-table-column prop="amount" label="金额" width="100" align="right">
+              <template #default="{ row }">
+                <template v-if="row.amount">
+                  ¥{{ (row.amount / 100).toFixed(2) }}
+                </template>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </el-col>
+    </el-row>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive, onMounted } from 'vue'
+import { getStats } from '@/api'
+import { User, PictureFilled, ShoppingCart, Money, Warning } from '@element-plus/icons-vue'
+
+const loading = ref(false)
+
+const stats = reactive({
+  total_users: 0,
+  total_photosets: 0,
+  total_orders: 0,
+  total_revenue: 0,
+  pending_reviews: 0
+})
+
+const statCards = [
+  { key: 'total_users', label: '总用户数', icon: User, color: '#409EFF' },
+  { key: 'total_photosets', label: '总套图数', icon: PictureFilled, color: '#67C23A' },
+  { key: 'total_orders', label: '总订单数', icon: ShoppingCart, color: '#E6A23C' },
+  { key: 'total_revenue', label: '总收入', icon: Money, color: '#F56C6C', prefix: '¥', precision: 2 },
+  { key: 'pending_reviews', label: '待审核', icon: Warning, color: '#F56C6C' }
+]
+
+async function fetchStats() {
+  loading.value = true
+  try {
+    const res = await getStats()
+    Object.assign(stats, res.data)
+  } catch {
+    // handled by interceptor
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(fetchStats)
+</script>
+
+<style scoped>
+.dashboard {
+  padding: 4px 0;
+}
+
+.stat-card {
+  text-align: center;
+  border-radius: 12px;
+  transition: all 0.3s;
+}
+
+.stat-card:hover {
+  transform: translateY(-4px);
+}
+
+.stat-card--alert {
+  border: 2px solid #F56C6C;
+}
+
+.stat-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+
+.stat-card__label {
+  margin-top: 8px;
+  font-size: 14px;
+  color: #909399;
+}
+</style>

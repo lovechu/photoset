@@ -14,6 +14,10 @@
           <el-icon><Plus /></el-icon>
           创建套图
         </router-link>
+        <router-link v-if="userStore.isLoggedIn && !userStore.isMember" to="/membership" class="nav-item vip">
+          <el-icon><Crown /></el-icon>
+          开通会员
+        </router-link>
       </nav>
 
       <!-- 用户状态 -->
@@ -33,6 +37,12 @@
               <el-dropdown-menu>
                 <el-dropdown-item command="profile">
                   <el-icon><User /></el-icon>个人中心
+                </el-dropdown-item>
+                <el-dropdown-item command="membership" v-if="userStore.isLoggedIn">
+                  <el-icon><Crown /></el-icon>会员中心
+                </el-dropdown-item>
+                <el-dropdown-item command="orders" v-if="userStore.isLoggedIn">
+                  <el-icon><Tickets /></el-icon>我的订单
                 </el-dropdown-item>
                 <el-dropdown-item divided command="logout">
                   <el-icon><SwitchButton /></el-icon>退出登录
@@ -67,6 +77,8 @@
         </router-link>
         <template v-if="userStore.isLoggedIn">
           <a @click="router.push('/profile'); mobileMenuVisible = false">个人中心</a>
+          <a v-if="!userStore.isMember" @click="router.push('/membership'); mobileMenuVisible = false">开通会员</a>
+          <a @click="router.push('/orders'); mobileMenuVisible = false">我的订单</a>
           <a @click="handleCommand('logout'); mobileMenuVisible = false">退出登录</a>
         </template>
         <template v-else>
@@ -82,7 +94,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { Camera, Plus, User, SwitchButton, Menu, Close } from '@element-plus/icons-vue'
+import { Camera, Plus, User, SwitchButton, Menu, Close, Crown, Tickets } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
@@ -108,6 +120,12 @@ const handleCommand = (command) => {
       break
     case 'profile':
       router.push('/profile')
+      break
+    case 'membership':
+      router.push('/membership')
+      break
+    case 'orders':
+      router.push('/orders')
       break
   }
 }

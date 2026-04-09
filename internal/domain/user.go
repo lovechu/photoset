@@ -28,6 +28,7 @@ type User struct {
 	Role         UserRole  `gorm:"type:varchar(20);default:'user';not null" json:"role"`
 	Status       int       `gorm:"type:tinyint;default:1;comment:1-active,0-inactive" json:"status"`
 	LastLoginAt  *time.Time `json:"last_login_at"`
+	MembershipExpires *time.Time `gorm:"index" json:"membership_expires"` // 会员过期时间，nil 表示非会员
 }
 
 func (User) TableName() string {
