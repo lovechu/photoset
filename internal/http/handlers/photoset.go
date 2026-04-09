@@ -23,11 +23,20 @@ func NewPhotoSetHandler(service *service.PhotoSetService) *PhotoSetHandler {
 
 // ListRequest 套图列表请求
 type ListRequest struct {
-	Page     int    `form:"page" binding:"min=1"`
-	PageSize int    `form:"page_size" binding:"min=1,max=100"`
-	Tag      string `form:"tag"`
-	Mine     bool   `form:"mine"`
-	Keyword  string `form:"keyword"`
+	Page      int     `form:"page" binding:"min=1"`
+	PageSize  int     `form:"page_size" binding:"min=1,max=100"`
+	Tag       string  `form:"tag"`
+	Mine      bool    `form:"mine"`
+	Keyword   string  `form:"keyword"`
+	
+	// 高级筛选参数
+	Category   string   `form:"category"`
+	PriceMin   float64  `form:"price_min"`
+	PriceMax   float64  `form:"price_max"`
+	IsFree     *bool    `form:"is_free"`
+	SortBy     string   `form:"sort_by"`
+	TimeRange  string   `form:"time_range"`
+	UserID     uint     `form:"user_id"`
 }
 
 // CreateRequest 创建套图请求
@@ -40,6 +49,7 @@ type CreateRequest struct {
 	Tags        []string `json:"tags"`
 	Photos      []Photo  `json:"photos"`
 	Status      string   `json:"status" binding:"oneof=draft published pending"`
+	Category    string   `json:"category"` // 分类 slug
 }
 
 // Photo 图片信息
@@ -48,7 +58,7 @@ type Photo struct {
 	SortOrder int    `json:"sort_order"`
 }
 
-// List 套图列表
+// List 套图列表（基础版本，向后兼容）
 func (h *PhotoSetHandler) List(c *gin.Context) {
 	var req ListRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -70,7 +80,12 @@ func (h *PhotoSetHandler) List(c *gin.Context) {
 		userID = uid.(uint)
 	}
 
-	photosets, total, err := h.service.GetPhotoSetList(req.Page, req.PageSize, req.Tag, req.Keyword, userID, req.Mine)
+	// 调用基础搜索（只使用基础的tag和keyword参数）
+	photosets, total, err := h.service.GetPhotoSetList(
+		req.Page, req.PageSize, 
+		req.Tag, req.Keyword,
+		userID, req.Mine,
+	)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "获取套图列表失败")
 		return
@@ -148,6 +163,7 @@ type UpdateRequest struct {
 	Tags        []string `json:"tags"`
 	Photos      []Photo  `json:"photos"`
 	Status      string   `json:"status" binding:"oneof=draft published pending"`
+	Category    string   `json:"category"` // 分类 slug
 }
 
 // Update 更新套图（creator 更新自己的 / admin 更新任意）
@@ -189,6 +205,7 @@ func (h *PhotoSetHandler) Update(c *gin.Context) {
 		"is_free":     req.IsFree,
 		"price":       req.Price,
 		"status":      req.Status,
+		"category":    req.Category, // <-- 新增
 	}
 	if err := h.service.UpdatePhotoSet(uint(id), updates, req.Tags, toPhotos(req.Photos, uint(id))); err != nil {
 		response.Error(c, http.StatusInternalServerError, "更新失败: "+err.Error())
@@ -243,6 +260,71 @@ func toPhotos(ps []Photo, photosetID uint) []domain.Photo {
 	return result
 }
 
+// AdvancedList 高级搜索套图列表
+func (h *PhotoSetHandler) AdvancedList(c *gin.Context) {
+	var req ListRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "参数错误: "+err.Error())
+		return
+	}
+
+	// 默认值
+	if req.Page == 0 {
+		req.Page = 1
+	}
+	if req.PageSize == 0 {
+		req.PageSize = 20
+	}
+
+	// 获取当前用户ID（可选）
+	var userID uint
+	if uid, exists := c.Get("user_id"); exists {
+		userID = uid.(uint)
+	}
+
+	// 对于"仅我的作品"筛选，需要使用当前用户ID
+	var filterUserID uint
+	var onlyMine bool
+	
+	if req.Mine && userID > 0 {
+		onlyMine = true
+	} else if req.UserID > 0 {
+		filterUserID = req.UserID
+		onlyMine = true
+	}
+
+	photosets, total, err := h.service.GetPhotoSetListAdvanced(
+		req.Page, req.PageSize, 
+		req.Tag, req.Keyword, 
+		userID, onlyMine,
+		req.Category, req.PriceMin, req.PriceMax, req.IsFree, 
+		req.SortBy, req.TimeRange, filterUserID,
+	)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "获取套图列表失败")
+		return
+	}
+
+	response.Success(c, gin.H{
+		"list":      photosets,
+		"total":     total,
+		"page":      req.Page,
+		"page_size": req.PageSize,
+		"has_advanced_filters": hasAdvancedFilters(req),
+	})
+}
+
+// 检查是否有高级筛选参数
+func hasAdvancedFilters(req ListRequest) bool {
+	return req.Category != "" ||
+		req.PriceMin > 0 ||
+		req.PriceMax > 0 ||
+		req.IsFree != nil ||
+		(req.SortBy != "" && req.SortBy != "latest") ||
+		req.TimeRange != "" ||
+		req.UserID > 0
+}
+
 // Create 创建套图
 func (h *PhotoSetHandler) Create(c *gin.Context) {
 	var req CreateRequest
@@ -267,6 +349,7 @@ func (h *PhotoSetHandler) Create(c *gin.Context) {
 		Price:       req.Price,
 		UserID:      userID.(uint),
 		Status:      req.Status,
+		Category:    req.Category, // <-- 新增
 	}
 
 	// 转换图片

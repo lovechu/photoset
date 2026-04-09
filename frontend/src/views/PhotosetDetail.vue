@@ -73,6 +73,11 @@
               {{ tag.name }}
             </el-tag>
           </div>
+
+          <!-- 分类 -->
+          <div class="detail-category" v-if="detail.category">
+            <span class="category-label">分类：{{ detail.category }}</span>
+          </div>
         </div>
       </div>
 
@@ -349,6 +354,18 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 
+.detail-category {
+  margin-bottom: 12px;
+}
+.detail-category .category-label {
+  display: inline-block;
+  padding: 4px 12px;
+  background: linear-gradient(135deg, #fff7e6 0%, #fef0d8 100%);
+  color: #ad6800;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+}
 .detail-tags {
   display: flex;
   flex-wrap: wrap;

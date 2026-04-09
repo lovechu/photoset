@@ -15,6 +15,7 @@ type PhotoSet struct {
 	Price       float64   `gorm:"type:decimal(10,2);default:0" json:"price"`
 	UserID      uint      `gorm:"not null" json:"user_id"`
 	Status      string    `gorm:"size:20;default:draft;comment:draft,published,pending" json:"status"`
+	Category    string    `gorm:"size:50;default:'';index" json:"category"` // 分类 slug，如 'nature'
 
 	// 非数据库字段
 	IsFavorited bool `gorm:"-" json:"is_favorited"` // 是否已收藏

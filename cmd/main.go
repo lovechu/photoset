@@ -26,6 +26,7 @@ func main() {
 		&domain.PhotoSet{},
 		&domain.Photo{},
 		&domain.Tag{},
+		&domain.Category{},       // <-- 新增
 		&domain.Favorite{},
 		&domain.MembershipPlan{},
 		&domain.Order{},

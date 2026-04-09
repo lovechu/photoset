@@ -44,6 +44,7 @@ func Setup(r *gin.Engine) {
 	photosetService := service.NewPhotoSetService(photosetRepo, orderRepo)
 	photosetHandler := handlers.NewPhotoSetHandler(photosetService)
 	tagHandler := handlers.NewTagHandler(photosetService)
+	categoryHandler := handlers.NewCategoryHandler(photosetService)
 
 	// 收藏路由
 	favRepo := repository.NewFavoriteRepository(database.GetMySQL())
@@ -65,7 +66,10 @@ func Setup(r *gin.Engine) {
 		// 套图路由
 		photosets := api.Group("/photosets")
 		{
+			// 基础搜索路由（向后兼容）
 			photosets.GET("", middleware.OptionalAuth(), photosetHandler.List)
+			// 高级搜索路由（更清晰的API接口）
+			photosets.GET("/advanced", middleware.OptionalAuth(), photosetHandler.AdvancedList)
 			photosets.GET("/:id", middleware.OptionalAuth(), photosetHandler.Detail)
 			photosets.POST("", middleware.Auth(), middleware.RequireRoles("creator", "admin"), photosetHandler.Create)
 			photosets.PUT("/:id", middleware.Auth(), middleware.RequireRoles("creator", "admin"), photosetHandler.Update)
@@ -74,6 +78,9 @@ func Setup(r *gin.Engine) {
 
 		// 标签路由
 		api.GET("/tags", tagHandler.List)
+
+		// 分类公开路由（供高级搜索使用，无需登录）
+		api.GET("/categories", categoryHandler.List)
 
 		// 收藏路由
 		favorites := api.Group("/favorites")
@@ -123,6 +130,12 @@ func Setup(r *gin.Engine) {
 			admin.PUT("/users/:id/ban", adminHandler.BanUser)
 			admin.GET("/stats", adminHandler.Stats)
 			admin.POST("/orders/:id/refund", adminHandler.AdminRefund)
+
+			// 分类管理 CRUD
+			admin.GET("/categories", categoryHandler.AdminList)
+			admin.POST("/categories", categoryHandler.Create)
+			admin.PUT("/categories/:id", categoryHandler.Update)
+			admin.DELETE("/categories/:id", categoryHandler.Delete)
 		}
 	}
 }

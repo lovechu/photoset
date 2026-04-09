@@ -83,10 +83,29 @@ func (s *PhotoSetService) CreatePhotoSet(photoset *domain.PhotoSet, tagNames []s
 	return nil
 }
 
-// GetPhotoSetList 获取套图列表（带 Redis 缓存）
+// GetPhotoSetList 获取套图列表（带 Redis 缓存）- 兼容旧接口
 func (s *PhotoSetService) GetPhotoSetList(page, pageSize int, tag string, keyword string, userID uint, onlyMine bool) ([]domain.PhotoSet, int64, error) {
+	return s.GetPhotoSetListAdvanced(page, pageSize, tag, keyword, userID, onlyMine, "", 0, 0, nil, "", "", 0)
+}
+
+// GetPhotoSetListAdvanced 高级套图列表查询（带 Redis 缓存）
+func (s *PhotoSetService) GetPhotoSetListAdvanced(
+	page, pageSize int,
+	tag string, keyword string,
+	userID uint, onlyMine bool,
+	category string,
+	priceMin, priceMax float64,
+	isFree *bool,
+	sortBy, timeRange string,
+	filterUserID uint,
+) ([]domain.PhotoSet, int64, error) {
+	// 生成高级缓存键
+	cacheKey := PhotosetAdvancedListCacheKey(
+		page, pageSize, tag, keyword, userID, onlyMine,
+		category, priceMin, priceMax, isFree, sortBy, timeRange, filterUserID,
+	)
+	
 	// 只缓存非"我的"列表（mine=true 不缓存，数据个性化）
-	cacheKey := PhotosetListCacheKey(page, pageSize, tag, keyword)
 	if !onlyMine {
 		ctx := context.Background()
 		var cached struct {
@@ -98,7 +117,11 @@ func (s *PhotoSetService) GetPhotoSetList(page, pageSize int, tag string, keywor
 		}
 	}
 
-	photosets, total, err := s.repo.List(page, pageSize, tag, keyword, userID, onlyMine)
+	// 调用增强的 Repository 方法
+	photosets, total, err := s.repo.ListAdvanced(
+		page, pageSize, tag, keyword, userID, onlyMine,
+		category, priceMin, priceMax, isFree, sortBy, timeRange, filterUserID,
+	)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -221,6 +244,7 @@ func (s *PhotoSetService) UpdatePhotoSet(id uint, updates map[string]interface{}
 	s.InvalidatePhotosetCache(id)
 	s.InvalidateAllPhotosetListCache()
 	s.InvalidateTagsCache()
+	s.InvalidateCategoriesCache()
 
 	return nil
 }
@@ -233,6 +257,7 @@ func (s *PhotoSetService) DeletePhotoSet(id uint) error {
 	s.InvalidatePhotosetCache(id)
 	s.InvalidateAllPhotosetListCache()
 	s.InvalidateTagsCache()
+	s.InvalidateCategoriesCache()
 	return nil
 }
 
@@ -255,4 +280,60 @@ func (s *PhotoSetService) InvalidateAllPhotosetListCache() {
 func (s *PhotoSetService) InvalidateTagsCache() {
 	ctx := context.Background()
 	s.cacheService.Delete(ctx, CachePrefixTags)
+}
+
+// ============ Category 服务层 ============
+
+// GetAllCategories 获取所有分类（带 Redis 缓存 30 分钟）
+func (s *PhotoSetService) GetAllCategories() ([]domain.Category, error) {
+	ctx := context.Background()
+	cacheKey := "categories:all"
+
+	var cached []domain.Category
+	if err := s.cacheService.Get(ctx, cacheKey, &cached); err == nil {
+		return cached, nil
+	}
+
+	categories, err := s.repo.ListCategories()
+	if err != nil {
+		return nil, err
+	}
+
+	s.cacheService.Set(ctx, cacheKey, categories, 30*time.Minute)
+	return categories, nil
+}
+
+// CreateCategory 创建分类 + 清缓存
+func (s *PhotoSetService) CreateCategory(cat *domain.Category) error {
+	if err := s.repo.CreateCategory(cat); err != nil {
+		return err
+	}
+	s.InvalidateCategoriesCache()
+	return nil
+}
+
+// UpdateCategory 更新分类 + 清缓存
+func (s *PhotoSetService) UpdateCategory(id uint, updates map[string]interface{}) error {
+	if err := s.repo.UpdateCategory(id, updates); err != nil {
+		return err
+	}
+	s.InvalidateCategoriesCache()
+	s.InvalidateAllPhotosetListCache()
+	return nil
+}
+
+// DeleteCategory 删除分类 + 清缓存
+func (s *PhotoSetService) DeleteCategory(id uint) error {
+	if err := s.repo.DeleteCategory(id); err != nil {
+		return err
+	}
+	s.InvalidateCategoriesCache()
+	s.InvalidateAllPhotosetListCache()
+	return nil
+}
+
+// InvalidateCategoriesCache 清除分类列表缓存
+func (s *PhotoSetService) InvalidateCategoriesCache() {
+	ctx := context.Background()
+	s.cacheService.Delete(ctx, "categories:all")
 }

@@ -67,6 +67,11 @@
         </el-tag>
       </div>
 
+      <!-- 分类 -->
+      <div v-if="data.category" class="card-category">
+        <span class="category-label">{{ data.category }}</span>
+      </div>
+
       <!-- 作者信息 -->
       <div class="card-author">
         <el-avatar :size="24">
@@ -277,6 +282,19 @@ const handleDelete = async () => {
 
 .card-tags :deep(.el-tag) {
   margin: 0;
+}
+
+.card-category {
+  margin-bottom: 10px;
+}
+.category-label {
+  display: inline-block;
+  padding: 2px 10px;
+  background: #fdf6ec;
+  color: #e6a23c;
+  border: 1px solid #faecd8;
+  border-radius: 4px;
+  font-size: 12px;
 }
 
 .card-author {

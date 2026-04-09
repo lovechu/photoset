@@ -81,6 +81,13 @@
           </el-select>
         </el-form-item>
 
+        <!-- 分类 -->
+        <el-form-item label="分类">
+          <el-select v-model="form.category" placeholder="选择分类（可选）" clearable style="width: 100%">
+            <el-option v-for="cat in availableCategories" :key="cat.slug" :label="cat.name" :value="cat.slug" />
+          </el-select>
+        </el-form-item>
+
         <!-- 免费/付费 -->
         <el-form-item label="收费方式" prop="is_free">
           <el-radio-group v-model="form.is_free">
@@ -177,7 +184,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { createPhotoset, getTags, uploadImage } from '@/api'
+import { createPhotoset, getTags, uploadImage, getCategories } from '@/api'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
 import { Delete, Plus, UploadFilled } from '@element-plus/icons-vue'
@@ -189,6 +196,7 @@ const formRef = ref(null)
 const loading = ref(false)
 const previewCover = ref(false)
 const availableTags = ref([])
+const availableCategories = ref([])
 const coverInputRef = ref(null)
 
 const form = reactive({
@@ -198,6 +206,7 @@ const form = reactive({
   tags: [],
   is_free: 1,
   price: 0,
+  category: '',
   photos: [],
   status: 'published'
 })
@@ -238,6 +247,16 @@ const loadTags = async () => {
     availableTags.value = res.data || []
   } catch (e) {
     console.error('加载标签失败', e)
+  }
+}
+
+// 加载分类列表
+const loadCategories = async () => {
+  try {
+    const res = await getCategories()
+    availableCategories.value = res.data || []
+  } catch (e) {
+    console.error('加载分类失败', e)
   }
 }
 
@@ -309,7 +328,8 @@ const handleSubmit = async () => {
       is_free: form.is_free,
       price: form.is_free === 1 ? 0 : (form.price || 0),
       photos: validPhotos,
-      status: form.status
+      status: form.status,
+      category: form.category || ''
     }
 
     const res = await createPhotoset(data)
@@ -333,6 +353,7 @@ onMounted(() => {
     return
   }
   loadTags()
+  loadCategories()
 })
 </script>
 

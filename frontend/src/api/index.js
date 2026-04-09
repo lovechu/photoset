@@ -34,11 +34,23 @@ export function getCurrentUser() {
 // ============ 套图模块 ============
 
 /**
- * 获取套图列表
- * @param {Object} params { page, page_size, tag }
+ * 获取套图列表（基础版 - 向后兼容）
+ * @param {Object} params { page, page_size, tag, keyword, mine }
  */
 export function getPhotosetList(params) {
   return request.get('/photosets', { params })
+}
+
+/**
+ * 获取套图列表（高级版 - 支持所有筛选参数）
+ * @param {Object} params {
+ *   page, page_size, tag, keyword,
+ *   category, price_min, price_max, is_free,
+ *   sort_by, time_range, user_id, only_mine
+ * }
+ */
+export function getPhotosetListAdvanced(params) {
+  return request.get('/photosets/advanced', { params })
 }
 
 /**
@@ -84,6 +96,13 @@ export function deletePhotoset(id) {
  */
 export function getTags() {
   return request.get('/tags')
+}
+
+/**
+ * 获取所有分类（公开接口，供高级搜索和上传表单使用）
+ */
+export function getCategories() {
+  return request.get('/categories')
 }
 
 // ============ 健康检查 ============

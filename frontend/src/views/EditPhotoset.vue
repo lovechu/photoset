@@ -49,6 +49,13 @@
           </el-select>
         </el-form-item>
 
+        <!-- 分类 -->
+        <el-form-item label="分类">
+          <el-select v-model="form.category" placeholder="选择分类（可选）" clearable style="width: 100%">
+            <el-option v-for="cat in availableCategories" :key="cat.slug" :label="cat.name" :value="cat.slug" />
+          </el-select>
+        </el-form-item>
+
         <!-- 免费/付费 -->
         <el-form-item label="收费方式" prop="is_free">
           <el-radio-group v-model="form.is_free">
@@ -104,7 +111,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { getPhotosetDetail, updatePhotoset, getTags, uploadImage } from '@/api'
+import { getPhotosetDetail, updatePhotoset, getTags, uploadImage, getCategories } from '@/api'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
 import { Delete, Plus, UploadFilled } from '@element-plus/icons-vue'
@@ -118,6 +125,7 @@ const formRef = ref(null)
 const loading = ref(false)
 const pageLoading = ref(true)
 const availableTags = ref([])
+const availableCategories = ref([])
 const coverInputRef = ref(null)
 
 const form = reactive({
@@ -127,6 +135,7 @@ const form = reactive({
   tags: [],
   is_free: 1,
   price: 0,
+  category: '',
   photos: [],
   status: 'published'
 })
@@ -143,9 +152,10 @@ const rules = {
 // 加载现有数据回填
 const loadData = async () => {
   try {
-    const [detailRes, tagsRes] = await Promise.all([
+    const [detailRes, tagsRes, catRes] = await Promise.all([
       getPhotosetDetail(photosetId),
-      getTags()
+      getTags(),
+      getCategories()
     ])
     const ps = detailRes.data
     form.title = ps.title
@@ -154,9 +164,11 @@ const loadData = async () => {
     form.is_free = ps.is_free
     form.price = ps.price || 0
     form.status = ps.status
+    form.category = ps.category || ''
     form.tags = (ps.tags || []).map(t => t.name)
     form.photos = (ps.photos || []).map(p => ({ url: p.url, sort_order: p.sort_order }))
     availableTags.value = tagsRes.data || []
+    availableCategories.value = catRes.data || []
   } catch (e) {
     ElMessage.error('加载套图数据失败')
     router.back()
@@ -210,7 +222,8 @@ const handleSubmit = async () => {
       is_free: form.is_free,
       price: form.is_free === 1 ? 0 : (form.price || 0),
       photos: validPhotos,
-      status: form.status
+      status: form.status,
+      category: form.category || ''
     })
     ElMessage.success('保存成功')
     router.push(`/photoset/${photosetId}`)

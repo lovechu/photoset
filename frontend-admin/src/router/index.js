@@ -44,6 +44,12 @@ const routes = [
         meta: { title: '标签管理', icon: 'PriceTag' }
       },
       {
+        path: 'categories',
+        name: 'CategoryManage',
+        component: () => import('@/views/CategoryManage.vue'),
+        meta: { title: '分类管理', icon: 'FolderOpened' }
+      },
+      {
         path: 'photoset/:id/edit',
         name: 'AdminEditPhotoset',
         component: () => import('@/views/EditPhotoset.vue')
