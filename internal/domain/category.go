@@ -12,8 +12,8 @@ type Category struct {
 	Description string    `gorm:"size:200" json:"description,omitempty"`        // 描述（可选）
 	SortOrder   int       `gorm:"default:0" json:"sort_order"`                  // 排序权重，越大越前
 
-	// 关联 - 一个分类下有多个套图
-	PhotoSets []PhotoSet `json:"photosets,omitempty"`
+	// 注意：这里不能直接包含PhotoSet切片，会导致循环引用
+	// 如果需要关联查询，应该使用单独的查询语句
 }
 
 func (Category) TableName() string {

@@ -172,6 +172,8 @@ const handleDelete = async () => {
   color: #d32f2f;
   font-weight: 600;
 }
+
+.photoset-card {
   display: block;
   background: #fff;
   border-radius: 12px;

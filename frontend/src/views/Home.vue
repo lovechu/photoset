@@ -40,8 +40,8 @@
     <!-- 标签筛选 -->
     <div class="tag-filter">
       <el-radio-group v-model="selectedTag" @change="handleTagChange">
-        <el-radio-button label="">全部</el-radio-button>
-        <el-radio-button v-for="tag in tags" :key="tag.id" :label="tag.name">
+        <el-radio-button value="">全部</el-radio-button>
+        <el-radio-button v-for="tag in tags" :key="tag.id" :value="tag.name">
           {{ tag.name }}
         </el-radio-button>
       </el-radio-group>

@@ -23,9 +23,17 @@ func (r *PhotoSetRepository) Create(photoset *domain.PhotoSet) error {
 // FindByID 根据ID查询套图
 func (r *PhotoSetRepository) FindByID(id uint) (*domain.PhotoSet, error) {
 	var photoset domain.PhotoSet
-	err := r.db.Preload("User").Preload("Photos", func(db *gorm.DB) *gorm.DB {
-		return db.Order("sort_order ASC")
-	}).Preload("Tags").First(&photoset, id).Error
+	err := r.db.Table("photosets").
+		Select(`photosets.*,
+			CASE 
+				WHEN photosets.cover != '' THEN photosets.cover
+				ELSE (SELECT url FROM photos WHERE photos.photo_set_id = photosets.id ORDER BY sort_order ASC LIMIT 1)
+			END AS cover`).
+		Preload("User").Preload("Photos", func(db *gorm.DB) *gorm.DB {
+			return db.Order("sort_order ASC")
+		}).Preload("Tags").
+		Where("photosets.id = ?", id).
+		Scan(&photoset).Error
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +59,7 @@ func (r *PhotoSetRepository) List(page, pageSize int, tag string, keyword string
 
 	// 按标签筛选
 	if tag != "" {
-		query = query.Joins("INNER JOIN photoset_tags ON photosets.id = photoset_tags.photoset_id").
+		query = query.Joins("INNER JOIN photoset_tags ON photosets.id = photoset_tags.photo_set_id").
 			Joins("INNER JOIN tags ON photoset_tags.tag_id = tags.id").
 			Where("tags.name = ?", tag)
 	}
@@ -71,10 +79,15 @@ func (r *PhotoSetRepository) List(page, pageSize int, tag string, keyword string
 		return nil, 0, err
 	}
 
-	// 分页查询，使用子查询获取 photo_count
+	// 分页查询，使用子查询获取 photo_count 和智能封面图
 	offset := (page - 1) * pageSize
 	err := r.db.Table("photosets").
-		Select("photosets.*, (SELECT COUNT(*) FROM photos WHERE photos.photo_set_id = photosets.id) AS photo_count").
+		Select(`photosets.*, 
+			(SELECT COUNT(*) FROM photos WHERE photos.photo_set_id = photosets.id) AS photo_count,
+			CASE 
+				WHEN photosets.cover != '' THEN photosets.cover
+				ELSE (SELECT url FROM photos WHERE photos.photo_set_id = photosets.id ORDER BY sort_order ASC LIMIT 1)
+			END AS cover`).
 		Preload("User").Preload("Tags").
 		Where(query).
 		Offset(offset).
@@ -107,7 +120,7 @@ func (r *PhotoSetRepository) ListAdvanced(
 
 	// 按标签筛选
 	if tag != "" {
-		query = query.Joins("INNER JOIN photoset_tags ON photosets.id = photoset_tags.photoset_id").
+		query = query.Joins("INNER JOIN photoset_tags ON photosets.id = photoset_tags.photo_set_id").
 			Joins("INNER JOIN tags ON photoset_tags.tag_id = tags.id").
 			Where("tags.name = ?", tag)
 	}
@@ -212,7 +225,12 @@ func (r *PhotoSetRepository) ListAdvanced(
 	
 	// 使用ID查询完整数据，保持排序
 	err = r.db.Table("photosets").
-		Select("photosets.*, (SELECT COUNT(*) FROM photos WHERE photos.photo_set_id = photosets.id) AS photo_count").
+		Select(`photosets.*, 
+			(SELECT COUNT(*) FROM photos WHERE photos.photo_set_id = photosets.id) AS photo_count,
+			CASE 
+				WHEN photosets.cover != '' THEN photosets.cover
+				ELSE (SELECT url FROM photos WHERE photos.photo_set_id = photosets.id ORDER BY sort_order ASC LIMIT 1)
+			END AS cover`).
 		Preload("User").Preload("Tags").
 		Where("photosets.id IN (?)", photosetIDs).
 		Order(orderBy).
@@ -256,7 +274,7 @@ func (r *PhotoSetRepository) CreatePhotos(photos []domain.Photo) error {
 func (r *PhotoSetRepository) CreatePhotoSetTags(photosetID uint, tagIDs []uint) error {
 	for _, tagID := range tagIDs {
 		photosetTag := map[string]interface{}{
-			"photoset_id": photosetID,
+			"photo_set_id": photosetID,
 			"tag_id":     tagID,
 		}
 		if err := r.db.Table("photoset_tags").Create(&photosetTag).Error; err != nil {
@@ -274,7 +292,7 @@ func (r *PhotoSetRepository) Update(id uint, updates map[string]interface{}) err
 // ReplaceTags 替换套图标签（先删后插）
 func (r *PhotoSetRepository) ReplaceTags(photosetID uint, tagNames []string) error {
 	// 删除旧关联
-	if err := r.db.Exec("DELETE FROM photoset_tags WHERE photoset_id = ?", photosetID).Error; err != nil {
+	if err := r.db.Exec("DELETE FROM photoset_tags WHERE photo_set_id = ?", photosetID).Error; err != nil {
 		return err
 	}
 	if len(tagNames) == 0 {
@@ -290,7 +308,7 @@ func (r *PhotoSetRepository) ReplaceTags(photosetID uint, tagNames []string) err
 			}
 		}
 		photosetTag := map[string]interface{}{
-			"photoset_id": photosetID,
+			"photo_set_id": photosetID,
 			"tag_id":      tag.ID,
 		}
 		r.db.Table("photoset_tags").Create(&photosetTag)
@@ -305,7 +323,7 @@ func (r *PhotoSetRepository) Delete(id uint) error {
 		return err
 	}
 	// 删除关联的 photoset_tags
-	if err := r.db.Exec("DELETE FROM photoset_tags WHERE photoset_id = ?", id).Error; err != nil {
+	if err := r.db.Exec("DELETE FROM photoset_tags WHERE photo_set_id = ?", id).Error; err != nil {
 		return err
 	}
 	// 软删除套图本身

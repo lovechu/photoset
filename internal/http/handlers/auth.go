@@ -100,7 +100,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 func (h *AuthHandler) Me(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
-		response.Unauthorized(c, "user not found in context")
+		// 没有用户登录，返回空的用户信息（不是401错误）
+		response.Success(c, gin.H{
+			"user": nil,
+		})
 		return
 	}
 

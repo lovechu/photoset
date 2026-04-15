@@ -1,5 +1,15 @@
 import request from '@/utils/request'
 
+// ============ 认证模块 ============
+
+/**
+ * 获取验证码
+ * @returns { captcha_id, captcha_image }
+ */
+export function getCaptcha() {
+  return request.get('/auth/captcha')
+}
+
 export function login(data) {
   return request.post('/auth/login', data)
 }
@@ -10,6 +20,16 @@ export function getCurrentUser() {
 
 export function getStats() {
   return request.get('/admin/stats')
+}
+
+export function getStatsTrend(days = 7) {
+  return request.get('/admin/stats/trend', { params: { days } })
+}
+
+// ============ 操作日志 ============
+
+export function getAdminLogs(params) {
+  return request.get('/admin/logs', { params })
 }
 
 export function getPhotoSetsByStatus(params) {
@@ -29,7 +49,15 @@ export function getUserList(params) {
 }
 
 export function banUser(id, status) {
-  return request.put(`/admin/users/${id}/ban`, { status })
+  return request.put(`/admin/users/${id}/ban`, { status: Number(status) })
+}
+
+export function updateUserRole(id, role) {
+  return request.put(`/admin/users/${id}/role`, { role })
+}
+
+export function getUserDetail(id) {
+  return request.get(`/admin/users/${id}`)
 }
 
 // ============ 套图编辑模块 ============
@@ -108,4 +136,24 @@ export function deleteCategory(id) {
 
 export function getPublicCategories() {
   return request.get('/categories')
+}
+
+// ============ 站点设置 ============
+
+export function getSettings() {
+  return request.get('/admin/settings').then(res => res.data?.data || res.data)
+}
+
+export function updateSettings(data) {
+  return request.put('/admin/settings', data)
+}
+
+// ============ 存储配置 ============
+
+export function getStorageStatus() {
+  return request.get('/admin/storage/status')
+}
+
+export function testStorageConnection(data) {
+  return request.post('/admin/storage/test', data)
 }

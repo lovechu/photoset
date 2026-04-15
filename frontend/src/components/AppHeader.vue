@@ -4,7 +4,7 @@
       <!-- Logo -->
       <router-link to="/" class="logo">
         <el-icon :size="28"><Camera /></el-icon>
-        <span>PhotoSet</span>
+        <span>{{ siteStore.siteName }}</span>
       </router-link>
 
       <!-- 导航 -->
@@ -15,7 +15,7 @@
           创建套图
         </router-link>
         <router-link v-if="userStore.isLoggedIn && !userStore.isMember" to="/membership" class="nav-item vip">
-          <el-icon><Crown /></el-icon>
+          <el-icon><Medal /></el-icon>
           开通会员
         </router-link>
       </nav>
@@ -39,10 +39,10 @@
                   <el-icon><User /></el-icon>个人中心
                 </el-dropdown-item>
                 <el-dropdown-item command="membership" v-if="userStore.isLoggedIn">
-                  <el-icon><Crown /></el-icon>会员中心
+                  <el-icon><Medal /></el-icon>会员中心
                 </el-dropdown-item>
                 <el-dropdown-item command="orders" v-if="userStore.isLoggedIn">
-                  <el-icon><Tickets /></el-icon>我的订单
+                  <el-icon><Document /></el-icon>我的订单
                 </el-dropdown-item>
                 <el-dropdown-item divided command="logout">
                   <el-icon><SwitchButton /></el-icon>退出登录
@@ -91,16 +91,22 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { Camera, Plus, User, SwitchButton, Menu, Close, Crown, Tickets } from '@element-plus/icons-vue'
+import { useSiteStore } from '@/stores/site'
+import { Camera, Plus, User, SwitchButton, Menu, Close, Medal, Document } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 const userStore = useUserStore()
+const siteStore = useSiteStore()
 const mobileMenuVisible = ref(false)
 const defaultAvatar = ''
+
+onMounted(() => {
+  siteStore.fetchSettings()
+})
 
 const roleLabel = computed(() => {
   const labels = {

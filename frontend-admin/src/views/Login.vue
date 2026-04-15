@@ -31,6 +31,37 @@
             show-password
           />
         </el-form-item>
+        
+        <!-- 验证码 -->
+        <el-form-item prop="captcha_code">
+          <div class="captcha-container">
+            <el-input
+              v-model="form.captcha_code"
+              placeholder="请输入验证码"
+              style="flex: 1"
+            />
+            <div class="captcha-image-wrapper">
+              <img 
+                v-if="form.captcha_image" 
+                :src="form.captcha_image" 
+                alt="验证码" 
+                class="captcha-image"
+                @click="refreshCaptcha"
+                style="cursor: pointer; height: 40px; border-radius: 4px;"
+              />
+              <el-button
+                v-else
+                type="default"
+                :icon="Refresh"
+                @click="refreshCaptcha"
+                size="default"
+              >
+                获取验证码
+              </el-button>
+            </div>
+          </div>
+        </el-form-item>
+        
         <el-form-item>
           <el-button
             type="primary"
@@ -47,11 +78,12 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAdminStore } from '@/stores/admin'
 import { ElMessage } from 'element-plus'
-import { Message, Lock } from '@element-plus/icons-vue'
+import { Message, Lock, Refresh } from '@element-plus/icons-vue'
+import request from '@/utils/request'
 
 const router = useRouter()
 const adminStore = useAdminStore()
@@ -60,7 +92,10 @@ const loading = ref(false)
 
 const form = reactive({
   email: '',
-  password: ''
+  password: '',
+  captcha_code: '',
+  captcha_id: '',
+  captcha_image: ''
 })
 
 const rules = {
@@ -71,8 +106,31 @@ const rules = {
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, message: '密码至少 6 位', trigger: 'blur' }
+  ],
+  captcha_code: [
+    { required: true, message: '请输入验证码', trigger: 'blur' },
+    { min: 4, message: '验证码至少 4 位', trigger: 'blur' }
   ]
 }
+
+// 刷新验证码
+const refreshCaptcha = async () => {
+  try {
+    const res = await request.get('/auth/captcha', {
+      params: { action: 'login' }
+    })
+    form.captcha_id = res.data.captcha_id
+    form.captcha_image = res.data.captcha_image
+  } catch (e) {
+    console.error('获取验证码失败:', e)
+    ElMessage.error('获取验证码失败，请重试')
+  }
+}
+
+// 组件挂载时获取验证码
+onMounted(() => {
+  refreshCaptcha()
+})
 
 async function handleLogin() {
   const valid = await formRef.value?.validate().catch(() => false)
@@ -80,7 +138,12 @@ async function handleLogin() {
 
   loading.value = true
   try {
-    const data = await adminStore.login({ email: form.email, password: form.password })
+    const data = await adminStore.login({ 
+      email: form.email, 
+      password: form.password,
+      captcha_id: form.captcha_id,
+      captcha_code: form.captcha_code
+    })
     if (data.user.role !== 'admin') {
       ElMessage.error('非管理员账号，无法进入后台')
       adminStore.logout()
@@ -89,7 +152,8 @@ async function handleLogin() {
     ElMessage.success('登录成功')
     router.push('/dashboard')
   } catch (err) {
-    // error handled by interceptor
+    // 登录失败时刷新验证码
+    refreshCaptcha()
   } finally {
     loading.value = false
   }
@@ -132,5 +196,89 @@ async function handleLogin() {
   margin: 0;
   font-size: 14px;
   color: #909399;
+}
+
+/* 验证码样式 */
+.captcha-container {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.captcha-image-wrapper {
+  cursor: pointer;
+  position: relative;
+  height: 40px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #dcdfe6;
+  transition: all 0.3s ease;
+  background-color: #f5f7fa;
+}
+
+.captcha-image-wrapper:hover {
+  border-color: #409eff;
+  box-shadow: 0 0 8px rgba(64, 158, 255, 0.2);
+}
+
+.captcha-image-container {
+  position: relative;
+  width: 120px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.captcha-image {
+  height: 100%;
+  object-fit: contain;
+}
+
+.captcha-refresh-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.captcha-image-wrapper:hover .captcha-refresh-overlay {
+  opacity: 1;
+}
+
+.captcha-refresh-overlay .el-icon {
+  color: white;
+  font-size: 20px;
+}
+
+.captcha-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 100%;
+  color: #909399;
+  font-size: 12px;
+}
+
+.captcha-loading .el-icon {
+  margin-right: 4px;
+  animation: rotating 2s linear infinite;
+}
+
+@keyframes rotating {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

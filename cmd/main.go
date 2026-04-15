@@ -30,6 +30,9 @@ func main() {
 		&domain.Favorite{},
 		&domain.MembershipPlan{},
 		&domain.Order{},
+		&domain.SiteSetting{},
+		&domain.Page{},
+		&domain.AdminLog{},
 	); err != nil {
 		log.Fatalf("Failed to auto migrate: %v", err)
 	}

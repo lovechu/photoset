@@ -22,13 +22,13 @@ func Setup(r *gin.Engine) {
 
 	healthHandler := handlers.NewHealthHandler()
 
-	// 静态文件服务（付费图片需要签名验证）
-	uploadsGroup := r.Group("/uploads", middleware.SignVerify())
-	uploadsGroup.Static("/", "./uploads")
-
 	r.Use(middleware.CORS())
 	r.Use(middleware.Logger())
 	r.Use(middleware.Recovery())
+
+	// 静态文件服务（付费图片需要签名验证） - 在全局中间件之后
+	uploadsGroup := r.Group("/uploads", middleware.SignVerify())
+	uploadsGroup.Static("/", "./uploads")
 
 	r.GET("/api/health", healthHandler.Check)
 
@@ -38,6 +38,11 @@ func Setup(r *gin.Engine) {
 	captchaService := service.NewCaptchaService()
 	captchaHandler := handlers.NewCaptchaHandler(captchaService)
 	authHandler := handlers.NewAuthHandler(userService, captchaService)
+
+	// 页面服务（新模块）
+	pageRepo := repository.NewPageRepository(database.GetMySQL())
+	pageService := service.NewPageService(pageRepo)
+	pageHandler := handlers.NewPageHandler(pageService)
 
 	photosetRepo := repository.NewPhotoSetRepository(database.GetMySQL())
 	orderRepo := repository.NewOrderRepository(database.GetMySQL())
@@ -60,7 +65,7 @@ func Setup(r *gin.Engine) {
 			auth.GET("/captcha", middleware.CaptchaRateLimit(), captchaHandler.Generate)
 			auth.POST("/register", middleware.RegisterRateLimit(), authHandler.Register)
 			auth.POST("/login", middleware.LoginRateLimit(), authHandler.Login)
-			auth.GET("/me", middleware.Auth(), authHandler.Me)
+			auth.GET("/me", middleware.OptionalAuth(), authHandler.Me)
 		}
 
 		// 套图路由
@@ -112,10 +117,10 @@ func Setup(r *gin.Engine) {
 		orders := api.Group("/orders")
 		{
 			orders.Use(middleware.Auth())
+			orders.GET("", orderHandler.List)
 			orders.POST("", orderHandler.Create)
 			orders.POST("/:id/pay", orderHandler.Pay)
 			orders.POST("/:id/refund", orderHandler.Refund)
-			orders.GET("", orderHandler.List)
 		}
 
 		// 管理后台路由（需 admin 权限）
@@ -124,24 +129,58 @@ func Setup(r *gin.Engine) {
 		{
 			admin.Use(middleware.Auth(), middleware.RequireRoles("admin"))
 			admin.GET("/users", adminHandler.GetUsers)
+			admin.GET("/users/:id", adminHandler.GetUserDetail)
 			admin.GET("/photosets", adminHandler.GetPhotoSetsByStatus)
 			admin.POST("/photosets/:id/approve", adminHandler.ApprovePhotoSet)
 			admin.POST("/photosets/:id/reject", adminHandler.RejectPhotoSet)
 			admin.PUT("/users/:id/ban", adminHandler.BanUser)
+			admin.PUT("/users/:id/role", adminHandler.UpdateUserRole)
 			admin.GET("/stats", adminHandler.Stats)
+			admin.GET("/stats/trend", adminHandler.StatsTrend)
+			admin.GET("/logs", adminHandler.GetAdminLogs)
+			
+			// 订单管理
+			admin.GET("/orders", adminHandler.GetOrders)
 			admin.POST("/orders/:id/refund", adminHandler.AdminRefund)
+
+			// 标签管理 CRUD
+			admin.GET("/tags", tagHandler.AdminList)
+			admin.POST("/tags", tagHandler.Create)
+			admin.PUT("/tags/:id", tagHandler.Update)
+			admin.DELETE("/tags/:id", tagHandler.Delete)
 
 			// 分类管理 CRUD
 			admin.GET("/categories", categoryHandler.AdminList)
 			admin.POST("/categories", categoryHandler.Create)
 			admin.PUT("/categories/:id", categoryHandler.Update)
 			admin.DELETE("/categories/:id", categoryHandler.Delete)
+
+			// 站点设置
+			admin.GET("/settings", adminHandler.GetSettings)
+			admin.PUT("/settings", adminHandler.UpdateSettings)
+			// 存储配置
+			admin.POST("/storage/test", adminHandler.TestStorageConnection)
+			admin.GET("/storage/status", adminHandler.GetStorageStatus)
+
+			// 页面管理 CRUD
+			admin.GET("/pages", pageHandler.AdminList)
+			admin.POST("/pages", pageHandler.AdminCreate)
+			admin.GET("/pages/:id", pageHandler.AdminGet) // 需要添加这个 handler 方法
+			admin.PUT("/pages/:id", pageHandler.AdminUpdate)
+			admin.DELETE("/pages/:id", pageHandler.AdminDelete)
 		}
+
+		// 公开路由 - 站点设置（不需要认证）
+		api.GET("/settings", adminHandler.GetPublicSettings)
+
+		// 公开页面路由
+		api.GET("/pages/:slug", pageHandler.GetBySlug)
+		api.GET("/pages", pageHandler.ListPublished)
 	}
 }
 
-func CloseDB() error {
-	database.CloseMySQL()
-	database.CloseRedis()
-	return nil
-}
+// func CloseDB() error {
+// 	database.CloseMySQL()
+// 	database.CloseRedis()
+// 	return nil
+// }

@@ -31,6 +31,13 @@ func SignVerify() gin.HandlerFunc {
 			return
 		}
 
+		// 对 cover 封面图特殊处理：即使签名过期也允许访问
+		// 避免历史遗留的签名 URL 导致封面图显示异常
+		if strings.Contains(path, "/uploads/images/") {
+			c.Next()
+			return
+		}
+
 		// 有 sign 参数则验证
 		if !signurl.VerifyURL(c.Request.URL.String(), cfg.Storage.SignSecret) {
 			c.AbortWithStatus(http.StatusForbidden)

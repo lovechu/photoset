@@ -7,6 +7,14 @@ import request from '@/utils/request'
 // ============ 认证模块 ============
 
 /**
+ * 获取验证码
+ * @returns { captcha_id, captcha_image }
+ */
+export function getCaptcha() {
+  return request.get('/auth/captcha')
+}
+
+/**
  * 用户注册
  * @param {Object} data { nickname, email, password }
  */
@@ -103,6 +111,15 @@ export function getTags() {
  */
 export function getCategories() {
   return request.get('/categories')
+}
+
+// ============ 站点设置模块 ============
+
+/**
+ * 获取站点设置（公开接口）
+ */
+export function getSiteSettings() {
+  return request.get('/settings')
 }
 
 // ============ 健康检查 ============

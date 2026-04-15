@@ -23,7 +23,7 @@
 
           <div class="order-body">
             <div class="order-type">
-              <el-icon v-if="order.type === 'membership'"><Crown /></el-icon>
+              <el-icon v-if="order.type === 'membership'"><Medal /></el-icon>
               <el-icon v-else><Picture /></el-icon>
               <span>{{ order.type === 'membership' ? '会员订阅' : '套图购买' }}</span>
             </div>
@@ -94,7 +94,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { getOrders, payOrder, refundOrder } from '@/api'
-import { Crown, Picture, RefreshLeft } from '@element-plus/icons-vue'
+import { Medal, Picture, RefreshLeft } from '@element-plus/icons-vue'
 
 const userStore = useUserStore()
 const loading = ref(false)

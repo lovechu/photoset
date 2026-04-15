@@ -91,8 +91,8 @@
         <!-- 免费/付费 -->
         <el-form-item label="收费方式" prop="is_free">
           <el-radio-group v-model="form.is_free">
-            <el-radio :label="1">免费</el-radio>
-            <el-radio :label="0">付费</el-radio>
+            <el-radio :value="1">免费</el-radio>
+            <el-radio :value="0">付费</el-radio>
           </el-radio-group>
         </el-form-item>
 
@@ -157,9 +157,9 @@
         <!-- 发布状态 -->
         <el-form-item label="发布状态" prop="status">
           <el-radio-group v-model="form.status">
-            <el-radio label="published">直接发布</el-radio>
-            <el-radio label="pending">待审核</el-radio>
-            <el-radio label="draft">存为草稿</el-radio>
+            <el-radio value="published">直接发布</el-radio>
+            <el-radio value="pending">待审核</el-radio>
+            <el-radio value="draft">存为草稿</el-radio>
           </el-radio-group>
         </el-form-item>
 
@@ -218,7 +218,34 @@ const rules = {
   ],
   cover: [
     { required: true, message: '请输入封面图URL', trigger: 'blur' },
-    { type: 'url', message: '请输入有效的URL地址', trigger: 'blur' }
+    {
+      validator: (rule, value, callback) => {
+        if (!value) {
+          callback()
+          return
+        }
+        
+        // 允许相对路径（以 /uploads/ 开头的路径）
+        if (value.startsWith('/uploads/')) {
+          callback()
+          return
+        }
+        
+        // 也允许完整的URL
+        try {
+          const url = new URL(value)
+          if (['http:', 'https:'].includes(url.protocol)) {
+            callback()
+            return
+          }
+        } catch {
+          // 不是有效的完整URL
+        }
+        
+        callback(new Error('请输入有效的URL地址或以/uploads/开头的相对路径'))
+      },
+      trigger: 'blur'
+    }
   ],
   is_free: [
     { required: true, message: '请选择收费方式', trigger: 'change' }
@@ -279,6 +306,11 @@ const handleCoverUpload = async (e) => {
     const res = await uploadImage(file)
     form.cover = res.data.url
     ElMessage.success('封面上传成功')
+    
+    // 手动触发验证，确保验证器立即运行
+    if (formRef.value) {
+      formRef.value.validateField('cover')
+    }
   } catch (err) {
     ElMessage.error('封面上传失败')
   }

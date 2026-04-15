@@ -32,6 +32,18 @@
           <el-icon><PriceTag /></el-icon>
           <span>标签管理</span>
         </el-menu-item>
+        <el-menu-item index="/pages">
+          <el-icon><Document /></el-icon>
+          <span>页面管理</span>
+        </el-menu-item>
+        <el-menu-item index="/settings">
+          <el-icon><Setting /></el-icon>
+          <span>站点设置</span>
+        </el-menu-item>
+        <el-menu-item index="/logs">
+          <el-icon><Notebook /></el-icon>
+          <span>操作日志</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 

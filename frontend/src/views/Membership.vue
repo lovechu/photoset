@@ -8,7 +8,7 @@
     <!-- 会员状态展示 -->
     <div v-if="userStore.isLoggedIn" class="membership-status">
       <div v-if="userStore.isMembershipActive" class="status-card active">
-        <el-icon :size="32"><Crown /></el-icon>
+        <el-icon :size="32"><Medal /></el-icon>
         <div class="status-info">
           <h3>您已是尊贵的会员</h3>
           <p>会员有效期至 {{ formatDate(userStore.membershipExpires) }}</p>
@@ -16,7 +16,7 @@
         <el-button type="warning" @click="handleSubscribe">续费会员</el-button>
       </div>
       <div v-else-if="userStore.membershipExpires" class="status-card expired">
-        <el-icon :size="32"><Crown /></el-icon>
+        <el-icon :size="32"><Medal /></el-icon>
         <div class="status-info">
           <h3>会员已过期</h3>
           <p>于 {{ formatDate(userStore.membershipExpires) }} 到期</p>
@@ -75,7 +75,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { getMemberships, createOrder, payOrder } from '@/api'
-import { Crown } from '@element-plus/icons-vue'
+import { Medal } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const userStore = useUserStore()

@@ -37,6 +37,35 @@
             />
           </el-form-item>
 
+          <el-form-item prop="captcha_code">
+            <div class="captcha-container">
+              <el-input
+                v-model="form.captcha_code"
+                placeholder="请输入验证码"
+                size="large"
+                class="captcha-input"
+              />
+              <div class="captcha-image-wrapper">
+                <img 
+                  v-if="form.captcha_image" 
+                  :src="form.captcha_image" 
+                  alt="验证码" 
+                  class="captcha-image"
+                  @click="refreshCaptcha"
+                />
+                <el-button
+                  v-else
+                  type="default"
+                  size="large"
+                  :icon="Refresh"
+                  @click="refreshCaptcha"
+                >
+                  获取验证码
+                </el-button>
+              </div>
+            </div>
+          </el-form-item>
+
           <el-form-item>
             <el-button
               type="primary"
@@ -60,11 +89,12 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { getCaptcha } from '@/api'
 import { ElMessage } from 'element-plus'
-import { Camera, Message, Lock } from '@element-plus/icons-vue'
+import { Camera, Message, Lock, Refresh } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -75,7 +105,10 @@ const loading = ref(false)
 
 const form = reactive({
   email: '',
-  password: ''
+  password: '',
+  captcha_code: '',
+  captcha_id: '',
+  captcha_image: ''
 })
 
 const rules = {
@@ -86,8 +119,29 @@ const rules = {
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
     { min: 6, message: '密码至少 6 个字符', trigger: 'blur' }
+  ],
+  captcha_code: [
+    { required: true, message: '请输入验证码', trigger: 'blur' },
+    { min: 4, message: '验证码至少 4 个字符', trigger: 'blur' }
   ]
 }
+
+// 刷新验证码
+const refreshCaptcha = async () => {
+  try {
+    const res = await getCaptcha()
+    form.captcha_id = res.data.captcha_id
+    form.captcha_image = res.data.captcha_image
+  } catch (e) {
+    console.error('获取验证码失败:', e)
+    ElMessage.error('获取验证码失败，请重试')
+  }
+}
+
+// 组件挂载时获取验证码
+onMounted(() => {
+  refreshCaptcha()
+})
 
 const handleSubmit = async () => {
   if (!formRef.value) return
@@ -103,7 +157,9 @@ const handleSubmit = async () => {
   try {
     await userStore.login({
       email: form.email,
-      password: form.password
+      password: form.password,
+      captcha_id: form.captcha_id,
+      captcha_code: form.captcha_code
     })
 
     ElMessage.success('登录成功')
@@ -202,6 +258,38 @@ const handleSubmit = async () => {
 
 .auth-footer a:hover {
   text-decoration: underline;
+}
+
+/* 验证码样式 */
+.captcha-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.captcha-input {
+  flex: 1;
+}
+
+.captcha-image-wrapper {
+  width: 120px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.captcha-image {
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid #dcdfe6;
+}
+
+.captcha-image:hover {
+  opacity: 0.9;
 }
 
 @media (max-width: 768px) {

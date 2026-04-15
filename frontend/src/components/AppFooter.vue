@@ -4,32 +4,43 @@
       <div class="footer-info">
         <div class="footer-brand">
           <el-icon :size="20"><Camera /></el-icon>
-          <span>PhotoSet</span>
+          <span>{{ siteStore.siteName }}</span>
         </div>
-        <p class="footer-desc">专业摄影套图浏览平台，发现美好视觉作品</p>
+        <p class="footer-desc">{{ siteStore.siteDescription }}</p>
       </div>
       <div class="footer-links">
         <div class="link-group">
           <h4>关于</h4>
-          <a href="#">关于我们</a>
-          <a href="#">使用协议</a>
-          <a href="#">隐私政策</a>
+          <router-link to="/page/about">关于我们</router-link>
+          <router-link to="/page/terms">使用协议</router-link>
+          <router-link to="/page/privacy">隐私政策</router-link>
         </div>
         <div class="link-group">
           <h4>帮助</h4>
-          <a href="#">常见问题</a>
-          <a href="#">联系我们</a>
+          <router-link to="/page/faq">常见问题</router-link>
+          <router-link to="/page/contact">联系我们</router-link>
         </div>
       </div>
     </div>
     <div class="footer-bottom">
-      <p>© 2026 PhotoSet. All rights reserved.</p>
+      <p>&copy; {{ siteStore.copyrightYear }} {{ siteStore.siteName }}. All rights reserved.</p>
+      <p v-if="siteStore.get('site_icp') && siteStore.get('site_icp').trim()">
+        备案号：{{ siteStore.get('site_icp') }}
+      </p>
     </div>
   </footer>
 </template>
 
 <script setup>
+import { onMounted } from 'vue'
 import { Camera } from '@element-plus/icons-vue'
+import { useSiteStore } from '@/stores/site'
+
+const siteStore = useSiteStore()
+
+onMounted(() => {
+  siteStore.fetchSettings()
+})
 </script>
 
 <style scoped>

@@ -66,6 +66,12 @@ const routes = [
     meta: { title: '我的订单', requiresAuth: true }
   },
   {
+    path: '/page/:pageType',
+    name: 'StaticPage',
+    component: () => import('@/views/StaticPage.vue'),
+    meta: { title: '页面详情' }
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
     component: () => import('@/views/NotFound.vue'),

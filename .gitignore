@@ -112,3 +112,17 @@ Thumbs.db
 # Temporary uploads
 *.tmp
 *.temp
+# Go binaries (project-specific)
+/photoset
+/photoset-api
+/testbuild
+/tmp-check
+/tmp_photoset_backend
+
+# Test/debug scripts
+test_*.sh
+test_*.py
+start-photoset.sh
+restart-all.sh
+manage-services.sh
+manage-services.ps1

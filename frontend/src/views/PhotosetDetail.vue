@@ -63,20 +63,30 @@
           <p class="detail-desc" v-if="detail.description">
             {{ detail.description }}
           </p>
-          <!-- 标签 -->
-          <div class="detail-tags" v-if="detail.tags?.length">
-            <el-tag
-              v-for="tag in detail.tags"
-              :key="tag.id"
-              size="small"
-            >
-              {{ tag.name }}
-            </el-tag>
-          </div>
-
-          <!-- 分类 -->
-          <div class="detail-category" v-if="detail.category">
-            <span class="category-label">分类：{{ detail.category }}</span>
+          <!-- 标签和分类 -->
+          <div v-if="detail.tags?.length || detail.category" class="detail-tags-wrapper">
+            <!-- 标签 -->
+            <div v-if="detail.tags?.length" class="detail-tags">
+              <el-tag
+                v-for="tag in detail.tags"
+                :key="tag.id"
+                size="small"
+                :type="tag.name === '黑丝' ? '' : 'info'"
+              >
+                {{ tag.name }}
+              </el-tag>
+            </div>
+            
+            <!-- 分类 -->
+            <div class="detail-category" v-if="detail.category">
+              <el-tag
+                type="warning"
+                size="small"
+                class="category-tag"
+              >
+                分类：{{ detail.category }}
+              </el-tag>
+            </div>
           </div>
         </div>
       </div>
@@ -354,22 +364,69 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 
-.detail-category {
-  margin-bottom: 12px;
+.detail-tags-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
 }
-.detail-category .category-label {
-  display: inline-block;
-  padding: 4px 12px;
-  background: linear-gradient(135deg, #fff7e6 0%, #fef0d8 100%);
-  color: #ad6800;
-  border-radius: 4px;
-  font-size: 13px;
-  font-weight: 500;
-}
+
 .detail-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.detail-tags .el-tag {
+  transition: all 0.2s ease;
+  cursor: default;
+}
+
+.detail-tags .el-tag:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.detail-category {
+  display: inline-block;
+}
+
+.detail-category .category-tag {
+  --el-tag-bg-color: var(--el-color-warning-light-9);
+  --el-tag-border-color: var(--el-color-warning-light-7);
+  --el-tag-hover-color: var(--el-color-warning);
+  font-weight: 600;
+  background: linear-gradient(135deg, #fff7e6 0%, #fef0d8 100%);
+  border: 1px solid transparent;
+  box-shadow: 0 2px 6px rgba(255, 153, 0, 0.15);
+  transition: all 0.2s ease;
+}
+
+.detail-category .category-tag:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 153, 0, 0.25);
+  border-color: var(--el-color-warning-light-5);
+}
+
+/* 给黑丝标签一个特殊样式 */
+.detail-tags .el-tag:not(.el-tag--info):not(.el-tag--warning) {
+  background: linear-gradient(135deg, #f5f5f7 0%, #e8eaf2 100%);
+  border-color: #dcdfe6;
+  color: #606266;
+}
+
+.detail-tags .el-tag--info {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-color: #bae6fd;
+  color: #0c4a6e;
+}
+
+/* 美化悬停效果 */
+.detail-tags .el-tag--info:hover {
+  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+  border-color: #7dd3fc;
+  color: #075985;
 }
 
 /* 画廊 */

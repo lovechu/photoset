@@ -50,9 +50,27 @@ const routes = [
         meta: { title: '分类管理', icon: 'FolderOpened' }
       },
       {
+        path: 'pages',
+        name: 'Pages',
+        component: () => import('@/views/Pages.vue'),
+        meta: { title: '页面管理', icon: 'Document' }
+      },
+      {
+        path: 'settings',
+        name: 'SiteSettings',
+        component: () => import('@/views/SiteSettings.vue'),
+        meta: { title: '站点设置', icon: 'Setting' }
+      },
+      {
         path: 'photoset/:id/edit',
         name: 'AdminEditPhotoset',
         component: () => import('@/views/EditPhotoset.vue')
+      },
+      {
+        path: 'logs',
+        name: 'AdminLogs',
+        component: () => import('@/views/AdminLogs.vue'),
+        meta: { title: '操作日志', icon: 'Notebook' }
       }
     ]
   },

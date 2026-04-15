@@ -1,0 +1,144 @@
+version: '3.8'
+
+services:
+  # ========== 数据库 ==========
+  mysql:
+    image: mysql:8.0
+    container_name: photoset-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: photoset123
+      MYSQL_DATABASE: photoset
+      MYSQL_USER: photoset
+      MYSQL_PASSWORD: photoset123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./uploads:/var/lib/mysql-files
+    networks:
+      - photoset-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 10s
+      retries: 5
+
+  # ========== Redis 缓存 ==========
+  redis:
+    image: redis:7.2-alpine
+    container_name: photoset-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - photoset-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      timeout: 10s
+      retries: 5
+
+  # ========== Go 后端服务 ==========
+  backend:
+    build:
+      context: .
+      dockerfile: ./docker/backend.Dockerfile
+    container_name: photoset-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: photoset
+      DB_PASSWORD: photoset123
+      DB_NAME: photoset
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-default_jwt_secret_change_in_production}
+      STORAGE_TYPE: ${STORAGE_TYPE:-local}
+      AWS_ENDPOINT: ${AWS_ENDPOINT:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_BUCKET_NAME: ${AWS_BUCKET_NAME:-}
+      CORS_ALLOW_ORIGINS: "http://localhost:3000,http://localhost:3001"
+      GIN_MODE: release
+    ports:
+      - "8080:8080"
+    volumes:
+      - uploads_volume:/app/uploads
+      - ./logs:/app/logs
+    networks:
+      - photoset-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      timeout: 10s
+      retries: 5
+
+  # ========== 用户端 Web ==========
+  frontend:
+    build:
+      context: .
+      dockerfile: ./docker/frontend.Dockerfile
+      args:
+        VITE_API_BASE_URL: http://backend:8080
+    container_name: photoset-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      VITE_API_BASE_URL: http://backend:8080
+    ports:
+      - "3000:80"
+    networks:
+      - photoset-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      timeout: 10s
+      retries: 5
+
+  # ========== 管理后台 Web ==========
+  admin:
+    build:
+      context: .
+      dockerfile: ./docker/admin.Dockerfile
+      args:
+        VITE_API_BASE_URL: http://backend:8080
+    container_name: photoset-admin
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      VITE_API_BASE_URL: http://backend:8080
+    ports:
+      - "3001:80"
+    networks:
+      - photoset-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      timeout: 10s
+      retries: 5
+
+# ========== 网络与存储卷 ==========
+networks:
+  photoset-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+  uploads_volume:
+    driver: local
+
+# ========== 开发模式（热重载） ==========
+# docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+#

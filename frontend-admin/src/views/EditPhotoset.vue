@@ -43,8 +43,8 @@
 
         <el-form-item label="收费方式">
           <el-radio-group v-model="form.is_free">
-            <el-radio :label="1">免费</el-radio>
-            <el-radio :label="0">付费</el-radio>
+            <el-radio :value="1">免费</el-radio>
+            <el-radio :value="0">付费</el-radio>
           </el-radio-group>
         </el-form-item>
 
@@ -71,9 +71,9 @@
 
         <el-form-item label="状态">
           <el-radio-group v-model="form.status">
-            <el-radio label="published">已发布</el-radio>
-            <el-radio label="pending">待审核</el-radio>
-            <el-radio label="draft">草稿</el-radio>
+            <el-radio value="published">已发布</el-radio>
+            <el-radio value="pending">待审核</el-radio>
+            <el-radio value="draft">草稿</el-radio>
           </el-radio-group>
         </el-form-item>
 

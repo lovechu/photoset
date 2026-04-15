@@ -13,8 +13,25 @@
 </template>
 
 <script setup>
+import { onMounted, watch } from 'vue'
 import AppHeader from '@/components/AppHeader.vue'
 import AppFooter from '@/components/AppFooter.vue'
+import { useSiteStore } from '@/stores/site'
+
+const siteStore = useSiteStore()
+
+onMounted(() => {
+  siteStore.fetchSettings()
+})
+
+// 监听站点名称变化，设置页面标题
+watch(() => siteStore.siteName, (newTitle) => {
+  if (newTitle && newTitle.trim()) {
+    document.title = newTitle
+  } else {
+    document.title = 'PhotoSet'
+  }
+}, { immediate: true })
 </script>
 
 <style>

@@ -20,11 +20,16 @@ export const useUserStore = defineStore('user', () => {
     if (token.value) {
       try {
         const res = await getCurrentUser()
-        user.value = res.data.user
-        localStorage.setItem('photoset_user', JSON.stringify(user.value))
+        if (res.data.user) {
+          user.value = res.data.user
+          localStorage.setItem('photoset_user', JSON.stringify(user.value))
+        } else {
+          // 没有用户信息，可能token已失效
+          logout()
+        }
       } catch (e) {
-        // Token 失效，清除登录态
-        logout()
+        // 网络或其他错误，保留当前状态，不自动登出
+        console.warn('获取用户信息失败:', e.message)
       }
     }
   }
