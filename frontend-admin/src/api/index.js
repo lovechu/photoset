@@ -60,6 +60,10 @@ export function getUserDetail(id) {
   return request.get(`/admin/users/${id}`)
 }
 
+export function resetUserPassword(id, newPassword) {
+  return request.put(`/admin/users/${id}/password`, { new_password: newPassword })
+}
+
 // ============ 套图编辑模块 ============
 
 export function getPhotosetDetail(id) {
@@ -156,4 +160,46 @@ export function getStorageStatus() {
 
 export function testStorageConnection(data) {
   return request.post('/admin/storage/test', data)
+}
+
+// ============ 邮件配置 ============
+
+export function testMailConnection() {
+  return request.post('/admin/mail/test-connection')
+}
+
+export function getMailConfig() {
+  return request.get('/admin/mail/config')
+}
+
+export function sendMailTest(data) {
+  return request.post('/admin/mail/send-test', data)
+}
+
+// ============ 水印配置 ============
+
+export function getWatermarkInfo() {
+  return request.get('/admin/watermark/info')
+}
+
+// ============ 开发者中心 ============
+
+export function getApiKeys() {
+  return request.get('/admin/dev/api-keys')
+}
+
+export function createApiKey(name) {
+  return request.post('/admin/dev/api-keys', { name })
+}
+
+export function deleteApiKey(id) {
+  return request.delete(`/admin/dev/api-keys/${id}`)
+}
+
+export function getApiDocs() {
+  return request.get('/admin/dev/api-docs')
+}
+
+export function getSignUrlDocs() {
+  return request.get('/admin/dev/sign-url-docs')
 }

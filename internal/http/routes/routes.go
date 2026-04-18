@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"net/http"
 	"photoset/internal/config"
 	"photoset/internal/database"
 	"photoset/internal/http/handlers"
@@ -26,9 +27,10 @@ func Setup(r *gin.Engine) {
 	r.Use(middleware.Logger())
 	r.Use(middleware.Recovery())
 
-	// 静态文件服务（付费图片需要签名验证） - 在全局中间件之后
+	// 静态文件服务（付费图片需要签名验证）
+	// 使用 http.FileServer 替代 Gin Static() 避免无扩展名文件的 301 重定向
 	uploadsGroup := r.Group("/uploads", middleware.SignVerify())
-	uploadsGroup.Static("/", "./uploads")
+	uploadsGroup.Any("/*path", gin.WrapH(http.StripPrefix("/uploads", http.FileServer(http.Dir("./uploads")))))
 
 	r.GET("/api/health", healthHandler.Check)
 
@@ -37,7 +39,8 @@ func Setup(r *gin.Engine) {
 	userService := service.NewUserService(userRepo)
 	captchaService := service.NewCaptchaService()
 	captchaHandler := handlers.NewCaptchaHandler(captchaService)
-	authHandler := handlers.NewAuthHandler(userService, captchaService)
+	siteSettingRepo := repository.NewSiteSettingRepository()
+	authHandler := handlers.NewAuthHandler(userService, captchaService, siteSettingRepo)
 
 	// 页面服务（新模块）
 	pageRepo := repository.NewPageRepository(database.GetMySQL())
@@ -66,6 +69,10 @@ func Setup(r *gin.Engine) {
 			auth.POST("/register", middleware.RegisterRateLimit(), authHandler.Register)
 			auth.POST("/login", middleware.LoginRateLimit(), authHandler.Login)
 			auth.GET("/me", middleware.OptionalAuth(), authHandler.Me)
+			auth.PUT("/password", middleware.Auth(), authHandler.ChangePassword)
+			auth.POST("/forgot-password", authHandler.ForgotPassword)
+			auth.POST("/reset-password", authHandler.ResetPasswordByToken)
+			auth.GET("/email-config", authHandler.CheckEmailConfig)
 		}
 
 		// 套图路由
@@ -135,6 +142,7 @@ func Setup(r *gin.Engine) {
 			admin.POST("/photosets/:id/reject", adminHandler.RejectPhotoSet)
 			admin.PUT("/users/:id/ban", adminHandler.BanUser)
 			admin.PUT("/users/:id/role", adminHandler.UpdateUserRole)
+			admin.PUT("/users/:id/password", adminHandler.ResetUserPassword)
 			admin.GET("/stats", adminHandler.Stats)
 			admin.GET("/stats/trend", adminHandler.StatsTrend)
 			admin.GET("/logs", adminHandler.GetAdminLogs)
@@ -158,9 +166,16 @@ func Setup(r *gin.Engine) {
 			// 站点设置
 			admin.GET("/settings", adminHandler.GetSettings)
 			admin.PUT("/settings", adminHandler.UpdateSettings)
+			// 邮件配置
+			admin.POST("/mail/test-connection", adminHandler.TestMailConnection)
+			admin.GET("/mail/config", adminHandler.GetMailConfig)
+			admin.POST("/mail/send-test", adminHandler.SendTestMail)
+			// 水印配置
+			admin.GET("/watermark/info", adminHandler.GetWatermarkInfo)
 			// 存储配置
 			admin.POST("/storage/test", adminHandler.TestStorageConnection)
 			admin.GET("/storage/status", adminHandler.GetStorageStatus)
+			admin.POST("/system/restart", adminHandler.RestartBackend)
 
 			// 页面管理 CRUD
 			admin.GET("/pages", pageHandler.AdminList)
@@ -168,6 +183,13 @@ func Setup(r *gin.Engine) {
 			admin.GET("/pages/:id", pageHandler.AdminGet) // 需要添加这个 handler 方法
 			admin.PUT("/pages/:id", pageHandler.AdminUpdate)
 			admin.DELETE("/pages/:id", pageHandler.AdminDelete)
+
+			// 开发者中心
+			admin.GET("/dev/api-keys", adminHandler.ListApiKeys)
+			admin.POST("/dev/api-keys", adminHandler.CreateApiKey)
+			admin.DELETE("/dev/api-keys/:id", adminHandler.DeleteApiKey)
+			admin.GET("/dev/api-docs", adminHandler.GetApiDocs)
+			admin.GET("/dev/sign-url-docs", adminHandler.GetSignUrlDocs)
 		}
 
 		// 公开路由 - 站点设置（不需要认证）

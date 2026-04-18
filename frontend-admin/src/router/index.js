@@ -62,6 +62,12 @@ const routes = [
         meta: { title: '站点设置', icon: 'Setting' }
       },
       {
+        path: 'developer',
+        name: 'DeveloperCenter',
+        component: () => import('@/views/DeveloperCenter.vue'),
+        meta: { title: '开发者中心', icon: 'Code' }
+      },
+      {
         path: 'photoset/:id/edit',
         name: 'AdminEditPhotoset',
         component: () => import('@/views/EditPhotoset.vue')

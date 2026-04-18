@@ -215,3 +215,38 @@ export function getOrders(params) {
 export function refundOrder(id) {
   return request.post(`/orders/${id}/refund`)
 }
+
+// ============ 密码模块 ============
+
+/**
+ * 修改密码（需登录，需验证旧密码）
+ * @param {Object} data { old_password, new_password }
+ */
+export function changePassword(data) {
+  return request.put('/auth/password', data)
+}
+
+// ============ 密码重置模块 ============
+
+/**
+ * 请求密码重置（发送重置邮件）
+ * @param {Object} data { email, captcha_id, captcha_code }
+ */
+export function forgotPassword(data) {
+  return request.post('/auth/forgot-password', data)
+}
+
+/**
+ * 通过 token 重置密码
+ * @param {Object} data { token, new_password }
+ */
+export function resetPasswordByToken(data) {
+  return request.post('/auth/reset-password', data)
+}
+
+/**
+ * 检查邮件配置是否可用
+ */
+export function checkEmailConfig() {
+  return request.get('/auth/email-config')
+}

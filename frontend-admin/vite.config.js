@@ -3,6 +3,7 @@ import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
+  base: '/',
   plugins: [vue()],
   resolve: {
     alias: {
@@ -10,6 +11,7 @@ export default defineConfig({
     }
   },
   server: {
+    host: true, // 允许外部访问
     port: 3001,
     proxy: {
       '/api': {

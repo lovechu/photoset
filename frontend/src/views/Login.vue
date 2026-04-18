@@ -6,7 +6,7 @@
           <router-link to="/" class="logo">
             <el-icon :size="32"><Camera /></el-icon>
           </router-link>
-          <h1>登录 PhotoSet</h1>
+          <h1>登录 {{ siteStore.siteName }}</h1>
           <p>欢迎回来，继续探索精彩套图</p>
         </div>
 
@@ -77,6 +77,10 @@
               {{ loading ? '登录中...' : '登录' }}
             </el-button>
           </el-form-item>
+
+          <div v-if="emailConfigured" class="forgot-password-link">
+            <router-link to="/forgot-password">忘记密码？</router-link>
+          </div>
         </el-form>
 
         <div class="auth-footer">
@@ -92,16 +96,19 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { getCaptcha } from '@/api'
+import { useSiteStore } from '@/stores/site'
+import { getCaptcha, checkEmailConfig } from '@/api'
 import { ElMessage } from 'element-plus'
 import { Camera, Message, Lock, Refresh } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+const siteStore = useSiteStore()
 
 const formRef = ref(null)
 const loading = ref(false)
+const emailConfigured = ref(false)
 
 const form = reactive({
   email: '',
@@ -141,6 +148,10 @@ const refreshCaptcha = async () => {
 // 组件挂载时获取验证码
 onMounted(() => {
   refreshCaptcha()
+  // 检查邮件配置是否可用，决定是否显示"忘记密码"链接
+  checkEmailConfig().then(res => {
+    emailConfigured.value = res.data?.configured === true
+  }).catch(() => {})
 })
 
 const handleSubmit = async () => {
@@ -227,7 +238,7 @@ const handleSubmit = async () => {
 }
 
 .auth-form {
-  margin-bottom: 24px;
+  margin-bottom: 8px;
 }
 
 .auth-form :deep(.el-form-item) {
@@ -257,6 +268,21 @@ const handleSubmit = async () => {
 }
 
 .auth-footer a:hover {
+  text-decoration: underline;
+}
+
+.forgot-password-link {
+  text-align: right;
+  margin-bottom: 16px;
+}
+
+.forgot-password-link a {
+  color: #409eff;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.forgot-password-link a:hover {
   text-decoration: underline;
 }
 

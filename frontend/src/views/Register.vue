@@ -6,7 +6,7 @@
           <router-link to="/" class="logo">
             <el-icon :size="32"><Camera /></el-icon>
           </router-link>
-          <h1>注册 PhotoSet</h1>
+          <h1>注册 {{ siteStore.siteName }}</h1>
           <p>加入我们，发现更多精彩摄影作品</p>
         </div>
 
@@ -84,11 +84,13 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { useSiteStore } from '@/stores/site'
 import { ElMessage } from 'element-plus'
 import { Camera, User, Message, Lock } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const userStore = useUserStore()
+const siteStore = useSiteStore()
 
 const formRef = ref(null)
 const loading = ref(false)

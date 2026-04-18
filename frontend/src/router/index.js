@@ -30,6 +30,18 @@ const routes = [
     meta: { title: '注册', guest: true }
   },
   {
+    path: '/forgot-password',
+    name: 'ForgotPassword',
+    component: () => import('@/views/ForgotPassword.vue'),
+    meta: { title: '找回密码', guest: true }
+  },
+  {
+    path: '/reset-password',
+    name: 'ResetPassword',
+    component: () => import('@/views/ResetPassword.vue'),
+    meta: { title: '重置密码', guest: true }
+  },
+  {
     path: '/create',
     name: 'CreatePhotoset',
     component: () => import('@/views/CreatePhotoset.vue'),
@@ -87,7 +99,7 @@ const router = createRouter({
 // 路由守卫
 router.beforeEach((to, from, next) => {
   // 更新页面标题
-  document.title = to.meta.title ? `${to.meta.title} - PhotoSet` : 'PhotoSet'
+  document.title = to.meta.title ? `${to.meta.title}` : ''
 
   const userStore = useUserStore()
 

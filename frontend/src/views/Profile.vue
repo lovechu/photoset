@@ -59,6 +59,25 @@
         </div>
       </el-tab-pane>
 
+      <el-tab-pane label="修改密码" name="password">
+        <div class="password-card">
+          <el-form :model="pwdForm" :rules="pwdRules" ref="pwdFormRef" label-width="100px" style="max-width: 400px">
+            <el-form-item label="当前密码" prop="old_password">
+              <el-input v-model="pwdForm.old_password" type="password" placeholder="请输入当前密码" show-password />
+            </el-form-item>
+            <el-form-item label="新密码" prop="new_password">
+              <el-input v-model="pwdForm.new_password" type="password" placeholder="至少6位" show-password />
+            </el-form-item>
+            <el-form-item label="确认新密码" prop="confirm_password">
+              <el-input v-model="pwdForm.confirm_password" type="password" placeholder="再次输入新密码" show-password />
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" :loading="pwdLoading" @click="handleChangePassword">确认修改</el-button>
+            </el-form-item>
+          </el-form>
+        </div>
+      </el-tab-pane>
+
       <el-tab-pane v-if="userStore.isCreatorOrAdmin" label="我的发布" name="published">
         <div class="photoset-grid" v-loading="loading">
           <div v-if="!loading && photosets.length === 0" class="empty-state">
@@ -84,7 +103,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { getPhotosetList } from '@/api'
+import { getPhotosetList, changePassword } from '@/api'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
 import PhotosetCard from '@/components/PhotosetCard.vue'
@@ -137,6 +156,48 @@ const handleDeleted = (deletedId) => {
   ElMessage.success('删除成功')
 }
 
+// 修改密码
+const pwdFormRef = ref(null)
+const pwdLoading = ref(false)
+const pwdForm = ref({ old_password: '', new_password: '', confirm_password: '' })
+const pwdRules = {
+  old_password: [{ required: true, message: '请输入当前密码', trigger: 'blur' }],
+  new_password: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, message: '密码长度不能少于6位', trigger: 'blur' },
+  ],
+  confirm_password: [
+    { required: true, message: '请确认新密码', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        if (value !== pwdForm.value.new_password) {
+          callback(new Error('两次输入的密码不一致'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur',
+    },
+  ],
+}
+
+async function handleChangePassword() {
+  if (!pwdFormRef.value) return
+  await pwdFormRef.value.validate(async (valid) => {
+    if (!valid) return
+    pwdLoading.value = true
+    try {
+      await changePassword({
+        old_password: pwdForm.value.old_password,
+        new_password: pwdForm.value.new_password,
+      })
+      ElMessage.success('密码修改成功')
+      pwdForm.value = { old_password: '', new_password: '', confirm_password: '' }
+    } catch { /* handled by interceptor */ }
+    finally { pwdLoading.value = false }
+  })
+}
+
 onMounted(() => {
   if (userStore.isCreatorOrAdmin) {
     loadMyPhotosets()
@@ -166,4 +227,5 @@ onMounted(() => {
 .photoset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
 .empty-state { grid-column: 1 / -1; padding: 60px 0; }
 .pagination-wrapper { display: flex; justify-content: center; margin-top: 24px; }
+.password-card { padding: 20px 0; }
 </style>

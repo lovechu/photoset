@@ -74,6 +74,61 @@ USE photoset;
 SHOW TABLES;
 ```
 
+## 🌐 宝塔 Nginx 伪静态规则
+
+> 使用宝塔面板部署时，将以下规则添加到网站 → 伪静态
+
+### 规则优先级
+```
+1. /admin/assets/  (管理后台静态资源)
+2. /admin/         (管理后台)
+3. /uploads/       (上传文件)
+4. /api/           (后端API)
+5. /               (前端默认)
+```
+
+### 1. 上传文件代理
+```nginx
+location /uploads/ {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+### 2. 后端 API 代理
+```nginx
+location ~ ^/api/ {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+### 3. 管理后台静态资源
+```nginx
+location /admin/assets/ {
+    proxy_pass http://127.0.0.1:3001/assets/;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Real-IP $remote_addr;
+}
+```
+
+### 4. 管理后台主路由
+```nginx
+location /admin/ {
+    proxy_pass http://127.0.0.1:3001/;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
 ## 🔧 生产部署建议
 
 ### 1. 使用 Docker Swarm 或 Kubernetes
@@ -291,5 +346,5 @@ logging:
 ---
 
 **维护者**: PhotoSet 团队  
-**最后更新**: 2026-04-15  
+**最后更新**: 2026-04-19  
 **状态**: ✅ 生产就绪 — Phase 1~6 全部完成

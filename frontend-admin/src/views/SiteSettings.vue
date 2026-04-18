@@ -80,9 +80,16 @@
             <el-form-item label="发件人名称">
               <el-input v-model="form.smtp_from_name" placeholder="例：PhotoSet 平台" />
             </el-form-item>
+            <el-form-item label="测试收件人">
+              <el-input v-model="testMailTo" placeholder="输入测试邮件接收地址" style="margin-bottom: 8px;" />
+              <div class="form-tip">输入收件人邮箱地址，用于发送测试邮件</div>
+            </el-form-item>
             <el-form-item>
               <el-button type="primary" :loading="saving" @click="save('mail')">保存</el-button>
-              <el-button @click="testMail" :loading="testingMail" style="margin-left: 12px;">发送测试邮件</el-button>
+              <el-button @click="testSmtpConnection" :loading="testingConnection" style="margin-left: 12px;">测试连接</el-button>
+              <el-button type="success" @click="doSendTestMail" :loading="testingMail" :disabled="!testMailTo" style="margin-left: 12px;">
+                发送测试邮件
+              </el-button>
             </el-form-item>
           </el-form>
         </el-tab-pane>
@@ -202,8 +209,66 @@
                 >
                   测试连接
                 </el-button>
+                <el-button
+                  type="warning"
+                  :loading="restarting"
+                  @click="restartBackend"
+                  style="margin-left: 12px;"
+                >
+                  重启后端
+                </el-button>
               </el-form-item>
             </el-form>
+          </div>
+        </el-tab-pane>
+
+        <!-- 域名设置 -->
+        <el-tab-pane label="域名设置" name="domain">
+          <div style="max-width: 680px; margin-top: 16px;">
+            <el-alert
+              title="这些地址用于移动端 App 配置 API"
+              type="info"
+              :closable="false"
+              show-icon
+              style="margin-bottom: 20px;"
+            />
+            
+            <el-form :model="form" label-width="140px">
+              <el-form-item label="网站地址">
+                <el-input v-model="form.site_url" placeholder="例：https://photoset.com" />
+                <div class="form-tip">网站前端访问地址，移动端内置此地址</div>
+              </el-form-item>
+              
+              <el-form-item label="API 地址">
+                <el-input v-model="form.api_url" placeholder="例：https://api.photoset.com" />
+                <div class="form-tip">后端 API 地址，移动端调用此接口</div>
+              </el-form-item>
+
+              <el-divider />
+              
+              <el-form-item label="开发环境">
+                <el-input v-model="form.dev_api_url" placeholder="例：http://192.168.1.100:8080" />
+                <div class="form-tip">开发/调试时使用的 API 地址</div>
+              </el-form-item>
+
+              <el-form-item>
+                <el-button type="primary" :loading="saving" @click="save('domain')">保存配置</el-button>
+              </el-form-item>
+            </el-form>
+
+            <el-divider content-position="left">示例</el-divider>
+            
+            <el-card shadow="never" class="domain-example">
+              <h4>Flutter App 配置示例</h4>
+              <pre class="code-block">// lib/config/api_config.dart
+class ApiConfig {
+  // 生产环境（上线后使用）
+  static const String baseUrl = '{{ form.api_url || "https://api.yoursite.com" }}/api';
+  
+  // 开发环境（本地调试）
+  static const String devBaseUrl = '{{ form.dev_api_url || "http://localhost:8080" }}/api';
+}</pre>
+            </el-card>
           </div>
         </el-tab-pane>
       </el-tabs>
@@ -214,14 +279,17 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getSettings, updateSettings, getStorageStatus, testStorageConnection } from '@/api/index'
+import { getSettings, updateSettings, getStorageStatus, testStorageConnection, testMailConnection, sendMailTest } from '@/api/index'
 
 const activeTab = ref('general')
 const saving = ref(false)
 const testingMail = ref(false)
+const testingConnection = ref(false)
 const testingStorage = ref(false)
+const restarting = ref(false)
 const loaded = ref(false)
 const storageStatus = ref(null)
+const testMailTo = ref('')
 
 const form = ref({
   site_title: '',
@@ -248,6 +316,10 @@ const form = ref({
   s3_bucket: '',
   r2_account_id: '',
   cdn_domain: '',
+  // 域名设置
+  site_url: '',
+  api_url: '',
+  dev_api_url: '',
 })
 
 // 水印透明度用数字绑定 slider
@@ -293,8 +365,9 @@ async function save(group) {
       about: ['about_content'],
       mail: ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_password', 'smtp_from_name'],
       watermark: ['watermark_enabled', 'watermark_text', 'watermark_opacity'],
-      storage: ['storage_type', 's3_endpoint', 's3_region', 's3_access_key', 's3_secret_key', 's3_bucket', 'r2_account_id', 'cdn_domain'],
-    }
+  storage: ['storage_type', 's3_endpoint', 's3_region', 's3_access_key', 's3_secret_key', 's3_bucket', 'r2_account_id', 'cdn_domain'],
+  domain: ['site_url', 'api_url', 'dev_api_url'],
+}
     const keys = groupKeys[group] || Object.keys(form.value)
     const payload = {}
     keys.forEach(k => { payload[k] = form.value[k] })
@@ -308,12 +381,29 @@ async function save(group) {
   }
 }
 
-async function testMail() {
+async function testSmtpConnection() {
+  testingConnection.value = true
+  try {
+    await testMailConnection()
+    ElMessage.success('SMTP 连接成功！')
+  } catch (e) {
+    // 拦截器已处理
+  } finally {
+    testingConnection.value = false
+  }
+}
+
+async function doSendTestMail() {
+  if (!testMailTo.value) {
+    ElMessage.warning('请输入测试收件人地址')
+    return
+  }
   testingMail.value = true
   try {
-    // 先保存邮件配置
-    await save('mail')
-    ElMessage.info('测试邮件功能待后端实现后生效')
+    await sendMailTest({ to: testMailTo.value })
+    ElMessage.success(`测试邮件已发送到 ${testMailTo.value}`)
+  } catch (e) {
+    // 拦截器已处理
   } finally {
     testingMail.value = false
   }
@@ -337,6 +427,20 @@ async function testStorage() {
     // 拦截器已处理
   } finally {
     testingStorage.value = false
+  }
+}
+
+async function restartBackend() {
+  if (!confirm('确定要重启后端服务吗？重启期间网站将短暂不可用。')) return
+  restarting.value = true
+  try {
+    await request.post('/admin/system/restart')
+    ElMessage.success('后端正在重启，预计 5-10 秒后恢复...')
+    setTimeout(() => location.reload(), 6000)
+  } catch {
+    ElMessage.error('重启请求失败')
+  } finally {
+    restarting.value = false
   }
 }
 </script>
@@ -377,5 +481,26 @@ async function testStorage() {
   margin: 6px 0;
   font-size: 13px;
   color: #606266;
+}
+
+.domain-example {
+  background: #f5f7fa;
+}
+
+.domain-example h4 {
+  margin: 0 0 12px 0;
+  color: #303133;
+}
+
+.code-block {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  padding: 16px;
+  border-radius: 6px;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-x: auto;
+  margin: 0;
 }
 </style>

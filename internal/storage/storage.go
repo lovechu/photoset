@@ -22,8 +22,20 @@ const (
 	StorageS3    StorageType = "s3" // 通用 S3 兼容存储（含 Cloudflare R2、阿里 OSS、MinIO 等）
 )
 
+// UploadType 区分封面图和付费照片，决定存储路径
+type UploadType string
+
+const (
+	UploadTypeCover UploadType = "cover" // 封面图 → /covers/ 免费访问
+	UploadTypePhoto UploadType = "photo" // 付费照片 → /photos/ 需要签名
+)
+
 type Storage interface {
 	Upload(file multipart.File, header *multipart.FileHeader) (string, error)
+	// UploadWithType 按类型分目录上传，photosetID 嵌入路径用于签名校验
+	// photo 路径：/uploads/photos/{photosetID}/{uuid}.ext
+	// cover 路径：/uploads/covers/{photosetID}/{uuid}.ext（photosetID=0 时用时间戳）
+	UploadWithType(file multipart.File, header *multipart.FileHeader, ut UploadType, photosetID uint) (string, error)
 	TestConnection() error
 	Type() StorageType
 }
@@ -74,11 +86,29 @@ func NewS3Storage(endpoint, region, accessKey, secretKey, bucket, publicURL, acc
 }
 
 func (s *S3Storage) Upload(file multipart.File, header *multipart.FileHeader) (string, error) {
+	return s.UploadWithType(file, header, UploadTypePhoto, 0)
+}
+
+// UploadWithType 按类型分前缀上传，photosetID 嵌入路径
+// photo → photos/{photosetID}/{uuid}.ext
+// cover → covers/{photosetID}/{uuid}.ext（photosetID=0 时用时间戳）
+func (s *S3Storage) UploadWithType(file multipart.File, header *multipart.FileHeader, ut UploadType, photosetID uint) (string, error) {
+	subDir := "photos"
+	if ut == UploadTypeCover {
+		subDir = "covers"
+	}
+
 	ext := strings.ToLower(filepath.Ext(header.Filename))
 	now := time.Now()
-	key := fmt.Sprintf("images/%s/%s/%s/%s%s",
-		now.Format("2006"), now.Format("01"), now.Format("02"),
-		uuid.New().String(), ext)
+
+	// photosetID=0 时（封面先上传/其他情况），用时间戳做目录
+	idOrDate := fmt.Sprintf("%d", photosetID)
+	if photosetID == 0 {
+		idOrDate = now.Format("20060102150405")
+	}
+
+	key := fmt.Sprintf("%s/%s/%s/%s%s",
+		subDir, idOrDate, now.Format("01"), uuid.New().String(), ext)
 
 	_, err := s.client.PutObject(context.TODO(), &s3.PutObjectInput{
 		Bucket:      aws.String(s.bucket),

@@ -66,10 +66,11 @@
       <el-table-column label="最后登录" width="165" align="center">
         <template #default="{ row }">{{ formatTime(row.last_login_at) || '-' }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="220" align="center" fixed="right">
+      <el-table-column label="操作" width="280" align="center" fixed="right">
         <template #default="{ row }">
           <el-button size="small" @click="openDetail(row.id)">详情</el-button>
           <el-button size="small" type="warning" @click="openRoleDialog(row)">角色</el-button>
+          <el-button size="small" type="info" @click="openPasswordDialog(row)">密码</el-button>
           <el-popconfirm
             :title="row.status === 1 ? '确认封禁该用户？' : '确认解封该用户？'"
             @confirm="handleBan(row)"
@@ -157,12 +158,31 @@
         <el-button type="primary" :loading="roleLoading" @click="handleRoleChange">确认修改</el-button>
       </template>
     </el-dialog>
+
+    <!-- 重置密码对话框 -->
+    <el-dialog v-model="passwordDialogVisible" title="重置用户密码" width="400px" destroy-on-close>
+      <div v-if="passwordTarget">
+        <p>用户：<strong>{{ passwordTarget.nickname }}</strong>（{{ passwordTarget.email }}）</p>
+        <el-form :model="passwordForm" :rules="passwordRules" ref="passwordFormRef" style="margin-top: 16px">
+          <el-form-item label="新密码" prop="newPassword">
+            <el-input v-model="passwordForm.newPassword" type="password" placeholder="至少6位" show-password />
+          </el-form-item>
+          <el-form-item label="确认密码" prop="confirmPassword">
+            <el-input v-model="passwordForm.confirmPassword" type="password" placeholder="再次输入新密码" show-password />
+          </el-form-item>
+        </el-form>
+      </div>
+      <template #footer>
+        <el-button @click="passwordDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="passwordLoading" @click="handleResetPassword">确认重置</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { getUserList, banUser, updateUserRole, getUserDetail } from '@/api'
+import { getUserList, banUser, updateUserRole, getUserDetail, resetUserPassword } from '@/api'
 import { ElMessage } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 
@@ -264,6 +284,52 @@ async function handleRoleChange() {
     fetchUsers()
   } catch { /* handled */ }
   finally { roleLoading.value = false }
+}
+
+// 重置密码
+const passwordDialogVisible = ref(false)
+const passwordTarget = ref(null)
+const passwordLoading = ref(false)
+const passwordFormRef = ref(null)
+const passwordForm = ref({ newPassword: '', confirmPassword: '' })
+const passwordRules = {
+  newPassword: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, message: '密码长度不能少于6位', trigger: 'blur' },
+  ],
+  confirmPassword: [
+    { required: true, message: '请确认密码', trigger: 'blur' },
+    {
+      validator: (rule, value, callback) => {
+        if (value !== passwordForm.value.newPassword) {
+          callback(new Error('两次输入的密码不一致'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur',
+    },
+  ],
+}
+
+function openPasswordDialog(row) {
+  passwordTarget.value = row
+  passwordForm.value = { newPassword: '', confirmPassword: '' }
+  passwordDialogVisible.value = true
+}
+
+async function handleResetPassword() {
+  if (!passwordFormRef.value) return
+  await passwordFormRef.value.validate(async (valid) => {
+    if (!valid) return
+    passwordLoading.value = true
+    try {
+      await resetUserPassword(passwordTarget.value.id, passwordForm.value.newPassword)
+      ElMessage.success('密码已重置')
+      passwordDialogVisible.value = false
+    } catch { /* handled */ }
+    finally { passwordLoading.value = false }
+  })
 }
 
 onMounted(fetchUsers)

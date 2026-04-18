@@ -9,6 +9,10 @@ WORKDIR /app
 # 安装必要的工具
 RUN apk add --no-cache git ca-certificates tzdata
 
+# 配置 Go 国内镜像代理
+RUN go env -w GOPROXY=https://goproxy.cn,direct
+RUN go env -w GOSUMDB=off
+
 # 复制 go.mod 和 go.sum 并下载依赖
 COPY go.mod go.sum ./
 RUN go mod download
@@ -24,8 +28,8 @@ ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
 # 编译 Go 应用
 RUN go build -ldflags="-w -s" -trimpath -o /app/main ./cmd/main.go
 
-# 阶段2：运行环境（distroless 镜像，轻量安全）
-FROM gcr.io/distroless/static-debian12
+# 阶段2：运行环境（alpine 镜像，轻量安全）
+FROM alpine:3.19
 
 WORKDIR /app
 
@@ -42,18 +46,33 @@ RUN mkdir -p /app/uploads /app/logs
 # 设置时区
 ENV TZ=Asia/Shanghai
 
-# 使用非 root 用户运行
-USER nonroot:nonroot
+# 安装 CA 证书、wget 和 docker-cli（用于容器重启API），创建 nonroot 用户并加入 docker 组
+# docker 组 GID 设为 101（需与 docker-compose.yml 中的 group_add 一致）
+# nonroot 组 GID 设为 102
+RUN apk add --no-cache ca-certificates tzdata wget docker-cli && \
+    addgroup -g 101 -S docker && \
+    addgroup -g 102 -S nonroot && \
+    adduser -u 100 -G docker -g '' -s /bin/sh -H -D nonroot && \
+    addgroup nonroot docker && \
+    chown -R nonroot:docker /app && \
+    chmod -R g+w /app
+
+# 复制并设置入口脚本（在切换用户之前）
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod 755 /entrypoint.sh
 
 # 暴露端口
 EXPOSE 8080
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD ["/app/main", "health"] || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
-# 运行应用
-ENTRYPOINT ["/app/main"]
+# 使用非 root 用户运行
+USER nonroot:nonroot
+
+# 运行应用（使用 entrypoint 处理权限）
+ENTRYPOINT ["/entrypoint.sh"]
 
 # 开发模式的备选方案：
 # 需要热重载时使用 air，但生产用多阶段构建

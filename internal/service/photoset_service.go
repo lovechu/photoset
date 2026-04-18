@@ -79,6 +79,8 @@ func (s *PhotoSetService) CreatePhotoSet(photoset *domain.PhotoSet, tagNames []s
 	}
 
 	s.InvalidateAllPhotosetListCache()
+	// 同步写入付费状态缓存
+	SetPaidStatus(photoset.ID, photoset.IsFree == 0)
 
 	return nil
 }
@@ -246,6 +248,20 @@ func (s *PhotoSetService) UpdatePhotoSet(id uint, updates map[string]interface{}
 	s.InvalidateTagsCache()
 	s.InvalidateCategoriesCache()
 
+	// 如果 is_free 发生变化，同步刷新付费状态缓存
+	if isFreeVal, ok := updates["is_free"]; ok {
+		isFree := 0
+		switch v := isFreeVal.(type) {
+		case int8:
+			isFree = int(v)
+		case int:
+			isFree = v
+		case float64:
+			isFree = int(v)
+		}
+		SetPaidStatus(id, isFree == 0)
+	}
+
 	return nil
 }
 
@@ -258,6 +274,7 @@ func (s *PhotoSetService) DeletePhotoSet(id uint) error {
 	s.InvalidateAllPhotosetListCache()
 	s.InvalidateTagsCache()
 	s.InvalidateCategoriesCache()
+	InvalidatePaidStatus(id)
 	return nil
 }
 

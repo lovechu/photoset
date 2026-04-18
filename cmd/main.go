@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"strings"
 	"photoset/internal/config"
 	"photoset/internal/database"
 	"photoset/internal/domain"
@@ -20,21 +21,27 @@ func main() {
 	}
 	defer database.CloseMySQL()
 
-	// 自动建表
+	// 自动建表（先迁移非关联表）
 	if err := database.GetMySQL().AutoMigrate(
 		&domain.User{},
 		&domain.PhotoSet{},
 		&domain.Photo{},
 		&domain.Tag{},
-		&domain.Category{},       // <-- 新增
+		&domain.Category{},
 		&domain.Favorite{},
 		&domain.MembershipPlan{},
 		&domain.Order{},
 		&domain.SiteSetting{},
 		&domain.Page{},
 		&domain.AdminLog{},
+		&domain.PasswordResetToken{},
+		&domain.ApiKey{},
 	); err != nil {
-		log.Fatalf("Failed to auto migrate: %v", err)
+		// 忽略多对多关联表的重复主键错误（表已存在时 GORM 会尝试重复添加主键）
+		if !isMultiplePrimaryKeyError(err) {
+			log.Fatalf("Failed to auto migrate: %v", err)
+		}
+		log.Printf("Warning: migrate skipped duplicate primary key issue (safe to ignore): %v", err)
 	}
 
 	// 确保 FULLTEXT 索引存在（容错方式）
@@ -84,5 +91,13 @@ func main() {
 
 func init() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+}
+
+// isMultiplePrimaryKeyError 检测是否是重复主键的 MySQL 错误（1068）
+func isMultiplePrimaryKeyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "1068") && strings.Contains(err.Error(), "Multiple primary key")
 }
 

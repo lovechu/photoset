@@ -23,20 +23,34 @@ func (r *PhotoSetRepository) Create(photoset *domain.PhotoSet) error {
 // FindByID 根据ID查询套图
 func (r *PhotoSetRepository) FindByID(id uint) (*domain.PhotoSet, error) {
 	var photoset domain.PhotoSet
-	err := r.db.Table("photosets").
-		Select(`photosets.*,
-			CASE 
-				WHEN photosets.cover != '' THEN photosets.cover
-				ELSE (SELECT url FROM photos WHERE photos.photo_set_id = photosets.id ORDER BY sort_order ASC LIMIT 1)
-			END AS cover`).
-		Preload("User").Preload("Photos", func(db *gorm.DB) *gorm.DB {
-			return db.Order("sort_order ASC")
-		}).Preload("Tags").
-		Where("photosets.id = ?", id).
-		Scan(&photoset).Error
-	if err != nil {
+	
+	// 先查主表，使用子查询排除 photo_count 列（因为我们用 Photos 实时计算）
+	if err := r.db.Raw(`
+		SELECT id, created_at, updated_at, deleted_at, title, cover, description, 
+		       is_free, price, user_id, status, category
+		FROM photosets WHERE id = ?`, id).Scan(&photoset).Error; err != nil {
 		return nil, err
 	}
+	
+	// 预加载关联
+	r.db.Preload("User").Find(&photoset)
+	r.db.Preload("Tags").Find(&photoset)
+	
+	// 再手动查询 photos
+	var photos []domain.Photo
+	if err := r.db.Where("photoset_id = ?", id).Order("sort_order ASC").Find(&photos).Error; err != nil {
+		return nil, err
+	}
+	photoset.Photos = photos
+	
+	// 强制设置 PhotoCount
+	photoset.PhotoCount = len(photos)
+	
+	// 如果 cover 为空，自动取第一张图片作为封面
+	if photoset.Cover == "" && len(photoset.Photos) > 0 {
+		photoset.Cover = photoset.Photos[0].URL
+	}
+
 	return &photoset, nil
 }
 
@@ -59,7 +73,7 @@ func (r *PhotoSetRepository) List(page, pageSize int, tag string, keyword string
 
 	// 按标签筛选
 	if tag != "" {
-		query = query.Joins("INNER JOIN photoset_tags ON photosets.id = photoset_tags.photo_set_id").
+		query = query.Joins("INNER JOIN photoset_tags ON photosets.id = photoset_tags.photoset_id").
 			Joins("INNER JOIN tags ON photoset_tags.tag_id = tags.id").
 			Where("tags.name = ?", tag)
 	}
@@ -83,10 +97,10 @@ func (r *PhotoSetRepository) List(page, pageSize int, tag string, keyword string
 	offset := (page - 1) * pageSize
 	err := r.db.Table("photosets").
 		Select(`photosets.*, 
-			(SELECT COUNT(*) FROM photos WHERE photos.photo_set_id = photosets.id) AS photo_count,
+			(SELECT COUNT(*) FROM photos WHERE photos.photoset_id = photosets.id) AS photo_count,
 			CASE 
 				WHEN photosets.cover != '' THEN photosets.cover
-				ELSE (SELECT url FROM photos WHERE photos.photo_set_id = photosets.id ORDER BY sort_order ASC LIMIT 1)
+				ELSE (SELECT url FROM photos WHERE photos.photoset_id = photosets.id ORDER BY sort_order ASC LIMIT 1)
 			END AS cover`).
 		Preload("User").Preload("Tags").
 		Where(query).
@@ -120,7 +134,7 @@ func (r *PhotoSetRepository) ListAdvanced(
 
 	// 按标签筛选
 	if tag != "" {
-		query = query.Joins("INNER JOIN photoset_tags ON photosets.id = photoset_tags.photo_set_id").
+		query = query.Joins("INNER JOIN photoset_tags ON photosets.id = photoset_tags.photoset_id").
 			Joins("INNER JOIN tags ON photoset_tags.tag_id = tags.id").
 			Where("tags.name = ?", tag)
 	}
@@ -226,10 +240,10 @@ func (r *PhotoSetRepository) ListAdvanced(
 	// 使用ID查询完整数据，保持排序
 	err = r.db.Table("photosets").
 		Select(`photosets.*, 
-			(SELECT COUNT(*) FROM photos WHERE photos.photo_set_id = photosets.id) AS photo_count,
+			(SELECT COUNT(*) FROM photos WHERE photos.photoset_id = photosets.id) AS photo_count,
 			CASE 
 				WHEN photosets.cover != '' THEN photosets.cover
-				ELSE (SELECT url FROM photos WHERE photos.photo_set_id = photosets.id ORDER BY sort_order ASC LIMIT 1)
+				ELSE (SELECT url FROM photos WHERE photos.photoset_id = photosets.id ORDER BY sort_order ASC LIMIT 1)
 			END AS cover`).
 		Preload("User").Preload("Tags").
 		Where("photosets.id IN (?)", photosetIDs).
@@ -274,8 +288,8 @@ func (r *PhotoSetRepository) CreatePhotos(photos []domain.Photo) error {
 func (r *PhotoSetRepository) CreatePhotoSetTags(photosetID uint, tagIDs []uint) error {
 	for _, tagID := range tagIDs {
 		photosetTag := map[string]interface{}{
-			"photo_set_id": photosetID,
-			"tag_id":     tagID,
+			"photoset_id": photosetID,
+			"tag_id":      tagID,
 		}
 		if err := r.db.Table("photoset_tags").Create(&photosetTag).Error; err != nil {
 			return err
@@ -292,7 +306,7 @@ func (r *PhotoSetRepository) Update(id uint, updates map[string]interface{}) err
 // ReplaceTags 替换套图标签（先删后插）
 func (r *PhotoSetRepository) ReplaceTags(photosetID uint, tagNames []string) error {
 	// 删除旧关联
-	if err := r.db.Exec("DELETE FROM photoset_tags WHERE photo_set_id = ?", photosetID).Error; err != nil {
+	if err := r.db.Exec("DELETE FROM photoset_tags WHERE photoset_id = ?", photosetID).Error; err != nil {
 		return err
 	}
 	if len(tagNames) == 0 {
@@ -308,7 +322,7 @@ func (r *PhotoSetRepository) ReplaceTags(photosetID uint, tagNames []string) err
 			}
 		}
 		photosetTag := map[string]interface{}{
-			"photo_set_id": photosetID,
+			"photoset_id": photosetID,
 			"tag_id":      tag.ID,
 		}
 		r.db.Table("photoset_tags").Create(&photosetTag)
@@ -316,23 +330,25 @@ func (r *PhotoSetRepository) ReplaceTags(photosetID uint, tagNames []string) err
 	return nil
 }
 
-// Delete 软删除套图（GORM 软删除，同时级联删除关联 photos 和 tags）
+// Delete 软删除套图（事务保护：级联删除关联 photos 和 tags 后再软删套图）
 func (r *PhotoSetRepository) Delete(id uint) error {
-	// 先删除关联的 photos
-	if err := r.db.Where("photo_set_id = ?", id).Delete(&domain.Photo{}).Error; err != nil {
-		return err
-	}
-	// 删除关联的 photoset_tags
-	if err := r.db.Exec("DELETE FROM photoset_tags WHERE photo_set_id = ?", id).Error; err != nil {
-		return err
-	}
-	// 软删除套图本身
-	return r.db.Delete(&domain.PhotoSet{}, id).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// 先删除关联的 photos
+		if err := tx.Where("photoset_id = ?", id).Delete(&domain.Photo{}).Error; err != nil {
+			return err
+		}
+		// 删除关联的 photoset_tags
+		if err := tx.Exec("DELETE FROM photoset_tags WHERE photoset_id = ?", id).Error; err != nil {
+			return err
+		}
+		// 软删除套图本身
+		return tx.Delete(&domain.PhotoSet{}, id).Error
+	})
 }
 
 // ReplacePhotos 替换套图图片（先删后插）
 func (r *PhotoSetRepository) ReplacePhotos(photosetID uint, photos []domain.Photo) error {
-	if err := r.db.Where("photo_set_id = ?", photosetID).Delete(&domain.Photo{}).Error; err != nil {
+	if err := r.db.Where("photoset_id = ?", photosetID).Delete(&domain.Photo{}).Error; err != nil {
 		return err
 	}
 	if len(photos) == 0 {

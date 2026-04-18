@@ -22,9 +22,9 @@ func (h *CaptchaHandler) Generate(c *gin.Context) {
 	if action == "" {
 		action = "login"
 	}
-	if action != "login" && action != "register" {
-		response.BadRequest(c, "action must be login or register")
-		return
+	// 支持 login, register, forgot 三种场景
+	if action != "login" && action != "register" && action != "forgot" {
+		action = "login"
 	}
 
 	id, b64s, err := h.captchaService.Generate("digit", action)

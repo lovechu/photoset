@@ -40,6 +40,10 @@
           <el-icon><Setting /></el-icon>
           <span>站点设置</span>
         </el-menu-item>
+        <el-menu-item index="/developer">
+          <el-icon><Connection /></el-icon>
+          <span>开发者中心</span>
+        </el-menu-item>
         <el-menu-item index="/logs">
           <el-icon><Notebook /></el-icon>
           <span>操作日志</span>
@@ -53,6 +57,15 @@
           <span class="page-title">{{ currentPageTitle }}</span>
         </div>
         <div class="header-right">
+          <el-button
+            type="warning"
+            size="small"
+            :loading="restarting"
+            @click="restartBackend"
+            style="margin-right: 16px;"
+          >
+            重启后端
+          </el-button>
           <el-dropdown trigger="click">
             <span class="user-info">
               <el-icon><UserFilled /></el-icon>
@@ -79,13 +92,17 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminStore } from '@/stores/admin'
+import { Connection } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import request from '@/utils/request'
 
 const route = useRoute()
 const router = useRouter()
 const adminStore = useAdminStore()
+const restarting = ref(false)
 
 const activeMenu = computed(() => route.path)
 
@@ -96,6 +113,20 @@ const currentPageTitle = computed(() => {
 function handleLogout() {
   adminStore.logout()
   router.push('/login')
+}
+
+async function restartBackend() {
+  if (!confirm('确定要重启后端服务吗？重启期间网站将短暂不可用。')) return
+  restarting.value = true
+  try {
+    await request.post('/admin/system/restart')
+    ElMessage.success('后端正在重启，预计 5-10 秒后恢复...')
+    setTimeout(() => location.reload(), 6000)
+  } catch {
+    ElMessage.error('重启请求失败')
+  } finally {
+    restarting.value = false
+  }
 }
 </script>
 

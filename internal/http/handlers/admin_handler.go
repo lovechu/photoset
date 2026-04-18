@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os/exec"
 	"strconv"
 	"time"
 
@@ -25,15 +27,19 @@ type AdminHandler struct {
 	orderService *service.OrderService
 	settingRepo  *repository.SiteSettingRepository
 	logRepo      *repository.AdminLogRepository
+	userService  service.UserService
+	mailService  *service.MailService
 }
 
 func NewAdminHandler(photosetRepo *repository.PhotoSetRepository, orderRepo *repository.OrderRepository, orderService *service.OrderService) *AdminHandler {
+	userRepo := repository.NewUserRepository()
 	return &AdminHandler{
 		photosetRepo: photosetRepo,
 		orderRepo:    orderRepo,
 		orderService: orderService,
 		settingRepo:  repository.NewSiteSettingRepository(),
 		logRepo:      repository.NewAdminLogRepository(),
+		userService:  service.NewUserService(userRepo),
 	}
 }
 
@@ -252,8 +258,8 @@ func (h *AdminHandler) GetUserDetail(c *gin.Context) {
 
 	var orderCount int64
 	var totalSpent float64
-	db.Model(&domain.Order{}).Where("user_id = ? AND status = ?", id, "completed").Count(&orderCount)
-	db.Model(&domain.Order{}).Where("user_id = ? AND status = ?", id, "completed").
+	db.Model(&domain.Order{}).Where("user_id = ? AND status = ?", id, "paid").Count(&orderCount)
+	db.Model(&domain.Order{}).Where("user_id = ? AND status = ?", id, "paid").
 		Select("COALESCE(SUM(amount), 0)").Scan(&totalSpent)
 
 	response.Success(c, gin.H{
@@ -340,6 +346,32 @@ func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 	h.recordLog(c, "role_change", "用户#"+idStr, "角色改为 "+req.Role)
 }
 
+// ResetUserPassword 管理员重置用户密码
+func (h *AdminHandler) ResetUserPassword(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "无效的用户ID")
+		return
+	}
+
+	var req struct {
+		NewPassword string `json:"new_password" binding:"required,min=6"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "参数错误，新密码长度不能少于6位")
+		return
+	}
+
+	if err := h.userService.ResetPassword(uint(id), req.NewPassword); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{"message": "密码重置成功"})
+	h.recordLog(c, "reset_password", "用户#"+idStr, "管理员重置密码")
+}
+
 // Stats 平台统计
 func (h *AdminHandler) Stats(c *gin.Context) {
 	db := database.GetMySQL()
@@ -390,8 +422,8 @@ func (h *AdminHandler) StatsTrend(c *gin.Context) {
 	var items []TrendItem
 	for i := days - 1; i >= 0; i-- {
 		dayTime := time.Now().AddDate(0, 0, -i)
-		dayStart := time.Date(dayTime.Year(), dayTime.Month(), dayTime.Day(), 0, 0, 0, 0, dayTime.Location()).Unix()
-		dayEnd := dayStart + 86400
+		dayStart := time.Date(dayTime.Year(), dayTime.Month(), dayTime.Day(), 0, 0, 0, 0, dayTime.Location())
+		dayEnd := dayStart.Add(24 * time.Hour)
 		dateStr := dayTime.Format("01-02")
 
 		var newUsers int64
@@ -401,7 +433,7 @@ func (h *AdminHandler) StatsTrend(c *gin.Context) {
 		db.Model(&domain.Order{}).Where("created_at >= ? AND created_at < ?", dayStart, dayEnd).Count(&newOrders)
 
 		var revenue float64
-		db.Model(&domain.Order{}).Where("created_at >= ? AND created_at < ? AND status = ?", dayStart, dayEnd, "completed").
+		db.Model(&domain.Order{}).Where("created_at >= ? AND created_at < ? AND status = ?", dayStart, dayEnd, "paid").
 			Select("COALESCE(SUM(amount), 0)").Scan(&revenue)
 
 		var newSets int64
@@ -537,6 +569,16 @@ func (h *AdminHandler) TestStorageConnection(c *gin.Context) {
 	})
 }
 
+// RestartBackend 重启后端服务（用于配置变更后生效）
+func (h *AdminHandler) RestartBackend(c *gin.Context) {
+	// 延迟重启，避免当前请求被中断
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		exec.Command("docker", "restart", "photoset-backend").Run()
+	}()
+	response.Success(c, gin.H{"message": "后端正在重启..."})
+}
+
 // GetStorageStatus 获取当前存储状态
 func (h *AdminHandler) GetStorageStatus(c *gin.Context) {
 	cfg := config.Load()
@@ -585,7 +627,7 @@ func (h *AdminHandler) GetSettings(c *gin.Context) {
 	response.Success(c, settings)
 }
 
-// GetPublicSettings 获取公开的站点设置（不需要认证）
+// GetPublicSettings 获取公开的站点设置（不需要认证，供移动端使用）
 func (h *AdminHandler) GetPublicSettings(c *gin.Context) {
 	settings, err := h.settingRepo.GetAll()
 	if err != nil {
@@ -596,9 +638,11 @@ func (h *AdminHandler) GetPublicSettings(c *gin.Context) {
 	// 过滤敏感字段，只返回允许公开的配置
 	publicSettings := make(map[string]interface{})
 	publicKeys := []string{
-		"site_title", "site_description", "site_keywords", "about_me", 
+		"site_title", "site_description", "site_keywords", "about_me",
 		"logo_url", "favicon_url", "site_icp", "copyright_year", "about_content",
 		"terms_content", "privacy_content", "help_content", "contact_content",
+		// 域名配置（供移动端使用）
+		"site_url", "api_url", "dev_api_url",
 	}
 	for key, value := range settings {
 		for _, allowed := range publicKeys {
@@ -609,7 +653,7 @@ func (h *AdminHandler) GetPublicSettings(c *gin.Context) {
 		}
 		// SMTP设置、水印设置、邮件密码等敏感信息不对外暴露
 	}
-	
+
 	response.Success(c, publicSettings)
 }
 
@@ -627,4 +671,236 @@ func (h *AdminHandler) UpdateSettings(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"message": "保存成功"})
+}
+
+// TestMailConnection 测试邮件 SMTP 连接
+func (h *AdminHandler) TestMailConnection(c *gin.Context) {
+	if h.mailService == nil {
+		h.mailService = service.NewMailService()
+	}
+
+	success, message := h.mailService.TestConnection()
+	if success {
+		response.Success(c, gin.H{"message": message})
+	} else {
+		response.Error(c, http.StatusBadRequest, message)
+	}
+}
+
+// GetMailConfig 获取邮件配置信息（不含密码）
+func (h *AdminHandler) GetMailConfig(c *gin.Context) {
+	if h.mailService == nil {
+		h.mailService = service.NewMailService()
+	}
+
+	info := h.mailService.GetConfigInfo()
+	response.Success(c, info)
+}
+
+// SendTestMail 发送测试邮件
+func (h *AdminHandler) SendTestMail(c *gin.Context) {
+	var req struct {
+		To      string `json:"to" binding:"required,email"`
+		Subject string `json:"subject"`
+		Body    string `json:"body"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "参数错误，请提供有效的邮箱地址")
+		return
+	}
+
+	if h.mailService == nil {
+		h.mailService = service.NewMailService()
+	}
+
+	if req.Subject == "" {
+		req.Subject = "PhotoSet 测试邮件"
+	}
+	if req.Body == "" {
+		req.Body = "<h1>测试成功！</h1><p>这是一封来自 PhotoSet 的测试邮件。</p>"
+	}
+
+	if err := h.mailService.Send(req.To, req.Subject, req.Body); err != nil {
+		response.Error(c, http.StatusBadRequest, fmt.Sprintf("发送失败: %v", err))
+		return
+	}
+
+	response.Success(c, gin.H{"message": fmt.Sprintf("测试邮件已发送到 %s", req.To)})
+}
+
+// GetWatermarkInfo 获取水印配置信息
+func (h *AdminHandler) GetWatermarkInfo(c *gin.Context) {
+	watermarkService := service.NewWatermarkService()
+	info := watermarkService.GetWatermarkInfo()
+	response.Success(c, info)
+}
+
+// ==================== 开发者中心 API ====================
+
+// ListApiKeys 获取 API 密钥列表
+func (h *AdminHandler) ListApiKeys(c *gin.Context) {
+	repo := repository.NewApiKeyRepository()
+	keys, err := repo.List()
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "获取 API 密钥列表失败")
+		return
+	}
+	response.Success(c, keys)
+}
+
+// CreateApiKey 创建新的 API 密钥
+func (h *AdminHandler) CreateApiKey(c *gin.Context) {
+	var req struct {
+		Name string `json:"name" binding:"required,min=2,max=50"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "请提供密钥名称（2-50字符）")
+		return
+	}
+
+	// 获取当前管理员 ID
+	adminID, _ := c.Get("user_id")
+	var uid uint
+	switch v := adminID.(type) {
+	case uint:
+		uid = v
+	case float64:
+		uid = uint(v)
+	case int:
+		uid = uint(v)
+	default:
+		uid = 0
+	}
+
+	repo := repository.NewApiKeyRepository()
+	apiKey, err := repo.Create(req.Name, uid)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "创建 API 密钥失败")
+		return
+	}
+
+	h.recordLog(c, "create_api_key", "API密钥", "创建: "+req.Name)
+	response.Success(c, gin.H{
+		"message": "API 密钥创建成功，请妥善保存以下信息（仅显示一次）：",
+		"key":     apiKey,
+	})
+}
+
+// DeleteApiKey 删除 API 密钥
+func (h *AdminHandler) DeleteApiKey(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "无效的密钥 ID")
+		return
+	}
+
+	repo := repository.NewApiKeyRepository()
+	if err := repo.Delete(uint(id)); err != nil {
+		response.Error(c, http.StatusInternalServerError, "删除失败")
+		return
+	}
+
+	h.recordLog(c, "delete_api_key", "API密钥", "删除 ID: "+idStr)
+	response.Success(c, gin.H{"message": "API 密钥已删除"})
+}
+
+// GetApiDocs 获取 API 文档
+func (h *AdminHandler) GetApiDocs(c *gin.Context) {
+	docs := []map[string]interface{}{
+		{
+			"category": "套图",
+			"endpoints": []map[string]string{
+				{"method": "GET", "path": "/api/photosets", "desc": "获取套图列表"},
+				{"method": "GET", "path": "/api/photosets/:id", "desc": "获取套图详情"},
+				{"method": "GET", "path": "/api/photosets/advanced", "desc": "高级搜索套图"},
+				{"method": "POST", "path": "/api/photosets", "desc": "创建套图（需认证）"},
+				{"method": "PUT", "path": "/api/photosets/:id", "desc": "更新套图（需认证）"},
+				{"method": "DELETE", "path": "/api/photosets/:id", "desc": "删除套图（需认证）"},
+			},
+		},
+		{
+			"category": "用户",
+			"endpoints": []map[string]string{
+				{"method": "GET", "path": "/api/users/profile", "desc": "获取当前用户信息（需认证）"},
+				{"method": "PUT", "path": "/api/auth/password", "desc": "修改密码（需认证）"},
+			},
+		},
+		{
+			"category": "收藏",
+			"endpoints": []map[string]string{
+				{"method": "GET", "path": "/api/favorites", "desc": "获取收藏列表（需认证）"},
+				{"method": "POST", "path": "/api/favorites/:photosetId", "desc": "添加收藏（需认证）"},
+				{"method": "DELETE", "path": "/api/favorites/:photosetId", "desc": "取消收藏（需认证）"},
+			},
+		},
+		{
+			"category": "订单",
+			"endpoints": []map[string]string{
+				{"method": "GET", "path": "/api/orders", "desc": "获取订单列表（需认证）"},
+				{"method": "POST", "path": "/api/orders", "desc": "创建订单（需认证）"},
+				{"method": "POST", "path": "/api/orders/:id/refund", "desc": "申请退款（需认证）"},
+			},
+		},
+		{
+			"category": "会员套餐",
+			"endpoints": []map[string]string{
+				{"method": "GET", "path": "/api/memberships", "desc": "获取会员套餐列表"},
+			},
+		},
+		{
+			"category": "公开信息",
+			"endpoints": []map[string]string{
+				{"method": "GET", "path": "/api/tags", "desc": "获取标签列表"},
+				{"method": "GET", "path": "/api/categories", "desc": "获取分类列表"},
+				{"method": "GET", "path": "/api/pages/:slug", "desc": "获取页面内容"},
+				{"method": "GET", "path": "/api/settings", "desc": "获取站点公开设置"},
+				{"method": "GET", "path": "/api/health", "desc": "健康检查"},
+			},
+		},
+	}
+
+	response.Success(c, gin.H{
+		"docs":         docs,
+		"auth_header":  "Authorization",
+		"auth_format":  "Bearer <token>",
+		"content_type": "application/json",
+	})
+}
+
+// GetSignUrlDocs 获取图片签名 URL 文档
+func (h *AdminHandler) GetSignUrlDocs(c *gin.Context) {
+	docs := gin.H{
+		"description": "付费图片使用签名 URL 进行访问验证，防止盗链",
+		"signature_required": true,
+		"query_params": []map[string]string{
+			{"name": "sign", "desc": "HMAC-SHA256 签名"},
+			{"name": "expires", "desc": "签名过期时间戳（Unix）"},
+		},
+		"signature_algorithm": "HMAC-SHA256",
+		"signature_example": gin.H{
+			"message": "path?expires=<timestamp>",
+			"key": "<your_secret_key>",
+			"output": "hex encoded hmac",
+		},
+		"code_example": gin.H{
+			"python": `import hmac
+import hashlib
+import time
+
+def generate_sign_url(path, secret_key, expires=3600):
+    expires_at = int(time.time()) + expires
+    message = "%s?expires=%d" % (path, expires_at)
+    sign = hmac.new(secret_key.encode(), message.encode(), hashlib.sha256).hexdigest()
+    return "%s&sign=%s" % (message, sign)`,
+			"javascript": `// generateSignUrl(path, secretKey, expires=3600)
+const expiresAt = Math.floor(Date.now() / 1000) + expires;
+const message = path + "?expires=" + expiresAt;
+const sign = crypto.createHmac('sha256', secretKey).update(message).digest('hex');
+return message + "&sign=" + sign;`,
+		},
+	}
+
+	response.Success(c, docs)
 }

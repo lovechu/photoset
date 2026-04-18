@@ -74,6 +74,26 @@ func (s *CacheService) DeleteByPattern(ctx context.Context, pattern string) erro
 	return database.RedisClient.Del(ctx, keys...).Err()
 }
 
+// SetBool 设置布尔值缓存
+func (s *CacheService) SetBool(ctx context.Context, key string, val bool, ttl time.Duration) error {
+	if database.RedisClient == nil {
+		return nil
+	}
+	return database.RedisClient.Set(ctx, key, val, ttl).Err()
+}
+
+// GetBool 获取布尔值缓存，error 表示未命中
+func (s *CacheService) GetBool(ctx context.Context, key string) (bool, error) {
+	if database.RedisClient == nil {
+		return false, fmt.Errorf("redis not initialized")
+	}
+	val, err := database.RedisClient.Get(ctx, key).Int()
+	if err != nil {
+		return false, err
+	}
+	return val == 1, nil
+}
+
 // PhotosetListCacheKey 构建套图列表缓存 key
 func PhotosetListCacheKey(page, pageSize int, tag, keyword string) string {
 	return fmt.Sprintf("%s%d:%d:%s:%s", CachePrefixPhotosetList, page, pageSize, tag, keyword)
