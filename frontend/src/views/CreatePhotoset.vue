@@ -110,47 +110,81 @@
           </el-input-number>
         </el-form-item>
 
-        <!-- 图片列表 -->
+        <!-- 图片列表（WordPress 网格风格） -->
         <el-form-item label="图片列表">
-          <div class="photos-editor">
+          <div class="photos-grid">
+            <!-- 已上传图片 -->
             <div
               v-for="(photo, index) in form.photos"
-              :key="index"
-              class="photo-item"
+              :key="photo.tempId || index"
+              class="photo-card"
+              :class="{ selected: selectedPhotos.includes(photo.tempId || index) }"
+              @click="togglePhotoSelect(photo.tempId || index)"
             >
-              <div class="photo-number">{{ index + 1 }}</div>
-              <el-input
-                v-model="photo.url"
-                placeholder="图片URL"
-                style="flex: 1"
-              />
-              <el-input-number
-                v-model="photo.sort_order"
-                :min="0"
-                :max="999"
-                placeholder="排序"
-                controls-position="right"
-                style="width: 100px"
-              />
-              <el-button
-                type="danger"
-                :icon="Delete"
-                circle
-                @click="removePhoto(index)"
-              />
+              <div class="photo-thumb">
+                <el-image :src="photo.url" fit="cover" />
+                <div class="photo-check">
+                  <el-icon><Check /></el-icon>
+                </div>
+                <div class="photo-delete" @click.stop="removePhoto(index)">
+                  <el-icon><Close /></el-icon>
+                </div>
+              </div>
+              <div class="photo-meta">
+                <span class="photo-index">{{ index + 1 }}</span>
+                <span class="photo-name">{{ getFileName(photo.url) }}</span>
+              </div>
             </div>
-            <div class="photo-actions">
-              <el-upload
-                action=""
-                :http-request="handlePhotoUpload"
-                :show-file-list="false"
-                accept="image/*"
-                multiple
-              >
-                <el-button type="primary" plain :icon="UploadFilled">上传图片</el-button>
-              </el-upload>
-              <el-button plain :icon="Plus" @click="addPhoto">手动添加URL</el-button>
+
+            <!-- 上传中的图片 -->
+            <div
+              v-for="item in uploadQueue"
+              :key="item.tempId"
+              class="photo-card uploading"
+            >
+              <div class="photo-thumb">
+                <img :src="item.preview" class="preview-img" />
+                <div class="upload-overlay">
+                  <el-progress
+                    type="circle"
+                    :percentage="item.progress"
+                    :width="40"
+                    :stroke-width="3"
+                  />
+                </div>
+              </div>
+              <div class="photo-meta">
+                <span class="photo-index">--</span>
+                <span class="photo-name uploading-text">{{ item.name }}</span>
+              </div>
             </div>
+
+            <!-- 上传按钮 -->
+            <el-upload
+              action=""
+              :http-request="handlePhotoUpload"
+              :show-file-list="false"
+              accept="image/*"
+              multiple
+            >
+              <div class="photo-card add-btn">
+                <el-icon :size="32"><Plus /></el-icon>
+                <span>添加图片</span>
+              </div>
+            </el-upload>
+          </div>
+
+          <!-- 批量操作栏 -->
+          <div v-if="selectedPhotos.length > 0" class="batch-bar">
+            <span>已选 {{ selectedPhotos.length }} 张</span>
+            <el-button size="small" @click="selectedPhotos = []">取消选择</el-button>
+            <el-button size="small" type="danger" @click="batchDelete">删除选中</el-button>
+          </div>
+
+          <!-- 手动添加 URL -->
+          <div class="manual-add" style="margin-top: 12px">
+            <el-input v-model="manualUrl" placeholder="或手动输入图片URL" style="width: 300px; margin-right: 8px" />
+            <el-button @click="addManualUrl">添加</el-button>
           </div>
         </el-form-item>
 
@@ -187,7 +221,7 @@ import { useRouter } from 'vue-router'
 import { createPhotoset, getTags, uploadImage, getCategories } from '@/api'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
-import { Delete, Plus, UploadFilled } from '@element-plus/icons-vue'
+import { Delete, Plus, UploadFilled, Close, Check } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -198,6 +232,12 @@ const previewCover = ref(false)
 const availableTags = ref([])
 const availableCategories = ref([])
 const coverInputRef = ref(null)
+const isUploading = ref(false)
+const selectedPhotos = ref([])
+const manualUrl = ref('')
+
+// uploadQueue 中每个 item: { tempId, name, preview, progress, file }
+const uploadQueue = ref([])
 
 const form = reactive({
   title: '',
@@ -287,14 +327,6 @@ const loadCategories = async () => {
   }
 }
 
-// 添加图片
-const addPhoto = () => {
-  form.photos.push({
-    url: '',
-    sort_order: form.photos.length
-  })
-}
-
 // 触发封面上传
 const triggerCoverUpload = () => coverInputRef.value?.click()
 
@@ -317,21 +349,83 @@ const handleCoverUpload = async (e) => {
   e.target.value = '' // 重置 input
 }
 
-// 处理图片上传
-const handlePhotoUpload = async ({ file }) => {
-  try {
-    const res = await uploadImage(file)
-    form.photos.push({
-      url: res.data.url,
-      sort_order: form.photos.length
-    })
-    ElMessage.success('图片上传成功')
-  } catch (err) {
-    ElMessage.error('图片上传失败')
-  }
+// 生成唯一 ID
+const genId = () => Date.now() + '-' + Math.random().toString(36).slice(2)
+
+// 生成预览图
+const genPreview = (file) => {
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = (e) => resolve(e.target.result)
+    reader.readAsDataURL(file)
+  })
 }
 
-// 移除图片
+// 处理图片上传（串行队列 + 进度条）
+const handlePhotoUpload = async ({ file, fileList }) => {
+  const files = fileList && fileList.length > 1 ? fileList : [file]
+
+  // 先加入队列显示预览
+  for (const f of files) {
+    const preview = await genPreview(f)
+    const tempId = genId()
+    uploadQueue.value.push({ tempId, name: f.name, preview, progress: 0, file: f })
+  }
+
+  if (isUploading.value) return
+  isUploading.value = true
+
+  while (uploadQueue.value.length > 0) {
+    const item = uploadQueue.value[0]
+    try {
+      const res = await uploadImage(item.file)
+      // 移除队列，加入已上传列表
+      uploadQueue.value.shift()
+      form.photos.push({
+        tempId: item.tempId,
+        url: res.data.url,
+        sort_order: form.photos.length
+      })
+      ElMessage.success(`${item.name} 上传成功`)
+    } catch {
+      ElMessage.error(`${item.name} 上传失败`)
+      uploadQueue.value.shift() // 失败也移出，避免卡住
+    }
+  }
+
+  isUploading.value = false
+}
+
+// 切换选中
+const togglePhotoSelect = (id) => {
+  const idx = selectedPhotos.value.indexOf(id)
+  if (idx > -1) selectedPhotos.value.splice(idx, 1)
+  else selectedPhotos.value.push(id)
+}
+
+// 批量删除
+const batchDelete = () => {
+  const toDelete = new Set(selectedPhotos.value)
+  form.photos = form.photos.filter(p => !toDelete.has(p.tempId || p))
+  selectedPhotos.value = []
+  ElMessage.success('已删除')
+}
+
+// 从文件名提取
+const getFileName = (url) => {
+  if (!url) return ''
+  const parts = url.split('/')
+  return parts[parts.length - 1]
+}
+
+// 手动添加 URL
+const addManualUrl = () => {
+  if (!manualUrl.value.trim()) return
+  form.photos.push({ tempId: genId(), url: manualUrl.value.trim(), sort_order: form.photos.length })
+  manualUrl.value = ''
+}
+
+// 移除单张
 const removePhoto = (index) => {
   form.photos.splice(index, 1)
 }
@@ -475,6 +569,182 @@ onMounted(() => {
 
 .upload-placeholder span {
   font-size: 12px;
+}
+
+/* WordPress 风格图片网格 */
+.photos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.photo-card {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #f5f5f5;
+}
+
+.photo-card:hover {
+  border-color: #409eff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.photo-card.selected {
+  border-color: #409eff;
+}
+
+.photo-thumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+}
+
+.photo-thumb .el-image {
+  width: 100%;
+  height: 100%;
+}
+
+.photo-check {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 22px;
+  height: 22px;
+  background: #409eff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.photo-card.selected .photo-check {
+  opacity: 1;
+}
+
+.photo-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  background: rgba(0,0,0,0.5);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.photo-card:hover .photo-delete {
+  opacity: 1;
+}
+
+.photo-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: #666;
+}
+
+.photo-index {
+  width: 18px;
+  height: 18px;
+  background: #409eff;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.photo-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.uploading-text {
+  color: #999;
+  font-style: italic;
+}
+
+/* 上传中状态 */
+.photo-card.uploading .photo-thumb {
+  background: #f0f0f0;
+}
+
+.preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.upload-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 添加按钮 */
+.add-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 100%;
+  min-height: 150px;
+  border: 2px dashed #dcdfe6;
+  color: #909399;
+  transition: all 0.2s;
+}
+
+.add-btn:hover {
+  border-color: #409eff;
+  color: #409eff;
+}
+
+.add-btn span {
+  font-size: 12px;
+}
+
+/* 批量操作栏 */
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #f0f9ff;
+  border-radius: 8px;
+  color: #409eff;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.batch-bar span {
+  flex: 1;
 }
 
 .photo-actions {

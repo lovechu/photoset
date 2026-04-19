@@ -280,6 +280,32 @@ resources:
     memory: 256M
 ```
 
+### Q5: 上传超过 1MB 的文件返回 413 错误
+**问题原因**：前端容器（Nginx）默认 `client_max_body_size` 为 1MB
+
+**解决方案**：修改前端容器 Nginx 配置，添加大小限制：
+```bash
+# 登录服务器后执行
+docker exec photoset-frontend sh -c 'cat > /etc/nginx/conf.d/default.conf << EOF
+server {
+    listen 80;
+    server_name localhost;
+
+    # 上传文件大小限制 - 50MB
+    client_max_body_size 50m;
+    client_body_buffer_size 10m;
+    ...
+}
+EOF'
+
+# 重载 Nginx
+docker exec photoset-frontend nginx -s reload
+```
+
+**注意事项**：
+- 宝塔 Nginx 已配置 `client_max_body_size 50m`，限制主要在前端容器
+- 后端 Go 代码限制为 10MB（upload_handler.go 中 `MaxSize: 10 << 20`）
+
 ## 📊 性能调优
 
 ### 1. 启用多阶段构建
