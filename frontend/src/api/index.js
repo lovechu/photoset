@@ -122,6 +122,13 @@ export function getSiteSettings() {
   return request.get('/settings')
 }
 
+/**
+ * 获取完整站点设置（包含导航菜单等所有配置）
+ */
+export function getSettings() {
+  return request.get('/settings')
+}
+
 // ============ 健康检查 ============
 
 /**

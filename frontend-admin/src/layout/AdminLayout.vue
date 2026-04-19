@@ -32,6 +32,10 @@
           <el-icon><PriceTag /></el-icon>
           <span>标签管理</span>
         </el-menu-item>
+        <el-menu-item index="/categories">
+          <el-icon><FolderOpened /></el-icon>
+          <span>分类管理</span>
+        </el-menu-item>
         <el-menu-item index="/pages">
           <el-icon><Document /></el-icon>
           <span>页面管理</span>
@@ -95,7 +99,7 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminStore } from '@/stores/admin'
-import { Connection } from '@element-plus/icons-vue'
+import { Connection, FolderOpened } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
 

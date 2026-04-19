@@ -10,6 +10,23 @@
       <!-- 导航 -->
       <nav class="nav-links">
         <router-link to="/" class="nav-item">首页</router-link>
+        <!-- 分类菜单 -->
+        <el-dropdown v-if="navCategories.length > 0" @command="handleCategoryClick">
+          <span class="nav-item nav-dropdown">
+            分类 <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </span>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item 
+                v-for="cat in navCategories" 
+                :key="cat.slug" 
+                :command="cat.slug"
+              >
+                {{ cat.name }}
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
         <router-link to="/create" v-if="userStore.isCreatorOrAdmin" class="nav-item">
           <el-icon><Plus /></el-icon>
           创建套图
@@ -95,18 +112,38 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useSiteStore } from '@/stores/site'
-import { Camera, Plus, User, SwitchButton, Menu, Close, Medal, Document } from '@element-plus/icons-vue'
+import { Camera, Plus, User, SwitchButton, Menu, Close, Medal, Document, ArrowDown } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { getSettings } from '@/api'
 
 const router = useRouter()
 const userStore = useUserStore()
 const siteStore = useSiteStore()
 const mobileMenuVisible = ref(false)
 const defaultAvatar = ''
+const navCategories = ref([])
 
 onMounted(() => {
   siteStore.fetchSettings()
+  loadNavMenu()
 })
+
+async function loadNavMenu() {
+  try {
+    const data = await getSettings()
+    if (data?.nav_menu) {
+      const menuItems = JSON.parse(data.nav_menu)
+      navCategories.value = menuItems.filter(item => item.slug)
+    }
+  } catch (e) {
+    console.error('加载导航菜单失败', e)
+  }
+}
+
+function handleCategoryClick(slug) {
+  // 跳转到首页并传递分类筛选参数
+  router.push({ path: '/', query: { category: slug } })
+}
 
 const roleLabel = computed(() => {
   const labels = {
@@ -189,6 +226,12 @@ const handleCommand = (command) => {
 .nav-item:hover,
 .nav-item.router-link-active {
   color: #409eff;
+}
+
+.nav-dropdown {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
 }
 
 .user-area {

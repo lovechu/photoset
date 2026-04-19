@@ -92,12 +92,13 @@
       </div>
 
       <!-- 图片画廊 -->
-      <div class="photo-gallery">
+      <div class="photo-gallery" ref="galleryRef">
         <!-- 免费套图或已付费：展示全部图片 -->
         <template v-if="detail.is_free || photos.length > 0">
+          <!-- 分页加载 -->
           <div class="gallery-grid">
             <div
-              v-for="(photo, index) in photos"
+              v-for="(photo, index) in visiblePhotos"
               :key="photo.id"
               class="gallery-item"
               @click="openViewer(index)"
@@ -106,8 +107,14 @@
                 :src="photo.url"
                 :alt="`图片 ${index + 1}`"
                 fit="cover"
-                loading="lazy"
+                class="gallery-image"
+                :lazy="true"
               >
+                <template #placeholder>
+                  <div class="image-placeholder">
+                    <el-icon :size="32" class="loading-icon"><Loading /></el-icon>
+                  </div>
+                </template>
                 <template #error>
                   <div class="image-error">
                     <el-icon :size="32"><Picture /></el-icon>
@@ -115,6 +122,12 @@
                 </template>
               </el-image>
             </div>
+          </div>
+          <!-- 加载更多按钮 -->
+          <div v-if="hasMore" class="load-more">
+            <el-button @click="loadMore" :loading="loadingMore" size="large">
+              加载更多 ({{ visibleCount }}/{{ photos.length }})
+            </el-button>
           </div>
           <div class="gallery-tip">
             共 {{ photos.length }} 张图片，点击可放大查看
@@ -159,16 +172,17 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getPhotosetDetail, addFavorite, removeFavorite } from '@/api'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, Picture, Lock, Star, StarFilled, Edit } from '@element-plus/icons-vue'
+import { ArrowLeft, Picture, Lock, Star, StarFilled, Edit, Loading } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
+const galleryRef = ref(null)
 
 const loading = ref(false)
 const error = ref('')
@@ -176,11 +190,45 @@ const detail = ref(null)
 const showViewer = ref(false)
 const viewerIndex = ref(0)
 const isFavorited = ref(false)
+const loadingMore = ref(false)
+
+// 分页加载相关
+const PAGE_SIZE = 20 // 每页加载数量
+const visibleCount = ref(PAGE_SIZE)
+const loadingMoreTriggered = ref(false)
 
 // 图片列表（可能为空）
 const photos = computed(() => detail.value?.photos || [])
 
-// 可预览的图片 URL 列表
+// 当前可见的图片
+const visiblePhotos = computed(() => photos.value.slice(0, visibleCount.value))
+
+// 是否还有更多图片
+const hasMore = computed(() => visibleCount.value < photos.value.length)
+
+// 加载更多图片
+const loadMore = () => {
+  if (loadingMore.value || !hasMore.value) return
+  loadingMore.value = true
+  setTimeout(() => {
+    visibleCount.value = Math.min(visibleCount.value + PAGE_SIZE, photos.value.length)
+    loadingMore.value = false
+  }, 300) // 模拟加载延迟，让用户看到反馈
+}
+
+// 滚动监听（可选：自动加载更多）
+const handleScroll = () => {
+  if (!galleryRef.value || !hasMore.value || loadingMoreTriggered.value) return
+  const { scrollTop, clientHeight, scrollHeight } = document.documentElement
+  // 接近底部时自动加载
+  if (scrollTop + clientHeight >= scrollHeight - 200) {
+    loadingMoreTriggered.value = true
+    loadMore()
+    setTimeout(() => { loadingMoreTriggered.value = false }, 500)
+  }
+}
+
+// 可预览的图片 URL 列表（全部图片）
 const viewerImages = computed(() => photos.value.map(p => p.url))
 
 // 图片数量（用于付费墙提示）
@@ -202,6 +250,7 @@ const loadDetail = async () => {
 
   loading.value = true
   error.value = ''
+  visibleCount.value = PAGE_SIZE // 重置分页
 
   try {
     const res = await getPhotosetDetail(Number(id))
@@ -269,6 +318,11 @@ const formatDate = (dateStr) => {
 
 onMounted(() => {
   loadDetail()
+  window.addEventListener('scroll', handleScroll)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', handleScroll)
 })
 </script>
 
@@ -462,6 +516,33 @@ onMounted(() => {
   justify-content: center;
   background: #f5f5f5;
   color: #ccc;
+}
+
+.image-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+}
+
+.loading-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.gallery-image {
+  transition: opacity 0.3s ease;
+}
+
+.load-more {
+  text-align: center;
+  padding: 24px;
 }
 
 .gallery-tip {

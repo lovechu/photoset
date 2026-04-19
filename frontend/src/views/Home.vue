@@ -37,6 +37,25 @@
       </div>
     </div>
 
+    <!-- 分类筛选 -->
+    <div class="category-filter">
+      <el-select 
+        v-model="selectedCategory" 
+        placeholder="全部分类" 
+        clearable 
+        @change="handleCategoryChange"
+        style="width: 160px; margin-right: 16px;"
+      >
+        <el-option label="全部分类" value="" />
+        <el-option 
+          v-for="cat in categoryOptions" 
+          :key="cat.id" 
+          :label="cat.name" 
+          :value="cat.slug" 
+        />
+      </el-select>
+    </div>
+
     <!-- 标签筛选 -->
     <div class="tag-filter">
       <el-radio-group v-model="selectedTag" @change="handleTagChange">
@@ -103,16 +122,20 @@
 
 <script setup>
 import { ref, onMounted, watch, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { getPhotosetList, getTags, getPhotosetListAdvanced, getCategories } from '@/api'
 import { getCurrentUser } from '@/api'
 import PhotosetCard from '@/components/PhotosetCard.vue'
 import AdvancedSearch from '@/components/AdvancedSearch.vue'
 import { Search } from '@element-plus/icons-vue'
 
+const route = useRoute()
+
 const loading = ref(false)
 const photosets = ref([])
 const tags = ref([])
 const categoryOptions = ref([])
+const selectedCategory = ref('')
 const selectedTag = ref('')
 const keyword = ref('')
 const currentPage = ref(1)
@@ -171,6 +194,7 @@ const loadPhotosets = async () => {
         page_size: pageSize.value,
         tag: selectedTag.value || undefined,
         keyword: keyword.value || undefined,
+        category: selectedCategory.value || undefined,
         ...advancedFilters.value
       }
       
@@ -188,7 +212,8 @@ const loadPhotosets = async () => {
         page: currentPage.value,
         page_size: pageSize.value,
         tag: selectedTag.value || undefined,
-        keyword: keyword.value || undefined
+        keyword: keyword.value || undefined,
+        category: selectedCategory.value || undefined
       })
     }
     
@@ -227,9 +252,20 @@ const handleTagChange = () => {
   loadPhotosets()
 }
 
+// 分类切换
+const handleCategoryChange = () => {
+  currentPage.value = 1
+  loadPhotosets()
+}
+
 // 显示当前筛选状态
 const activeFilterText = computed(() => {
   const filters = []
+  
+  if (selectedCategory.value) {
+    const foundCat = categoryOptions.value.find(c => c.slug === selectedCategory.value)
+    filters.push(`分类: ${foundCat ? foundCat.name : selectedCategory.value}`)
+  }
   
   if (selectedTag.value) {
     filters.push(`标签: ${selectedTag.value}`)
@@ -295,6 +331,23 @@ onMounted(() => {
   loadCurrentUser()
   loadTags()
   loadCategories()
+  
+  // 检查 URL 参数中的分类筛选
+  if (route.query.category) {
+    selectedCategory.value = route.query.category
+  }
+  
+  loadPhotosets()
+})
+
+// 监听路由变化
+watch(() => route.query.category, (newCategory) => {
+  if (newCategory) {
+    selectedCategory.value = newCategory
+  } else {
+    selectedCategory.value = ''
+  }
+  currentPage.value = 1
   loadPhotosets()
 })
 

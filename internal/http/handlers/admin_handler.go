@@ -643,6 +643,8 @@ func (h *AdminHandler) GetPublicSettings(c *gin.Context) {
 		"terms_content", "privacy_content", "help_content", "contact_content",
 		// 域名配置（供移动端使用）
 		"site_url", "api_url", "dev_api_url",
+		// 导航菜单（前端使用）
+		"nav_menu",
 	}
 	for key, value := range settings {
 		for _, allowed := range publicKeys {

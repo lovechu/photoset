@@ -30,6 +30,66 @@
           </el-form>
         </el-tab-pane>
 
+        <!-- 导航菜单 -->
+        <el-tab-pane label="导航菜单" name="navigation">
+          <div style="max-width: 700px; margin-top: 16px;">
+            <el-alert
+              title="设置前端导航栏显示的分类链接"
+              type="info"
+              :closable="false"
+              show-icon
+              style="margin-bottom: 20px;"
+            />
+
+            <div v-if="loadingCategories" v-loading="loadingCategories" style="padding: 40px;">
+            </div>
+            <div v-else>
+              <div class="menu-items">
+                <div v-for="(item, index) in navMenuItems" :key="index" class="menu-item">
+                  <el-icon class="drag-handle"><Rank /></el-icon>
+                  <span class="menu-item-name">{{ getCategoryName(item.slug) }}</span>
+                  <el-tag v-if="item.slug" size="small" type="info">{{ item.slug }}</el-tag>
+                  <el-tag v-else size="small" type="warning">未设置</el-tag>
+                  <el-button 
+                    type="danger" 
+                    size="small" 
+                    text 
+                    :icon="Delete" 
+                    @click="removeNavItem(index)"
+                    style="margin-left: auto;"
+                  >
+                    删除
+                  </el-button>
+                </div>
+              </div>
+
+              <div v-if="navMenuItems.length === 0" class="empty-menu">
+                <el-empty description="暂无导航菜单项，点击下方按钮添加" :image-size="80" />
+              </div>
+
+              <div class="add-menu-section">
+                <el-select v-model="newNavSlug" placeholder="选择分类" clearable style="width: 200px;">
+                  <el-option
+                    v-for="cat in availableCategories"
+                    :key="cat.slug"
+                    :label="cat.name"
+                    :value="cat.slug"
+                  />
+                </el-select>
+                <el-button type="primary" :icon="Plus" @click="addNavItem" :disabled="!newNavSlug">
+                  添加到菜单
+                </el-button>
+              </div>
+
+              <el-divider />
+
+              <el-form-item>
+                <el-button type="primary" :loading="saving" @click="save('navigation')">保存菜单</el-button>
+              </el-form-item>
+            </div>
+          </div>
+        </el-tab-pane>
+
         <!-- SEO 设置 -->
         <el-tab-pane label="SEO 设置" name="seo">
           <el-form :model="form" label-width="140px" style="max-width: 600px; margin-top: 16px;">
@@ -193,10 +253,16 @@
                 </el-form-item>
               </template>
 
-              <!-- CDN 域名（S3/R2 通用） -->
-              <el-form-item v-if="form.storage_type !== 'local'" label="CDN / 公开域名">
-                <el-input v-model="form.cdn_domain" placeholder="例：https://cdn.example.com" />
-                <div class="form-tip">用于生成图片访问 URL，建议配置自定义域名或 CDN 加速域名</div>
+              <!-- CDN 域名（所有存储类型通用） -->
+              <el-form-item label="CDN / 公开域名">
+                <el-input v-model="form.cdn_domain" placeholder="例：https://cdn.example.com 或 https://img.yoursite.com" />
+                <div class="form-tip">用于生成图片访问 URL。S3/R2 时建议配置自定义域名或 CDN 加速域名；本地存储时可配置 Nginx 反向代理域名</div>
+              </el-form-item>
+
+              <!-- 本地存储路径提示 -->
+              <el-form-item v-if="form.storage_type === 'local'" label="本地存储路径">
+                <el-input :model-value="storageStatus?.path || '/app/uploads'" disabled />
+                <div class="form-tip">图片存储在容器内的 /app/uploads 目录，配合 CDN 域名使用时需在 Nginx 配置反向代理</div>
               </el-form-item>
 
               <el-form-item>
@@ -277,9 +343,10 @@ class ApiConfig {
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getSettings, updateSettings, getStorageStatus, testStorageConnection, testMailConnection, sendMailTest } from '@/api/index'
+import { getSettings, updateSettings, getStorageStatus, testStorageConnection, testMailConnection, sendMailTest, getCategoryList } from '@/api/index'
+import { Rank, Delete, Plus } from '@element-plus/icons-vue'
 
 const activeTab = ref('general')
 const saving = ref(false)
@@ -320,7 +387,15 @@ const form = ref({
   site_url: '',
   api_url: '',
   dev_api_url: '',
+  // 导航菜单
+  nav_menu: '[]',
 })
+
+// 导航菜单相关
+const navMenuItems = ref([])
+const newNavSlug = ref('')
+const allCategories = ref([])
+const loadingCategories = ref(false)
 
 // 水印透明度用数字绑定 slider
 const watermarkOpacity = computed({
@@ -337,14 +412,54 @@ onMounted(async () => {
           form.value[key] = data[key]
         }
       })
+      // 解析导航菜单
+      try {
+        navMenuItems.value = JSON.parse(form.value.nav_menu || '[]')
+      } catch {
+        navMenuItems.value = []
+      }
     }
     loaded.value = true
     // 加载存储状态
     loadStorageStatus()
+    // 加载分类列表
+    loadAllCategories()
   } catch (e) {
     ElMessage.error('加载配置失败')
   }
 })
+
+async function loadAllCategories() {
+  loadingCategories.value = true
+  try {
+    const res = await getCategoryList({ page: 1, page_size: 100 })
+    allCategories.value = res.data?.list || []
+  } catch {
+    allCategories.value = []
+  } finally {
+    loadingCategories.value = false
+  }
+}
+
+const availableCategories = computed(() => {
+  const usedSlugs = navMenuItems.value.map(item => item.slug).filter(Boolean)
+  return allCategories.value.filter(cat => !usedSlugs.includes(cat.slug))
+})
+
+function getCategoryName(slug) {
+  const cat = allCategories.value.find(c => c.slug === slug)
+  return cat ? cat.name : slug || '未知分类'
+}
+
+function addNavItem() {
+  if (!newNavSlug.value) return
+  navMenuItems.value.push({ slug: newNavSlug.value })
+  newNavSlug.value = ''
+}
+
+function removeNavItem(index) {
+  navMenuItems.value.splice(index, 1)
+}
 
 async function loadStorageStatus() {
   try {
@@ -358,6 +473,11 @@ async function loadStorageStatus() {
 async function save(group) {
   saving.value = true
   try {
+    // 导航菜单需要序列化
+    if (group === 'navigation') {
+      form.value.nav_menu = JSON.stringify(navMenuItems.value)
+    }
+    
     // 按 tab 保存对应的字段
     const groupKeys = {
       general: ['site_title', 'site_description', 'site_icp', 'register_enabled', 'email_verify_required'],
@@ -365,8 +485,9 @@ async function save(group) {
       about: ['about_content'],
       mail: ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_password', 'smtp_from_name'],
       watermark: ['watermark_enabled', 'watermark_text', 'watermark_opacity'],
-  storage: ['storage_type', 's3_endpoint', 's3_region', 's3_access_key', 's3_secret_key', 's3_bucket', 'r2_account_id', 'cdn_domain'],
-  domain: ['site_url', 'api_url', 'dev_api_url'],
+      storage: ['storage_type', 's3_endpoint', 's3_region', 's3_access_key', 's3_secret_key', 's3_bucket', 'r2_account_id', 'cdn_domain'],
+      domain: ['site_url', 'api_url', 'dev_api_url'],
+      navigation: ['nav_menu'],
 }
     const keys = groupKeys[group] || Object.keys(form.value)
     const payload = {}
@@ -502,5 +623,58 @@ async function restartBackend() {
   line-height: 1.6;
   overflow-x: auto;
   margin: 0;
+}
+
+/* 导航菜单样式 */
+.menu-items {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #f5f7fa;
+  border-radius: 8px;
+  border: 1px solid #e4e7ed;
+}
+
+.menu-item .drag-handle {
+  color: #909399;
+  cursor: grab;
+  font-size: 16px;
+}
+
+.menu-item-name {
+  font-weight: 500;
+  color: #303133;
+  min-width: 80px;
+}
+
+.menu-item .el-tag {
+  margin-left: 8px;
+}
+
+.add-menu-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 16px;
+  background: #f0f9ff;
+  border-radius: 8px;
+  border: 1px dashed #91d5ff;
+}
+
+.empty-menu {
+  padding: 40px 0;
+  background: #fafafa;
+  border-radius: 8px;
+  border: 1px dashed #d9d9d9;
+  margin-bottom: 20px;
 }
 </style>
