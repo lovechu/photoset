@@ -35,6 +35,7 @@ var allowedMIMETypes = map[string]bool{
 	"image/png":  true,
 	"image/webp": true,
 	"image/gif":  true,
+	"image/avif": true,
 }
 
 // bytesFile 将 []byte 包装为 multipart.File 接口
@@ -59,9 +60,9 @@ func (h *UploadHandler) UploadImage(c *gin.Context) {
 
 	// 扩展名白名单（第一道防线）
 	ext := strings.ToLower(filepath.Ext(header.Filename))
-	allowedExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".webp": true, ".gif": true}
+	allowedExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".webp": true, ".gif": true, ".avif": true}
 	if !allowedExts[ext] {
-		response.Error(c, http.StatusBadRequest, "仅支持 JPG、PNG、WebP、GIF 格式")
+		response.Error(c, http.StatusBadRequest, "仅支持 JPG、PNG、WebP、GIF、AVIF 格式")
 		return
 	}
 
