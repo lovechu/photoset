@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"photoset/internal/database"
@@ -25,8 +26,9 @@ func NewCacheService() *CacheService {
 
 // Set 设置缓存
 func (s *CacheService) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
-	if database.RedisClient == nil {
-		return nil // 静默失败
+	if !database.IsRedisAvailable() {
+		log.Printf("[Cache] WARNING: Redis unavailable, cache SET skipped (key=%s)", key)
+		return nil
 	}
 	data, err := json.Marshal(value)
 	if err != nil {
@@ -37,8 +39,8 @@ func (s *CacheService) Set(ctx context.Context, key string, value interface{}, t
 
 // Get 获取缓存，返回 error 表示缓存未命中
 func (s *CacheService) Get(ctx context.Context, key string, dest interface{}) error {
-	if database.RedisClient == nil {
-		return fmt.Errorf("redis not initialized")
+	if !database.IsRedisAvailable() {
+		return fmt.Errorf("redis unavailable")
 	}
 	data, err := database.RedisClient.Get(ctx, key).Bytes()
 	if err != nil {
@@ -49,7 +51,7 @@ func (s *CacheService) Get(ctx context.Context, key string, dest interface{}) er
 
 // Delete 删除缓存（用于主动失效）
 func (s *CacheService) Delete(ctx context.Context, keys ...string) error {
-	if database.RedisClient == nil {
+	if !database.IsRedisAvailable() {
 		return nil
 	}
 	if len(keys) == 0 {
@@ -60,7 +62,7 @@ func (s *CacheService) Delete(ctx context.Context, keys ...string) error {
 
 // DeleteByPattern 按通配符删除缓存（用于列表缓存失效）
 func (s *CacheService) DeleteByPattern(ctx context.Context, pattern string) error {
-	if database.RedisClient == nil {
+	if !database.IsRedisAvailable() {
 		return nil
 	}
 	iter := database.RedisClient.Scan(ctx, 0, pattern, 0).Iterator()
@@ -76,7 +78,8 @@ func (s *CacheService) DeleteByPattern(ctx context.Context, pattern string) erro
 
 // SetBool 设置布尔值缓存
 func (s *CacheService) SetBool(ctx context.Context, key string, val bool, ttl time.Duration) error {
-	if database.RedisClient == nil {
+	if !database.IsRedisAvailable() {
+		log.Printf("[Cache] WARNING: Redis unavailable, cache SETBool skipped (key=%s)", key)
 		return nil
 	}
 	return database.RedisClient.Set(ctx, key, val, ttl).Err()
@@ -84,8 +87,8 @@ func (s *CacheService) SetBool(ctx context.Context, key string, val bool, ttl ti
 
 // GetBool 获取布尔值缓存，error 表示未命中
 func (s *CacheService) GetBool(ctx context.Context, key string) (bool, error) {
-	if database.RedisClient == nil {
-		return false, fmt.Errorf("redis not initialized")
+	if !database.IsRedisAvailable() {
+		return false, fmt.Errorf("redis unavailable")
 	}
 	val, err := database.RedisClient.Get(ctx, key).Int()
 	if err != nil {

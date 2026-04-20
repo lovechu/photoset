@@ -60,7 +60,8 @@ services:
       DB_NAME: photoset
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      JWT_SECRET: ${JWT_SECRET:-default_jwt_secret_change_in_production}
+      # ⚠️ JWT_SECRET 必须通过环境变量注入，禁止使用默认值
+      JWT_SECRET: ${JWT_SECRET}
       STORAGE_TYPE: ${STORAGE_TYPE:-local}
       AWS_ENDPOINT: ${AWS_ENDPOINT:-}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}

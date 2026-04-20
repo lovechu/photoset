@@ -10,6 +10,7 @@ import (
 )
 
 var RedisClient *redis.Client
+var RedisAvailable bool // Redis 是否初始化成功
 
 func InitRedis(cfg *config.Config) error {
 	RedisClient = redis.NewClient(&redis.Options{
@@ -22,10 +23,17 @@ func InitRedis(cfg *config.Config) error {
 	defer cancel()
 
 	if err := RedisClient.Ping(ctx).Err(); err != nil {
+		RedisAvailable = false
 		return fmt.Errorf("failed to connect to redis: %w", err)
 	}
 
+	RedisAvailable = true
 	return nil
+}
+
+// IsRedisAvailable 返回 Redis 是否可用
+func IsRedisAvailable() bool {
+	return RedisAvailable
 }
 
 func CloseRedis() error {

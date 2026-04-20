@@ -1,8 +1,8 @@
 package main
 
 import (
+	"errors"
 	"log"
-	"strings"
 	"photoset/internal/config"
 	"photoset/internal/database"
 	"photoset/internal/domain"
@@ -10,6 +10,7 @@ import (
 	"photoset/internal/pkg/jwt"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-sql-driver/mysql"
 )
 
 func main() {
@@ -60,12 +61,11 @@ func main() {
 		}
 	}
 
-	// 初始化 Redis
+	// 初始化 Redis（付费缓存依赖 Redis，必须成功）
 	if err := database.InitRedis(cfg); err != nil {
-		log.Printf("Warning: Failed to initialize Redis: %v", err)
-	} else {
-		defer database.CloseRedis()
+		log.Fatalf("Failed to initialize Redis (required for paid cache): %v", err)
 	}
+	defer database.CloseRedis()
 
 	// 初始化 JWT
 	jwt.Init(cfg)
@@ -93,11 +93,15 @@ func init() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 }
 
-// isMultiplePrimaryKeyError 检测是否是重复主键的 MySQL 错误（1068）
+// isMultiplePrimaryKeyError 检测是否是重复主键的 MySQL 错误（Error #1068）
 func isMultiplePrimaryKeyError(err error) bool {
 	if err == nil {
 		return false
 	}
-	return strings.Contains(err.Error(), "1068") && strings.Contains(err.Error(), "Multiple primary key")
+	var mysqlErr *mysql.MySQLError
+	if errors.As(err, &mysqlErr) {
+		return mysqlErr.Number == 1068 // ER_DUP_KEYNAME
+	}
+	return false
 }
 
