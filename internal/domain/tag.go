@@ -9,7 +9,7 @@ type Tag struct {
 	Name      string    `gorm:"size:50;not null;uniqueIndex" json:"name"`
 
 	// 关联
-	PhotoSets []PhotoSet `gorm:"many2many:photoset_tags;joinReferences:tag_id" json:"photosets,omitempty"`
+	PhotoSets []PhotoSet `gorm:"many2many:photoset_tags;joinForeignKey:photoset_id;joinReferences:tag_id" json:"photosets,omitempty"`
 }
 
 // TableName 指定表名

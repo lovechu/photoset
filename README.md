@@ -476,24 +476,24 @@ sudo service mysql start
 sudo service redis-server start
 
 # 启动后端
-cd ~/projects/20260408115223/backend/
+cd backend/
 go run cmd/main.go
 # 监听端口: 8080
 ```
 
-### 前端用户端 (Windows)
+### 前端用户端
 
-```powershell
-cd C:\Users\ichuy\WorkBuddy\20260408115223\backend\frontend
+```bash
+cd frontend/
 npm install
 npm run dev
 # 访问: http://localhost:3000
 ```
 
-### 管理后台 (Windows)
+### 管理后台
 
-```powershell
-cd C:\Users\ichuy\WorkBuddy\20260408115223\backend\frontend-admin
+```bash
+cd frontend-admin/
 npm install
 npm run dev
 # 访问: http://localhost:3001
@@ -523,4 +523,4 @@ npm run dev
 
 ---
 
-*最后更新: 2026-04-19*
+*最后更新: 2026-05-16*
