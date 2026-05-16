@@ -11,8 +11,9 @@ services:
       MYSQL_DATABASE: photoset
       MYSQL_USER: photoset
       MYSQL_PASSWORD: PhotoSet@Mysql2026
-    ports:
-      - "3306:3306"
+    # MySQL 仅 Docker 网络内访问，不暴露到宿主机
+    # ports:
+    #   - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -29,8 +30,9 @@ services:
     image: redis:7.2-alpine
     container_name: photoset-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
+    # Redis 仅 Docker 网络内访问，不暴露到宿主机
+    # ports:
+    #   - "6379:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -71,7 +73,7 @@ services:
       CORS_ALLOW_ORIGINS: "http://localhost:3000,http://localhost:3001"
       GIN_MODE: release
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
       - uploads_volume:/app/uploads
       - ./logs:/app/logs
@@ -97,7 +99,7 @@ services:
     environment:
       VITE_API_BASE_URL: http://backend:8080
     ports:
-      - "3000:80"
+      - "127.0.0.1:3000:80"
     networks:
       - photoset-network
     healthcheck:
@@ -120,7 +122,7 @@ services:
     environment:
       VITE_API_BASE_URL: http://backend:8080
     ports:
-      - "3001:80"
+      - "127.0.0.1:3001:80"
     networks:
       - photoset-network
     healthcheck:
