@@ -15,9 +15,8 @@ type Comment struct {
 	ParentID   *uint      `gorm:"index" json:"parent_id"` // 回复的评论ID，nil表示顶级评论
 	LikeCount  int        `gorm:"default:0" json:"like_count"`
 
-	// 关联
-	User   User     `gorm:"foreignKey:UserID" json:"user,omitempty"`
-	Parent *Comment `gorm:"foreignKey:ParentID" json:"parent,omitempty"`
+	// 关联 - 不使用自引用预加载，手动查询回复
+	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`
 }
 
 // TableName 指定表名

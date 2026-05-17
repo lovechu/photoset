@@ -57,11 +57,7 @@ func (h *CommentHandler) List(c *gin.Context) {
 	// 构建评论列表，包含回复数量和当前用户点赞状态
 	var list []gin.H
 	for _, comment := range comments {
-		// 获取该评论的回复数量
-		replyCount, _ := h.repo.GetCommentCount(uint(photosetID))
-		_ = replyCount // 不在列表中显示总回复数
-
-		// 获取该评论的回复
+		// 获取该评论的前3条回复
 		replies, _, _ := h.repo.GetReplies(comment.ID, userID, 1, 3)
 
 		// 获取当前用户对该评论的点赞状态
@@ -69,6 +65,9 @@ func (h *CommentHandler) List(c *gin.Context) {
 		if userID > 0 {
 			isLiked, _ = h.repo.IsLiked(comment.ID, userID)
 		}
+
+		// 获取该评论的总回复数
+		_, replyTotal, _ := h.repo.GetReplies(comment.ID, userID, 1, 1000)
 
 		// 构建回复列表
 		var replyList []gin.H
@@ -92,16 +91,13 @@ func (h *CommentHandler) List(c *gin.Context) {
 			})
 		}
 
-		// 获取总回复数
-		totalReplies, _, _ := h.repo.GetReplies(comment.ID, userID, 1, 1000)
-
 		list = append(list, gin.H{
 			"id":          comment.ID,
 			"content":     comment.Content,
 			"image_url":   comment.ImageURL,
 			"like_count":  comment.LikeCount,
 			"is_liked":    isLiked,
-			"reply_count": len(totalReplies),
+			"reply_count": int(replyTotal),
 			"created_at":  comment.CreatedAt.Format("2006-01-02T15:04:05Z"),
 			"user": gin.H{
 				"id":       comment.User.ID,

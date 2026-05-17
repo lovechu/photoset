@@ -42,20 +42,6 @@ func (r *CommentRepository) GetByPhotosetID(photosetID uint, userID uint, page, 
 		return nil, 0, err
 	}
 
-	// 加载每个顶级评论的回复（最多显示前3条）
-	for i := range comments {
-		var replies []domain.Comment
-		r.db.Where("parent_id = ?", comments[i].ID).
-			Preload("User").
-			Order("created_at ASC").
-			Limit(3).
-			Find(&replies)
-		// 用关联字段传递回复
-		comments[i].Parent = &domain.Comment{} // marker
-		// 回复通过 API 单独加载
-		_ = replies
-	}
-
 	return comments, total, nil
 }
 
