@@ -22,7 +22,7 @@
                 :key="cat.slug" 
                 :command="cat.slug"
               >
-                {{ cat.name }}
+                {{ getCategoryName(cat.slug) }}
               </el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -114,7 +114,7 @@ import { useUserStore } from '@/stores/user'
 import { useSiteStore } from '@/stores/site'
 import { Camera, Plus, User, SwitchButton, Menu, Close, Medal, Document, ArrowDown } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getSettings } from '@/api'
+import { getSettings, getCategories } from '@/api'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -122,27 +122,59 @@ const siteStore = useSiteStore()
 const mobileMenuVisible = ref(false)
 const defaultAvatar = ''
 const navCategories = ref([])
+const allCategories = ref([])
 
 onMounted(() => {
   siteStore.fetchSettings()
   loadNavMenu()
+  loadAllCategories()
 })
 
 async function loadNavMenu() {
   try {
     const data = await getSettings()
     if (data?.nav_menu) {
-      const menuItems = JSON.parse(data.nav_menu)
-      navCategories.value = menuItems.filter(item => item.slug)
+      try {
+        const menuItems = JSON.parse(data.nav_menu)
+        navCategories.value = menuItems.filter(item => item.slug)
+      } catch (parseError) {
+        console.error('解析导航菜单JSON失败:', parseError)
+        navCategories.value = []
+      }
+    } else {
+      navCategories.value = []
     }
   } catch (e) {
     console.error('加载导航菜单失败', e)
+    navCategories.value = []
   }
 }
 
 function handleCategoryClick(slug) {
   // 跳转到首页并传递分类筛选参数
   router.push({ path: '/', query: { category: slug } })
+}
+
+async function loadAllCategories() {
+  try {
+    const res = await getCategories()
+    // 处理响应数据，兼容两种格式
+    if (res?.data?.list) {
+      allCategories.value = res.data.list
+    } else if (Array.isArray(res?.data)) {
+      allCategories.value = res.data
+    } else if (Array.isArray(res)) {
+      allCategories.value = res
+    }
+  } catch (e) {
+    console.error('加载分类列表失败', e)
+    allCategories.value = []
+  }
+}
+
+function getCategoryName(slug) {
+  const cat = allCategories.value.find(c => c.slug === slug)
+  return cat ? cat.name : slug || '未知分类'
 }
 
 const roleLabel = computed(() => {

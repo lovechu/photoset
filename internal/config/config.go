@@ -61,7 +61,7 @@ func Load() *Config {
 		log.Println("Warning: .env file not found, using environment variables")
 	}
 
-	return &Config{
+	cfg := &Config{
 		Server: ServerConfig{
 			Port: getEnv("SERVER_PORT", "8080"),
 			Mode: getEnv("SERVER_MODE", "debug"),
@@ -98,6 +98,16 @@ func Load() *Config {
 			SignExpire:  getEnvAsInt("SIGN_EXPIRE", 7200),
 		},
 	}
+
+	// ⚠️ 生产环境必须配置强密钥，默认值直接 panic
+	if cfg.JWT.Secret == "default-secret-key" {
+		log.Fatal("FATAL: JWT_SECRET is not configured. Set a strong random secret in .env or environment variable.")
+	}
+	if cfg.Storage.SignSecret == "default-sign-secret-change-me" {
+		log.Fatal("FATAL: SIGN_SECRET is not configured. Set a strong random secret in .env or environment variable.")
+	}
+
+	return cfg
 }
 
 func getEnv(key, defaultValue string) string {

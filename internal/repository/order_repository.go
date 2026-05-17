@@ -2,6 +2,7 @@ package repository
 
 import (
 	"photoset/internal/domain"
+	"strconv"
 
 	"gorm.io/gorm"
 )
@@ -96,4 +97,39 @@ func (r *OrderRepository) FindPaidOrder(orderID uint) (*domain.Order, error) {
 		return nil, err
 	}
 	return &order, nil
+}
+
+// ============ Admin APIs ============
+
+// List 管理员分页查询订单列表
+func (r *OrderRepository) List(page, pageSize int, status, userID string) ([]domain.Order, int64, error) {
+	var orders []domain.Order
+	var total int64
+
+	query := r.db.Model(&domain.Order{})
+
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+
+	if userID != "" {
+		if uid, err := strconv.ParseUint(userID, 10, 32); err == nil {
+			query = query.Where("user_id = ?", uid)
+		}
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * pageSize
+	err := query.
+		Preload("User").
+		Preload("PhotoSet").
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(pageSize).
+		Find(&orders).Error
+
+	return orders, total, err
 }

@@ -36,6 +36,18 @@ export function getPhotoSetsByStatus(params) {
   return request.get('/admin/photosets', { params })
 }
 
+export function batchApprovePhotoSets(ids) {
+  return request.post('/admin/photosets/batch/approve', { ids })
+}
+
+export function batchRejectPhotoSets(ids, reason) {
+  return request.post('/admin/photosets/batch/reject', { ids, reason })
+}
+
+export function batchDeletePhotoSets(ids) {
+  return request.post('/admin/photosets/batch/delete', { ids })
+}
+
 export function approvePhotoSet(id) {
   return request.post(`/admin/photosets/${id}/approve`)
 }
@@ -46,6 +58,10 @@ export function rejectPhotoSet(id, reason = '') {
 
 export function getUserList(params) {
   return request.get('/admin/users', { params })
+}
+
+export function exportUsers(params) {
+  return request.get('/admin/users/export', { params, responseType: 'blob' })
 }
 
 export function banUser(id, status) {
@@ -96,6 +112,10 @@ export function deletePhotoset(id) {
 // 获取订单列表（带分页和筛选）
 export function getOrderList(params) {
   return request.get('/admin/orders', { params })
+}
+
+export function exportOrders(params) {
+  return request.get('/admin/orders/export', { params, responseType: 'blob' })
 }
 
 // 强制退款（管理员无时间限制）
@@ -180,6 +200,24 @@ export function sendMailTest(data) {
 
 export function getWatermarkInfo() {
   return request.get('/admin/watermark/info')
+}
+
+// ============ 会员套餐管理 APIs ============
+
+export function getMembershipList(params) {
+  return request.get('/admin/memberships', { params })
+}
+
+export function createMembership(data) {
+  return request.post('/admin/memberships', data)
+}
+
+export function updateMembership(id, data) {
+  return request.put(`/admin/memberships/${id}`, data)
+}
+
+export function deleteMembership(id) {
+  return request.delete(`/admin/memberships/${id}`)
 }
 
 // ============ 开发者中心 ============

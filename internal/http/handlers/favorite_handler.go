@@ -72,10 +72,16 @@ func (h *FavoriteHandler) List(c *gin.Context) {
 		return
 	}
 
-	// 提取套图列表（为了前端复用 PhotosetCard 组件）
+	// 返回完整的 FavoriteModel 结构，前端需要 id, user_id, photoset_id, created_at, photoset
 	var list []interface{}
 	for _, fav := range favorites {
-		list = append(list, fav.PhotoSet)
+		list = append(list, gin.H{
+			"id":          fav.ID,
+			"user_id":     fav.UserID,
+			"photoset_id": fav.PhotoSetID,
+			"created_at":  fav.CreatedAt.Format("2006-01-02T15:04:05Z"),
+			"photoset":    fav.PhotoSet,
+		})
 	}
 
 	response.Success(c, gin.H{

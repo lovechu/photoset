@@ -93,11 +93,10 @@ func (r *PhotoSetRepository) List(page, pageSize int, tag string, keyword string
 		return nil, 0, err
 	}
 
-	// 分页查询，使用子查询获取 photo_count 和智能封面图
+	// 分页查询，使用子查询获取智能封面图
 	offset := (page - 1) * pageSize
 	err := r.db.Table("photosets").
 		Select(`photosets.*, 
-			(SELECT COUNT(*) FROM photos WHERE photos.photoset_id = photosets.id) AS photo_count,
 			CASE 
 				WHEN photosets.cover != '' THEN photosets.cover
 				ELSE (SELECT url FROM photos WHERE photos.photoset_id = photosets.id ORDER BY sort_order ASC LIMIT 1)
@@ -113,7 +112,40 @@ func (r *PhotoSetRepository) List(page, pageSize int, tag string, keyword string
 		return nil, 0, err
 	}
 
+	// 批量填充 photo_count
+	r.fillPhotoCounts(photosets)
+
 	return photosets, total, nil
+}
+
+// fillPhotoCounts 批量查询并填充 photo_count
+func (r *PhotoSetRepository) fillPhotoCounts(photosets []domain.PhotoSet) {
+	if len(photosets) == 0 {
+		return
+	}
+	var ids []uint
+	for _, ps := range photosets {
+		ids = append(ids, ps.ID)
+	}
+
+	type countResult struct {
+		PhotosetID uint `gorm:"column:photoset_id"`
+		Count      int  `gorm:"column:cnt"`
+	}
+	var counts []countResult
+	r.db.Table("photos").
+		Select("photoset_id, COUNT(*) as cnt").
+		Where("photoset_id IN (?)", ids).
+		Group("photoset_id").
+		Scan(&counts)
+
+	countMap := make(map[uint]int)
+	for _, c := range counts {
+		countMap[c.PhotosetID] = c.Count
+	}
+	for i := range photosets {
+		photosets[i].PhotoCount = countMap[photosets[i].ID]
+	}
 }
 
 // ListAdvanced 高级套图列表查询（支持更多筛选条件）
@@ -240,7 +272,6 @@ func (r *PhotoSetRepository) ListAdvanced(
 	// 使用ID查询完整数据，保持排序
 	err = r.db.Table("photosets").
 		Select(`photosets.*, 
-			(SELECT COUNT(*) FROM photos WHERE photos.photoset_id = photosets.id) AS photo_count,
 			CASE 
 				WHEN photosets.cover != '' THEN photosets.cover
 				ELSE (SELECT url FROM photos WHERE photos.photoset_id = photosets.id ORDER BY sort_order ASC LIMIT 1)
@@ -253,6 +284,9 @@ func (r *PhotoSetRepository) ListAdvanced(
 	if err != nil {
 		return nil, 0, err
 	}
+
+	// 批量填充 photo_count
+	r.fillPhotoCounts(photosets)
 
 	return photosets, total, nil
 }
@@ -401,4 +435,84 @@ func (r *PhotoSetRepository) CountCategoryPhotoSets(categorySlug string) (int64,
 		Where("category = ? AND status = ?", categorySlug, "published").
 		Count(&count).Error
 	return count, err
+}
+
+// ============ Admin APIs ============
+
+// ListByStatus 按状态查询套图列表（管理员用）
+func (r *PhotoSetRepository) ListByStatus(status string) ([]domain.PhotoSet, error) {
+	var photosets []domain.PhotoSet
+	query := r.db.Model(&domain.PhotoSet{})
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+	err := query.Preload("User").Order("created_at DESC").Find(&photosets).Error
+	return photosets, err
+}
+
+// UpdateStatus 更新套图状态
+func (r *PhotoSetRepository) UpdateStatus(id uint, status string) error {
+	return r.db.Model(&domain.PhotoSet{}).Where("id = ?", id).Update("status", status).Error
+}
+
+// CountByStatus 统计指定状态的套图数量
+func (r *PhotoSetRepository) CountByStatus(status string) (int64, error) {
+	var count int64
+	query := r.db.Model(&domain.PhotoSet{})
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+	err := query.Count(&count).Error
+	return count, err
+}
+
+// CountAll 统计全部套图数量
+func (r *PhotoSetRepository) CountAll() (int64, error) {
+	var count int64
+	err := r.db.Model(&domain.PhotoSet{}).Count(&count).Error
+	return count, err
+}
+
+// GetTrendStats 获取趋势统计数据（单条SQL）
+func (r *PhotoSetRepository) GetTrendStats(startDate time.Time) ([]map[string]interface{}, error) {
+	rows, err := r.db.Raw(`
+		SELECT date_key,
+			COALESCE(SUM(new_users), 0) AS new_users,
+			COALESCE(SUM(new_orders), 0) AS new_orders,
+			COALESCE(SUM(paid_revenue), 0) / 100 AS revenue,
+			COALESCE(SUM(new_photosets), 0) AS new_photosets
+		FROM (
+			SELECT DATE(created_at) AS date_key, 1 AS new_users, 0 AS new_orders, 0 AS paid_revenue, 0 AS new_photosets FROM users WHERE created_at >= ?
+			UNION ALL
+			SELECT DATE(created_at) AS date_key, 0, 1, 0, 0 FROM orders WHERE created_at >= ?
+			UNION ALL
+			SELECT DATE(created_at) AS date_key, 0, 0, 0, 1 FROM photosets WHERE created_at >= ?
+			UNION ALL
+			SELECT DATE(created_at) AS date_key, 0, 0, COALESCE(amount, 0), 0 FROM orders WHERE created_at >= ? AND status = 'paid'
+		) t
+		GROUP BY date_key
+		ORDER BY date_key ASC
+	`, startDate, startDate, startDate, startDate).Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []map[string]interface{}
+	for rows.Next() {
+		var dateKey []byte
+		var newUsers, newOrders, newSets int64
+		var revenue float64
+		if err := rows.Scan(&dateKey, &newUsers, &newOrders, &revenue, &newSets); err != nil {
+			continue
+		}
+		results = append(results, map[string]interface{}{
+			"date":       string(dateKey),
+			"new_users":  newUsers,
+			"new_orders": newOrders,
+			"revenue":    revenue,
+			"new_sets":   newSets,
+		})
+	}
+	return results, nil
 }

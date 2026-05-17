@@ -1,59 +1,15 @@
 package middleware
 
 import (
-	"context"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"photoset/internal/config"
-	"photoset/internal/database"
 	"photoset/internal/pkg/signurl"
+	"photoset/internal/service"
 )
-
-const (
-	paidStatusCachePrefix = "photoset:paid:"
-	paidStatusCacheTTL    = 30 * time.Minute
-)
-
-// paidStatus 从 Redis 缓存 + 数据库获取套图付费状态
-// 返回 true=付费，false=免费；缓存未命中时自动回源写缓存
-func paidStatus(photosetID uint) bool {
-	ctx := context.Background()
-
-	// 1. 查 Redis
-	key := fmt.Sprintf("%s%d", paidStatusCachePrefix, photosetID)
-	if database.RedisClient != nil {
-		if val, err := database.RedisClient.Get(ctx, key).Int(); err == nil {
-			return val == 1
-		}
-	}
-
-	// 2. Redis 未命中，查数据库
-	var isFree int8
-	database.GetMySQL().
-		Table("photosets").
-		Select("is_free").
-		Where("id = ?", photosetID).
-		Scan(&isFree)
-
-	// is_free=0 → 付费(paid=true)，is_free=1 → 免费(paid=false)
-	isPaid := isFree == 0
-
-	// 3. 回源写 Redis（静默失败）
-	if database.RedisClient != nil {
-		if isPaid {
-			database.RedisClient.Set(ctx, key, 1, paidStatusCacheTTL)
-		} else {
-			database.RedisClient.Set(ctx, key, 0, paidStatusCacheTTL)
-		}
-	}
-
-	return isPaid
-}
 
 // SignVerify 图片签名验证中间件
 //
@@ -61,9 +17,7 @@ func paidStatus(photosetID uint) bool {
 //   - /uploads/covers/              → 封面图，免费公开访问
 //   - /uploads/photos/{id}/...      → 根据套图 is_free 决定是否验签
 //   - /uploads/images/...            → 旧路径兼容，无 sign 则放行
-func SignVerify() gin.HandlerFunc {
-	cfg := config.Load()
-
+func SignVerify(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
 
@@ -86,7 +40,8 @@ func SignVerify() gin.HandlerFunc {
 			parts := strings.Split(path, "/")
 			if len(parts) >= 4 {
 				if photosetID, err := strconv.ParseUint(parts[3], 10, 32); err == nil && photosetID > 0 {
-					if paidStatus(uint(photosetID)) {
+					isPaid, err := service.IsPaid(uint(photosetID))
+					if err != nil || isPaid { // 出错时保守处理：视为付费
 						// 付费套图：必须有签名且签名有效
 						if !signurl.VerifyURL(c.Request.URL.String(), cfg.Storage.SignSecret) {
 							c.AbortWithStatus(http.StatusForbidden)

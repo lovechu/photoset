@@ -104,7 +104,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { getPhotoSetsByStatus, approvePhotoSet, rejectPhotoSet, deletePhotoset } from '@/api'
+import { getPhotoSetsByStatus, approvePhotoSet, rejectPhotoSet, deletePhotoset, batchApprovePhotoSets, batchRejectPhotoSets, batchDeletePhotoSets } from '@/api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const loading = ref(false)
@@ -242,15 +242,16 @@ async function handleBatchApprove() {
   
   batchProcessing.value = true
   try {
-    // 批量通过
-    for (const id of selectedIds.value) {
+    const pendingIds = selectedIds.value.filter(id => {
       const item = list.value.find(item => item.id === id)
-      if (item && item.status === 'pending') {
-        await approvePhotoSet(id)
-      }
+      return item && item.status === 'pending'
+    })
+    if (pendingIds.length === 0) {
+      ElMessage.warning('所选套图中没有待审核的')
+      return
     }
-    
-    ElMessage.success(`成功通过 ${selectedIds.value.length} 个套图`)
+    const res = await batchApprovePhotoSets(pendingIds)
+    ElMessage.success(res.data?.message || `成功通过 ${pendingIds.length} 个套图`)
     clearSelection()
     fetchList()
   } catch (error) {
@@ -270,15 +271,16 @@ async function handleBatchReject() {
   
   batchProcessing.value = true
   try {
-    // 批量拒绝
-    for (const id of selectedIds.value) {
+    const pendingIds = selectedIds.value.filter(id => {
       const item = list.value.find(item => item.id === id)
-      if (item && item.status === 'pending') {
-        await rejectPhotoSet(id, batchRejectReason.value)
-      }
+      return item && item.status === 'pending'
+    })
+    if (pendingIds.length === 0) {
+      ElMessage.warning('所选套图中没有待审核的')
+      return
     }
-    
-    ElMessage.success(`成功拒绝 ${selectedIds.value.length} 个套图`)
+    const res = await batchRejectPhotoSets(pendingIds, batchRejectReason.value)
+    ElMessage.success(res.data?.message || `成功拒绝 ${pendingIds.length} 个套图`)
     batchRejectDialogVisible.value = false
     clearSelection()
     fetchList()
@@ -307,12 +309,8 @@ async function handleBatchDelete() {
     )
     
     batchProcessing.value = true
-    // 批量删除
-    for (const id of selectedIds.value) {
-      await deletePhotoset(id)
-    }
-    
-    ElMessage.success(`成功删除 ${selectedIds.value.length} 个套图`)
+    const res = await batchDeletePhotoSets(selectedIds.value)
+    ElMessage.success(res.data?.message || `成功删除 ${selectedIds.value.length} 个套图`)
     clearSelection()
     fetchList()
   } catch (error) {

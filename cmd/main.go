@@ -37,6 +37,8 @@ func main() {
 		&domain.AdminLog{},
 		&domain.PasswordResetToken{},
 		&domain.ApiKey{},
+		&domain.Comment{},
+		&domain.CommentLike{},
 	); err != nil {
 		// 忽略多对多关联表的重复主键错误（表已存在时 GORM 会尝试重复添加主键）
 		if !isMultiplePrimaryKeyError(err) {
@@ -77,7 +79,7 @@ func main() {
 	r := gin.New()
 
 	// 设置路由
-	routes.Setup(r)
+	routes.Setup(r, cfg)
 
 	// 启动服务器
 	addr := ":" + cfg.Server.Port

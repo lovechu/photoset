@@ -2,6 +2,9 @@
   <div class="user-manage">
     <!-- 筛选栏 -->
     <div class="filter-bar">
+      <el-button type="success" plain @click="handleExport" :loading="exporting">
+        导出 CSV
+      </el-button>
       <el-input
         v-model="keyword"
         placeholder="搜索昵称 / 邮箱"
@@ -128,13 +131,16 @@
 
         <el-divider content-position="left">数据统计</el-divider>
         <el-row :gutter="16">
-          <el-col :span="8">
+          <el-col :span="6">
             <el-statistic title="发布套图" :value="detail.photoset_count" />
           </el-col>
-          <el-col :span="8">
+          <el-col :span="6">
+            <el-statistic title="收藏数" :value="detail.favorite_count" />
+          </el-col>
+          <el-col :span="6">
             <el-statistic title="订单数" :value="detail.order_count" />
           </el-col>
-          <el-col :span="8">
+          <el-col :span="6">
             <el-statistic title="消费总额" :value="detail.total_spent" :precision="2" prefix="¥" />
           </el-col>
         </el-row>
@@ -182,7 +188,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { getUserList, banUser, updateUserRole, getUserDetail, resetUserPassword } from '@/api'
+import { getUserList, banUser, updateUserRole, getUserDetail, resetUserPassword, exportUsers } from '@/api'
 import { ElMessage } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 
@@ -195,6 +201,7 @@ const filterStatus = ref('')
 const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
+const exporting = ref(false)
 
 // 详情
 const detailVisible = ref(false)
@@ -239,7 +246,8 @@ async function fetchUsers() {
   try {
     const params = { page: page.value, page_size: pageSize.value }
     if (filterRole.value) params.role = filterRole.value
-    if (filterStatus.value !== '' && filterStatus.value !== undefined) params.status = filterStatus.value
+    // status: 空字符串表示全部（传递-1），'1'表示正常，'0'表示已封禁
+    params.status = filterStatus.value !== '' && filterStatus.value !== undefined ? parseInt(filterStatus.value) : -1
     if (keyword.value) params.keyword = keyword.value
     const res = await getUserList(params)
     userList.value = res.data?.list || []
@@ -330,6 +338,33 @@ async function handleResetPassword() {
     } catch { /* handled */ }
     finally { passwordLoading.value = false }
   })
+}
+
+async function handleExport() {
+  exporting.value = true
+  try {
+    const params = {}
+    if (filterRole.value) params.role = filterRole.value
+    if (filterStatus.value !== '' && filterStatus.value !== undefined) {
+      params.status = filterStatus.value !== '' ? parseInt(filterStatus.value) : -1
+    }
+    if (keyword.value) params.keyword = keyword.value
+    const res = await exportUsers(params)
+    const blob = new Blob([res], { type: 'text/csv;charset=utf-8' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'users.csv'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch (error) {
+    ElMessage.error('导出失败')
+  } finally {
+    exporting.value = false
+  }
 }
 
 onMounted(fetchUsers)

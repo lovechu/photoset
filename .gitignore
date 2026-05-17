@@ -126,3 +126,4 @@ start-photoset.sh
 restart-all.sh
 manage-services.sh
 manage-services.ps1
+main

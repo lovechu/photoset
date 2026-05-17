@@ -177,6 +177,35 @@ func (s *PhotoSetService) GetPhotoSetDetailBasic(id uint) (*domain.PhotoSet, err
 	return s.repo.FindByIDWithoutPhotos(id)
 }
 
+// GetPhotoSetDownload 获取套图下载信息（验证权限后返回图片 URL 列表）
+func (s *PhotoSetService) GetPhotoSetDownload(id uint, userRole string, userID uint, isLoggedIn bool) ([]string, error) {
+	// 1. 获取套图基础信息
+	photoset, err := s.repo.FindByIDWithoutPhotos(id)
+	if err != nil {
+		return nil, errors.New("套图不存在")
+	}
+
+	// 2. 验证查看权限
+	canViewFull := s.CanViewFullPhotos(photoset, userRole, userID, isLoggedIn)
+	if !canViewFull {
+		return nil, errors.New("无权下载此套图，请先购买")
+	}
+
+	// 3. 获取完整套图信息（含图片列表）
+	photoset, err = s.GetPhotoSetDetail(id)
+	if err != nil {
+		return nil, errors.New("获取套图详情失败")
+	}
+
+	// 4. 收集图片 URL
+	var photoURLs []string
+	for _, photo := range photoset.Photos {
+		photoURLs = append(photoURLs, photo.URL)
+	}
+
+	return photoURLs, nil
+}
+
 // CanViewFullPhotos 判断用户是否可以查看完整图片列表
 func (s *PhotoSetService) CanViewFullPhotos(photoset *domain.PhotoSet, userRole string, userID uint, isLoggedIn bool) bool {
 	// 如果是免费套图，任何人都可以查看

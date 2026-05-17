@@ -153,6 +153,43 @@ func (h *PhotoSetHandler) Detail(c *gin.Context) {
 	response.Success(c, photoset)
 }
 
+// Download 下载套图（获取图片 URL 列表）
+func (h *PhotoSetHandler) Download(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "无效的套图ID")
+		return
+	}
+
+	// 获取当前用户信息
+	var userRole string
+	var userID uint
+	var isLoggedIn bool
+
+	if role, exists := c.Get("user_role"); exists {
+		userRole = role.(string)
+		isLoggedIn = true
+	}
+	if uid, exists := c.Get("user_id"); exists {
+		userID = uid.(uint)
+	}
+
+	// 调用服务获取下载信息
+	photoURLs, err := h.service.GetPhotoSetDownload(uint(id), userRole, userID, isLoggedIn)
+	if err != nil {
+		response.Error(c, http.StatusForbidden, err.Error())
+		return
+	}
+
+	// 返回图片 URL 列表
+	response.Success(c, gin.H{
+		"photoset_id": uint(id),
+		"photos":      photoURLs,
+		"total":       len(photoURLs),
+	})
+}
+
 // UpdateRequest 更新套图请求
 type UpdateRequest struct {
 	Title       string   `json:"title" binding:"required,max=200"`

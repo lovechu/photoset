@@ -13,9 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func Setup(r *gin.Engine) {
-	cfg := config.Load()
-
+func Setup(r *gin.Engine, cfg *config.Config) {
 	stor, err := storage.NewStorage(&cfg.Storage)
 	if err != nil {
 		panic("存储初始化失败: " + err.Error())
@@ -29,7 +27,7 @@ func Setup(r *gin.Engine) {
 
 	// 静态文件服务（付费图片需要签名验证）
 	// 使用 http.FileServer 替代 Gin Static() 避免无扩展名文件的 301 重定向
-	uploadsGroup := r.Group("/uploads", middleware.SignVerify())
+	uploadsGroup := r.Group("/uploads", middleware.SignVerify(cfg))
 	uploadsGroup.Any("/*path", gin.WrapH(http.StripPrefix("/uploads", http.FileServer(http.Dir("./uploads")))))
 
 	r.GET("/api/health", healthHandler.Check)
@@ -86,6 +84,8 @@ func Setup(r *gin.Engine) {
 			photosets.POST("", middleware.Auth(), middleware.RequireRoles("creator", "admin"), photosetHandler.Create)
 			photosets.PUT("/:id", middleware.Auth(), middleware.RequireRoles("creator", "admin"), photosetHandler.Update)
 			photosets.DELETE("/:id", middleware.Auth(), middleware.RequireRoles("creator", "admin"), photosetHandler.Delete)
+			// 下载接口（需登录）
+			photosets.GET("/:id/download", middleware.Auth(), photosetHandler.Download)
 		}
 
 		// 标签路由
@@ -94,14 +94,26 @@ func Setup(r *gin.Engine) {
 		// 分类公开路由（供高级搜索使用，无需登录）
 		api.GET("/categories", categoryHandler.List)
 
-		// 收藏路由
-		favorites := api.Group("/favorites")
-		{
-			favorites.Use(middleware.Auth())
-			favorites.POST("/:photosetId", favHandler.Add)
-			favorites.DELETE("/:photosetId", favHandler.Remove)
-			favorites.GET("", favHandler.List)
-		}
+	// 收藏路由
+	favorites := api.Group("/favorites")
+	{
+		favorites.Use(middleware.Auth())
+		favorites.POST("/:photosetId", favHandler.Add)
+		favorites.DELETE("/:photosetId", favHandler.Remove)
+		favorites.GET("", favHandler.List)
+	}
+
+	// 评论路由
+	commentRepo := repository.NewCommentRepository(database.GetMySQL())
+	commentHandler := handlers.NewCommentHandler(commentRepo)
+	comments := api.Group("/photosets/:id/comments")
+	{
+		comments.GET("", middleware.OptionalAuth(), commentHandler.List)               // 获取评论列表
+		comments.POST("", middleware.Auth(), commentHandler.Create)                    // 发表评论
+		comments.GET("/:commentId/replies", middleware.OptionalAuth(), commentHandler.GetReplies) // 获取回复
+		comments.DELETE("/:commentId", middleware.Auth(), commentHandler.Delete)        // 删除评论
+		comments.POST("/:commentId/like", middleware.Auth(), commentHandler.ToggleLike) // 点赞/取消点赞
+	}
 
 		// 上传路由
 		upload := api.Group("/upload")
@@ -136,10 +148,15 @@ func Setup(r *gin.Engine) {
 		{
 			admin.Use(middleware.Auth(), middleware.RequireRoles("admin"))
 			admin.GET("/users", adminHandler.GetUsers)
+			admin.GET("/users/export", adminHandler.ExportUsers)
 			admin.GET("/users/:id", adminHandler.GetUserDetail)
 			admin.GET("/photosets", adminHandler.GetPhotoSetsByStatus)
 			admin.POST("/photosets/:id/approve", adminHandler.ApprovePhotoSet)
 			admin.POST("/photosets/:id/reject", adminHandler.RejectPhotoSet)
+			// 批量操作
+			admin.POST("/photosets/batch/approve", adminHandler.BatchApprovePhotoSets)
+			admin.POST("/photosets/batch/reject", adminHandler.BatchRejectPhotoSets)
+			admin.POST("/photosets/batch/delete", adminHandler.BatchDeletePhotoSets)
 			admin.PUT("/users/:id/ban", adminHandler.BanUser)
 			admin.PUT("/users/:id/role", adminHandler.UpdateUserRole)
 			admin.PUT("/users/:id/password", adminHandler.ResetUserPassword)
@@ -149,6 +166,7 @@ func Setup(r *gin.Engine) {
 			
 			// 订单管理
 			admin.GET("/orders", adminHandler.GetOrders)
+			admin.GET("/orders/export", adminHandler.ExportOrders)
 			admin.POST("/orders/:id/refund", adminHandler.AdminRefund)
 
 			// 标签管理 CRUD
@@ -166,6 +184,8 @@ func Setup(r *gin.Engine) {
 			// 站点设置
 			admin.GET("/settings", adminHandler.GetSettings)
 			admin.PUT("/settings", adminHandler.UpdateSettings)
+			// 系统管理
+			admin.POST("/system/restart", adminHandler.RestartServer)
 			// 邮件配置
 			admin.POST("/mail/test-connection", adminHandler.TestMailConnection)
 			admin.GET("/mail/config", adminHandler.GetMailConfig)
@@ -175,7 +195,6 @@ func Setup(r *gin.Engine) {
 			// 存储配置
 			admin.POST("/storage/test", adminHandler.TestStorageConnection)
 			admin.GET("/storage/status", adminHandler.GetStorageStatus)
-			admin.POST("/system/restart", adminHandler.RestartBackend)
 
 			// 页面管理 CRUD
 			admin.GET("/pages", pageHandler.AdminList)
@@ -183,6 +202,12 @@ func Setup(r *gin.Engine) {
 			admin.GET("/pages/:id", pageHandler.AdminGet) // 需要添加这个 handler 方法
 			admin.PUT("/pages/:id", pageHandler.AdminUpdate)
 			admin.DELETE("/pages/:id", pageHandler.AdminDelete)
+
+			// 会员套餐管理 CRUD
+			admin.GET("/memberships", membershipHandler.AdminList)
+			admin.POST("/memberships", membershipHandler.AdminCreate)
+			admin.PUT("/memberships/:id", membershipHandler.AdminUpdate)
+			admin.DELETE("/memberships/:id", membershipHandler.AdminDelete)
 
 			// 开发者中心
 			admin.GET("/dev/api-keys", adminHandler.ListApiKeys)

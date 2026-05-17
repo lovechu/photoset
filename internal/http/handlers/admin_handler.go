@@ -6,17 +6,17 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os/exec"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
-	"photoset/internal/database"
+	"photoset/internal/config"
 	"photoset/internal/domain"
 	"photoset/internal/pkg/response"
 	"photoset/internal/repository"
 	"photoset/internal/service"
 	"photoset/internal/storage"
-	"photoset/internal/config"
 
 	"github.com/gin-gonic/gin"
 )
@@ -27,6 +27,7 @@ type AdminHandler struct {
 	orderService *service.OrderService
 	settingRepo  *repository.SiteSettingRepository
 	logRepo      *repository.AdminLogRepository
+	userRepo     repository.UserRepository
 	userService  service.UserService
 	mailService  *service.MailService
 }
@@ -39,6 +40,7 @@ func NewAdminHandler(photosetRepo *repository.PhotoSetRepository, orderRepo *rep
 		orderService: orderService,
 		settingRepo:  repository.NewSiteSettingRepository(),
 		logRepo:      repository.NewAdminLogRepository(),
+		userRepo:     userRepo,
 		userService:  service.NewUserService(userRepo),
 	}
 }
@@ -112,15 +114,8 @@ func (h *AdminHandler) GetPhotoSetsByStatus(c *gin.Context) {
 		status = "pending"
 	}
 
-	var photosets []domain.PhotoSet
-	db := database.GetMySQL()
-	query := db.Model(&domain.PhotoSet{})
-
-	if status != "" {
-		query = query.Where("status = ?", status)
-	}
-
-	if err := query.Preload("User").Order("created_at DESC").Find(&photosets).Error; err != nil {
+	photosets, err := h.photosetRepo.ListByStatus(status)
+	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "获取套图列表失败")
 		return
 	}
@@ -137,8 +132,7 @@ func (h *AdminHandler) ApprovePhotoSet(c *gin.Context) {
 		return
 	}
 
-	db := database.GetMySQL()
-	if err := db.Model(&domain.PhotoSet{}).Where("id = ?", id).Update("status", "published").Error; err != nil {
+	if err := h.photosetRepo.UpdateStatus(uint(id), "published"); err != nil {
 		response.Error(c, http.StatusInternalServerError, "审核通过失败")
 		return
 	}
@@ -164,8 +158,7 @@ func (h *AdminHandler) RejectPhotoSet(c *gin.Context) {
 		return
 	}
 
-	db := database.GetMySQL()
-	if err := db.Model(&domain.PhotoSet{}).Where("id = ?", id).Update("status", "draft").Error; err != nil {
+	if err := h.photosetRepo.UpdateStatus(uint(id), "draft"); err != nil {
 		response.Error(c, http.StatusInternalServerError, "审核拒绝失败")
 		return
 	}
@@ -197,32 +190,8 @@ func (h *AdminHandler) GetUsers(c *gin.Context) {
 		req.PageSize = 20
 	}
 
-	db := database.GetMySQL()
-	query := db.Model(&domain.User{})
-
-	if req.Role != "" {
-		query = query.Where("role = ?", req.Role)
-	}
-	if req.Status > 0 || (req.Status == 0 && c.Query("status") != "") {
-		query = query.Where("status = ?", req.Status)
-	}
-	if req.Keyword != "" {
-		like := "%" + req.Keyword + "%"
-		query = query.Where("nickname LIKE ? OR email LIKE ?", like, like)
-	}
-
-	var total int64
-	if err := query.Count(&total).Error; err != nil {
-		response.Error(c, http.StatusInternalServerError, "获取用户列表失败")
-		return
-	}
-
-	var users []domain.User
-	offset := (req.Page - 1) * req.PageSize
-	if err := query.Select("id, nickname, email, role, status, created_at, last_login_at, membership_expires").
-		Order("created_at DESC").
-		Offset(offset).Limit(req.PageSize).
-		Find(&users).Error; err != nil {
+	users, total, err := h.userRepo.List(req.Page, req.PageSize, req.Role, req.Keyword, req.Status)
+	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "获取用户列表失败")
 		return
 	}
@@ -244,29 +213,18 @@ func (h *AdminHandler) GetUserDetail(c *gin.Context) {
 		return
 	}
 
-	db := database.GetMySQL()
-	var user domain.User
-	if err := db.Select("id, nickname, email, role, status, created_at, last_login_at, membership_expires").
-		Where("id = ?", id).First(&user).Error; err != nil {
+	user, photoSetCount, orderCount, totalSpent, favoriteCount, err := h.userRepo.FindByIDWithStats(uint(id))
+	if err != nil {
 		response.Error(c, http.StatusNotFound, "用户不存在")
 		return
 	}
-
-	// 获取用户相关统计
-	var photoSetCount int64
-	db.Model(&domain.PhotoSet{}).Where("user_id = ?", id).Count(&photoSetCount)
-
-	var orderCount int64
-	var totalSpent float64
-	db.Model(&domain.Order{}).Where("user_id = ? AND status = ?", id, "paid").Count(&orderCount)
-	db.Model(&domain.Order{}).Where("user_id = ? AND status = ?", id, "paid").
-		Select("COALESCE(SUM(amount), 0)").Scan(&totalSpent)
 
 	response.Success(c, gin.H{
 		"user":             user,
 		"photoset_count":   photoSetCount,
 		"order_count":      orderCount,
 		"total_spent":      totalSpent,
+		"favorite_count":   favoriteCount,
 	})
 }
 
@@ -301,8 +259,7 @@ func (h *AdminHandler) BanUser(c *gin.Context) {
 
 	log.Printf("[BanUser] Request received: userID=%d, status=%d", id, body.Status)
 
-	db := database.GetMySQL()
-	if err := db.Model(&domain.User{}).Where("id = ?", id).Update("status", body.Status).Error; err != nil {
+	if err := h.userRepo.UpdateStatus(uint(id), body.Status); err != nil {
 		response.Error(c, http.StatusInternalServerError, "操作失败")
 		return
 	}
@@ -336,8 +293,7 @@ func (h *AdminHandler) UpdateUserRole(c *gin.Context) {
 		return
 	}
 
-	db := database.GetMySQL()
-	if err := db.Model(&domain.User{}).Where("id = ?", id).Update("role", req.Role).Error; err != nil {
+	if err := h.userRepo.UpdateRole(uint(id), req.Role); err != nil {
 		response.Error(c, http.StatusInternalServerError, "更新角色失败")
 		return
 	}
@@ -374,16 +330,23 @@ func (h *AdminHandler) ResetUserPassword(c *gin.Context) {
 
 // Stats 平台统计
 func (h *AdminHandler) Stats(c *gin.Context) {
-	db := database.GetMySQL()
+	totalUsers, err := h.userRepo.CountAll()
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "获取统计数据失败")
+		return
+	}
 
-	var totalUsers int64
-	db.Model(&domain.User{}).Count(&totalUsers)
+	totalPhotoSets, err := h.photosetRepo.CountAll()
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "获取统计数据失败")
+		return
+	}
 
-	var totalPhotoSets int64
-	db.Model(&domain.PhotoSet{}).Count(&totalPhotoSets)
-
-	var pendingReviews int64
-	db.Model(&domain.PhotoSet{}).Where("status = ?", "pending").Count(&pendingReviews)
+	pendingReviews, err := h.photosetRepo.CountByStatus("pending")
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "获取统计数据失败")
+		return
+	}
 
 	totalOrders, totalRevenue, err := h.orderRepo.CountStats()
 	if err != nil {
@@ -409,49 +372,86 @@ func (h *AdminHandler) StatsTrend(c *gin.Context) {
 		}
 	}
 
-	db := database.GetMySQL()
-
 	type TrendItem struct {
-		Date       string  `json:"date"`
-		NewUsers   int64   `json:"new_users"`
-		NewOrders  int64   `json:"new_orders"`
-		Revenue    float64 `json:"revenue"`
-		NewSets    int64   `json:"new_photosets"`
+		Date      string  `json:"date"`
+		NewUsers  int64   `json:"new_users"`
+		NewOrders int64   `json:"new_orders"`
+		Revenue   float64 `json:"revenue"`
+		NewSets   int64   `json:"new_photosets"`
 	}
 
+	// 生成日期范围
+	now := time.Now()
+	startDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).AddDate(0, 0, -(days - 1))
+
+	// 使用 repository 获取趋势数据
+	stats, err := h.photosetRepo.GetTrendStats(startDate)
+	if err != nil {
+		response.ServerError(c, "查询趋势数据失败")
+		return
+	}
+
+	// 构建 map 用于合并
+	dataMap := make(map[string]TrendItem)
+	for _, stat := range stats {
+		dateStr, _ := stat["date"].(string)
+		if dateStr == "" {
+			continue
+		}
+		item := TrendItem{
+			Date:      dateStr[5:], // 格式: 2026-04-20 → 04-20
+			NewUsers:  toInt64(stat["new_users"]),
+			NewOrders: toInt64(stat["new_orders"]),
+			Revenue:   toFloat64(stat["revenue"]),
+			NewSets:   toInt64(stat["new_sets"]),
+		}
+		dataMap[dateStr] = item
+	}
+
+	// 补齐缺失的日期（某天没有任何数据也要显示）
 	var items []TrendItem
 	for i := days - 1; i >= 0; i-- {
-		dayTime := time.Now().AddDate(0, 0, -i)
-		dayStart := time.Date(dayTime.Year(), dayTime.Month(), dayTime.Day(), 0, 0, 0, 0, dayTime.Location())
-		dayEnd := dayStart.Add(24 * time.Hour)
-		dateStr := dayTime.Format("01-02")
-
-		var newUsers int64
-		db.Model(&domain.User{}).Where("created_at >= ? AND created_at < ?", dayStart, dayEnd).Count(&newUsers)
-
-		var newOrders int64
-		db.Model(&domain.Order{}).Where("created_at >= ? AND created_at < ?", dayStart, dayEnd).Count(&newOrders)
-
-		var revenue float64
-		db.Model(&domain.Order{}).Where("created_at >= ? AND created_at < ? AND status = ?", dayStart, dayEnd, "paid").
-			Select("COALESCE(SUM(amount), 0)").Scan(&revenue)
-
-		var newSets int64
-		db.Model(&domain.PhotoSet{}).Where("created_at >= ? AND created_at < ?", dayStart, dayEnd).Count(&newSets)
-
-		items = append(items, TrendItem{
-			Date:      dateStr,
-			NewUsers:  newUsers,
-			NewOrders: newOrders,
-			Revenue:   revenue / 100, // 分转元
-			NewSets:   newSets,
-		})
+		dayTime := now.AddDate(0, 0, -i)
+		key := dayTime.Format("2006-01-02")
+		if item, ok := dataMap[key]; ok {
+			items = append(items, item)
+		} else {
+			items = append(items, TrendItem{Date: dayTime.Format("01-02")})
+		}
 	}
 
 	response.Success(c, gin.H{
-		"days":   days,
-		"trend":  items,
+		"days":  days,
+		"trend": items,
 	})
+}
+
+// toInt64 安全转换 interface{} 为 int64
+func toInt64(v interface{}) int64 {
+	switch val := v.(type) {
+	case int64:
+		return val
+	case int:
+		return int64(val)
+	case float64:
+		return int64(val)
+	default:
+		return 0
+	}
+}
+
+// toFloat64 安全转换 interface{} 为 float64
+func toFloat64(v interface{}) float64 {
+	switch val := v.(type) {
+	case float64:
+		return val
+	case int64:
+		return float64(val)
+	case int:
+		return float64(val)
+	default:
+		return 0
+	}
 }
 
 // AdminRefund 管理员退款
@@ -486,41 +486,175 @@ func (h *AdminHandler) GetOrders(c *gin.Context) {
 		return
 	}
 
-	var orders []domain.Order
-	db := database.GetMySQL()
-	query := db.Model(&domain.Order{})
-
-	if req.Status != "" {
-		query = query.Where("status = ?", req.Status)
-	}
-
-	if req.UserID != "" {
-		if userID, err := strconv.ParseUint(req.UserID, 10, 32); err == nil {
-			query = query.Where("user_id = ?", userID)
-		}
-	}
-
-	var total int64
-	query.Count(&total)
-
-	offset := (req.PageNumber - 1) * req.PageSize
-	if err := query.
-		Preload("User").
-		Preload("PhotoSet").
-		Order("created_at DESC").
-		Offset(offset).
-		Limit(req.PageSize).
-		Find(&orders).Error; err != nil {
+	orders, total, err := h.orderRepo.List(req.PageNumber, req.PageSize, req.Status, req.UserID)
+	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "获取订单列表失败")
 		return
 	}
 
 	response.Success(c, gin.H{
+		"list":  orders,
 		"total": total,
 		"page":  req.PageNumber,
 		"size":  req.PageSize,
-		"data":  orders,
 	})
+}
+
+// BatchApprovePhotoSets 批量审核通过套图
+func (h *AdminHandler) BatchApprovePhotoSets(c *gin.Context) {
+	var req struct {
+		IDs []uint `json:"ids" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "参数错误: "+err.Error())
+		return
+	}
+
+	var count int
+	for _, id := range req.IDs {
+		if err := h.photosetRepo.UpdateStatus(id, "published"); err == nil {
+			count++
+			h.recordLog(c, "batch_approve", "套图#"+strconv.Itoa(int(id)), "批量审核通过")
+		}
+	}
+
+	response.Success(c, gin.H{
+		"message": fmt.Sprintf("成功通过 %d 个套图", count),
+		"count":   count,
+	})
+}
+
+// BatchRejectPhotoSets 批量审核拒绝套图
+func (h *AdminHandler) BatchRejectPhotoSets(c *gin.Context) {
+	var req struct {
+		IDs    []uint `json:"ids" binding:"required"`
+		Reason string `json:"reason" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "参数错误: "+err.Error())
+		return
+	}
+
+	var count int
+	for _, id := range req.IDs {
+		if err := h.photosetRepo.UpdateStatus(id, "draft"); err == nil {
+			count++
+			h.recordLog(c, "batch_reject", "套图#"+strconv.Itoa(int(id)), "批量拒绝原因: "+req.Reason)
+		}
+	}
+
+	response.Success(c, gin.H{
+		"message": fmt.Sprintf("成功拒绝 %d 个套图", count),
+		"count":   count,
+	})
+}
+
+// BatchDeletePhotoSets 批量删除套图
+func (h *AdminHandler) BatchDeletePhotoSets(c *gin.Context) {
+	var req struct {
+		IDs []uint `json:"ids" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "参数错误: "+err.Error())
+		return
+	}
+
+	var count int
+	for _, id := range req.IDs {
+		if err := h.photosetRepo.Delete(id); err == nil {
+			count++
+			h.recordLog(c, "batch_delete", "套图#"+strconv.Itoa(int(id)), "批量删除")
+		}
+	}
+
+	response.Success(c, gin.H{
+		"message": fmt.Sprintf("成功删除 %d 个套图", count),
+		"count":   count,
+	})
+}
+
+// ExportUsers 导出用户列表为 CSV
+func (h *AdminHandler) ExportUsers(c *gin.Context) {
+	role := c.Query("role")
+	keyword := c.Query("keyword")
+	status, _ := strconv.Atoi(c.Query("status"))
+
+	users, _, err := h.userRepo.List(1, 10000, role, keyword, status)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "导出用户列表失败")
+		return
+	}
+
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", "attachment; filename=users.csv")
+	// 写入 UTF-8 BOM 以兼容 Excel
+	c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
+	c.Writer.WriteString("ID,昵称,邮箱,角色,状态,注册时间,最后登录\n")
+	for _, u := range users {
+		statusStr := "正常"
+		if u.Status == 0 {
+			statusStr = "已封禁"
+		}
+		line := fmt.Sprintf("%d,%s,%s,%s,%s,%s,%s\n",
+			u.ID, escapeCSV(u.Nickname), escapeCSV(u.Email), u.Role, statusStr,
+			u.CreatedAt.Format("2006-01-02 15:04:05"), u.LastLoginAt.Format("2006-01-02 15:04:05"))
+		c.Writer.WriteString(line)
+	}
+}
+
+// ExportOrders 导出订单列表为 CSV
+func (h *AdminHandler) ExportOrders(c *gin.Context) {
+	status := c.Query("status")
+	userID := c.Query("user_id")
+
+	orders, _, err := h.orderRepo.List(1, 10000, status, userID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "导出订单列表失败")
+		return
+	}
+
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", "attachment; filename=orders.csv")
+	c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
+	c.Writer.WriteString("订单ID,订单号,用户ID,套图ID,会员ID,类型,金额,状态,创建时间,支付时间\n")
+	for _, o := range orders {
+		paidAt := ""
+		if o.PaidAt != nil {
+			paidAt = o.PaidAt.Format("2006-01-02 15:04:05")
+		}
+		photosetID := uint(0)
+		if o.PhotoSetID != nil {
+			photosetID = *o.PhotoSetID
+		}
+		membershipID := uint(0)
+		if o.MembershipID != nil {
+			membershipID = *o.MembershipID
+		}
+		line := fmt.Sprintf("%d,%s,%d,%d,%d,%s,%.2f,%s,%s,%s\n",
+			o.ID, escapeCSV(o.OrderNo), o.UserID, photosetID, membershipID, o.Type,
+			o.Amount, o.Status, o.CreatedAt.Format("2006-01-02 15:04:05"), paidAt)
+		c.Writer.WriteString(line)
+	}
+}
+
+// escapeCSV 转义 CSV 字段中的逗号和双引号
+func escapeCSV(s string) string {
+	if strings.ContainsAny(s, ",\"") {
+		s = strings.ReplaceAll(s, "\"", "\"\"")
+		return fmt.Sprintf("\"%s\"", s)
+	}
+	return s
+}
+
+// RestartServer 重启后端服务（依赖外部进程管理器，如 Docker restart policy 或 supervisord）
+func (h *AdminHandler) RestartServer(c *gin.Context) {
+	response.Success(c, gin.H{"message": "正在重启后端服务"})
+	// 在另一个 goroutine 中退出进程，确保响应先发送给客户端
+	go func() {
+		// 给响应一点时间发送出去
+		time.Sleep(500 * time.Millisecond)
+		os.Exit(0)
+	}()
 }
 
 // TestStorageConnection 测试存储连接
@@ -567,16 +701,6 @@ func (h *AdminHandler) TestStorageConnection(c *gin.Context) {
 		"message":      "连接成功",
 		"storage_type": req.StorageType,
 	})
-}
-
-// RestartBackend 重启后端服务（用于配置变更后生效）
-func (h *AdminHandler) RestartBackend(c *gin.Context) {
-	// 延迟重启，避免当前请求被中断
-	go func() {
-		time.Sleep(500 * time.Millisecond)
-		exec.Command("docker", "restart", "photoset-backend").Run()
-	}()
-	response.Success(c, gin.H{"message": "后端正在重启..."})
 }
 
 // GetStorageStatus 获取当前存储状态

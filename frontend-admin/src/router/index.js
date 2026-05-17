@@ -56,6 +56,12 @@ const routes = [
         meta: { title: '页面管理', icon: 'Document' }
       },
       {
+        path: 'memberships',
+        name: 'MembershipManage',
+        component: () => import('@/views/MembershipManage.vue'),
+        meta: { title: '会员管理', icon: 'Coin' }
+      },
+      {
         path: 'settings',
         name: 'SiteSettings',
         component: () => import('@/views/SiteSettings.vue'),

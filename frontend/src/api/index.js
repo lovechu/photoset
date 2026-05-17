@@ -119,14 +119,14 @@ export function getCategories() {
  * 获取站点设置（公开接口）
  */
 export function getSiteSettings() {
-  return request.get('/settings')
+  return request.get('/settings').then(res => res.data)
 }
 
 /**
  * 获取完整站点设置（包含导航菜单等所有配置）
  */
 export function getSettings() {
-  return request.get('/settings')
+  return request.get('/settings').then(res => res.data)
 }
 
 // ============ 健康检查 ============

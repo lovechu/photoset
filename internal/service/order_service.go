@@ -1,9 +1,10 @@
 package service
 
 import (
+	cryptoRand "crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
-	"math/rand"
 	"photoset/internal/database"
 	"photoset/internal/domain"
 	"photoset/internal/pkg/jwt"
@@ -70,8 +71,10 @@ func (s *OrderService) CreateOrder(userID uint, orderType string, membershipID *
 		return nil, errors.New("无效的订单类型")
 	}
 
-	// 生成订单号: PS + 时间戳 + 6位随机数
-	order.OrderNo = fmt.Sprintf("PS%s%06d", time.Now().Format("20060102150405"), rand.Intn(1000000))
+	// 生成订单号: PS + 时间戳 + 加密随机字节（密码学安全）
+	b := make([]byte, 3)
+	cryptoRand.Read(b)
+	order.OrderNo = fmt.Sprintf("PS%s%s", time.Now().Format("20060102150405"), hex.EncodeToString(b))
 	order.ExpireSeconds = 1800
 
 	if err := s.orderRepo.Create(order); err != nil {

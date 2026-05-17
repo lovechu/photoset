@@ -1,6 +1,9 @@
 <template>
   <div class="order-manage">
     <div class="filter-bar">
+      <el-button type="success" plain @click="handleExport" :loading="exporting">
+        导出 CSV
+      </el-button>
       <el-input
         v-model="filterKeyword"
         placeholder="搜索订单ID/用户/套图标题"
@@ -135,7 +138,7 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import { getOrderList, adminRefundOrder } from '@/api'
+import { getOrderList, adminRefundOrder, exportOrders } from '@/api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 
@@ -150,6 +153,9 @@ const filterKeyword = ref('')
 const filterStatus = ref('')
 const filterType = ref('')
 const dateRange = ref([])
+
+// 导出状态
+const exporting = ref(false)
 
 // 退款状态
 const refundingId = ref(null)
@@ -196,7 +202,7 @@ async function fetchOrders() {
   try {
     const params = {
       page: currentPage.value,
-      limit: pageSize.value
+      size: pageSize.value
     }
 
     if (filterKeyword.value) {
@@ -265,6 +271,35 @@ watch([filterKeyword, filterStatus, filterType, dateRange], () => {
   currentPage.value = 1
   fetchOrders()
 })
+
+async function handleExport() {
+  exporting.value = true
+  try {
+    const params = {}
+    if (filterKeyword.value) params.keyword = filterKeyword.value
+    if (filterStatus.value) params.status = filterStatus.value
+    if (filterType.value) params.type = filterType.value
+    if (dateRange.value && dateRange.value.length === 2) {
+      params.start_date = dateRange.value[0]
+      params.end_date = dateRange.value[1]
+    }
+    const res = await exportOrders(params)
+    const blob = new Blob([res], { type: 'text/csv;charset=utf-8' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'orders.csv'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch (error) {
+    ElMessage.error('导出失败')
+  } finally {
+    exporting.value = false
+  }
+}
 
 onMounted(fetchOrders)
 </script>

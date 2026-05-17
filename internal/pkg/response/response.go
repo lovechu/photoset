@@ -33,17 +33,17 @@ func SuccessWithMessage(c *gin.Context, message string, data interface{}) {
 	})
 }
 
-func Error(c *gin.Context, code int, message string) {
-	c.JSON(http.StatusOK, Response{
-		Code:    code,
+func Error(c *gin.Context, httpCode int, message string) {
+	c.JSON(httpCode, Response{
+		Code:    CodeError,
 		Message: message,
 		Data:    nil,
 	})
 }
 
-func ErrorWithData(c *gin.Context, code int, message string, data interface{}) {
-	c.JSON(http.StatusOK, Response{
-		Code:    code,
+func ErrorWithData(c *gin.Context, httpCode int, message string, data interface{}) {
+	c.JSON(httpCode, Response{
+		Code:    CodeError,
 		Message: message,
 		Data:    data,
 	})
