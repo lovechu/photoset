@@ -80,7 +80,7 @@ services:
     networks:
       - photoset-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/api/health"]
       timeout: 10s
       retries: 5
 
@@ -103,7 +103,7 @@ services:
     networks:
       - photoset-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:80"]
       timeout: 10s
       retries: 5
 
@@ -126,7 +126,7 @@ services:
     networks:
       - photoset-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:80"]
       timeout: 10s
       retries: 5
 

@@ -10,7 +10,7 @@ WORKDIR /app
 
 # 复制包管理文件并安装依赖
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci --only=production
+RUN npm ci
 
 # 复制源代码
 COPY frontend/ ./
