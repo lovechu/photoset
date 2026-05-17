@@ -394,13 +394,30 @@ docker-compose ps
 
 1. **上传代码** 到 `/www/dk_project/wwwroot/tt.cy.mk/`
 
-2. **添加伪静态规则**（网站 → tt.cy.mk → 伪静态）：
+2. **配置 Nginx 反向代理**（网站 → tt.cy.mk → 配置文件）：
+
+> ⚠️ **关键注意事项（踩坑记录）**
+> - `location /uploads/` 和 `location /api/` **必须放在 `location ^~ /` 之前**，否则 `^~` 优先级最高会先匹配，导致 `/uploads/` 和 `/api/` 被错误转发到前端 (:3000)
+> - 宝塔面板默认配置里有 `location ^~ /` 且 `proxy_pass` 指向前端，新增的 location block 必须排在它前面
+> - 如果配置了 SSL (443)，需要确保这些 location block 在 443 的 server block 里也存在（或写在 80/443 共用的同一个 server block 里）
+> - `proxy_set_header` 中的变量名必须正确：`X-Forwarded-For`（不是 `X-Forwarded-For`），`X-Real-IP`，`X-Forwarded-Proto`
 
 ```nginx
-# 上传文件代理
+# ===== 必须放在 location ^~ / 之前 =====
+
+# 上传文件代理（本地存储时必需）
 location /uploads/ {
     proxy_pass http://127.0.0.1:8080;
-    proxy_set_header Host $http_host;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+# 后端 API 代理
+location /api/ {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
@@ -408,28 +425,39 @@ location /uploads/ {
 
 # 管理后台静态资源
 location /admin/assets/ {
-    proxy_pass http://127.0.0.1:3001/assets/;
-    proxy_set_header Host $http_host;
+    proxy_pass http://127.0.0.1:3001;
+    proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
 }
 
 # 管理后台
 location /admin/ {
     proxy_pass http://127.0.0.1:3001/;
-    proxy_set_header Host $http_host;
+    proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
 }
 
-# 后端 API
-location ~ ^/api/ {
-    proxy_pass http://127.0.0.1:8080;
-    proxy_set_header Host $http_host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
+# ===== 原有 location ^~ / 保持不变，放在后面 =====
+location ^~ / {
+    proxy_pass http://127.0.0.1:3000;
+    # ... 原有配置 ...
 }
+```
+
+**排查 `/uploads/` 返回 404 的步骤：**
+```bash
+# 1. 确认 location 是否加载
+nginx -T 2>&1 | grep -A 5 "location /uploads"
+
+# 2. 确认是 HTTP 还是 HTTPS 的 server block 生效
+#    如果访问 https://domain/uploads/...，检查 443 server block 里是否有 /uploads/ location
+
+# 3. 直接访问后端端口验证后端是否正常
+curl http://127.0.0.1:8080/api/health
+
+# 4. 检查 nginx error log
+tail -50 /www/wwwlogs/tt.cy.mk.error.log
 ```
 
 3. **启动 Docker 容器**：
