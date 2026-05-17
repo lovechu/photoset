@@ -8,12 +8,12 @@ type Comment struct {
 	CreatedAt  time.Time  `json:"created_at"`
 	UpdatedAt  time.Time  `json:"updated_at"`
 	DeletedAt  *time.Time `gorm:"index" json:"deleted_at,omitempty"`
-	PhotoSetID uint       `gorm:"not null;index" json:"photoset_id"`
-	UserID     uint       `gorm:"not null;index" json:"user_id"`
+	PhotoSetID uint       `gorm:"column:photoset_id;not null;index" json:"photoset_id"`
+	UserID     uint       `gorm:"column:user_id;not null;index" json:"user_id"`
 	Content    string     `gorm:"type:text;not null" json:"content"`
-	ImageURL   string     `gorm:"size:500;default:''" json:"image_url"`
-	ParentID   *uint      `gorm:"index" json:"parent_id"` // 回复的评论ID，nil表示顶级评论
-	LikeCount  int        `gorm:"default:0" json:"like_count"`
+	ImageURL   string     `gorm:"column:image_url;size:500;default:''" json:"image_url"`
+	ParentID   *uint      `gorm:"column:parent_id;index" json:"parent_id"` // 回复的评论ID，nil表示顶级评论
+	LikeCount  int        `gorm:"column:like_count;default:0" json:"like_count"`
 
 	// 关联 - 不使用自引用预加载，手动查询回复
 	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`

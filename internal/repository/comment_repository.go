@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"log"
 	"photoset/internal/domain"
 
 	"gorm.io/gorm"
@@ -16,7 +17,14 @@ func NewCommentRepository(db *gorm.DB) *CommentRepository {
 
 // Create 发表评论
 func (r *CommentRepository) Create(comment *domain.Comment) error {
-	return r.db.Create(comment).Error
+	log.Printf("[CommentRepo] Create - PhotoSetID=%d, UserID=%d, Content=%q, ImageURL=%q, ParentID=%v",
+		comment.PhotoSetID, comment.UserID, comment.Content, comment.ImageURL, comment.ParentID)
+	if err := r.db.Create(comment).Error; err != nil {
+		log.Printf("[CommentRepo] Create ERROR: %v", err)
+		return err
+	}
+	log.Printf("[CommentRepo] Create SUCCESS - comment.ID=%d", comment.ID)
+	return nil
 }
 
 // GetByPhotosetID 获取套图的评论列表（分页，支持当前用户点赞状态）

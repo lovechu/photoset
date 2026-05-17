@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
@@ -215,7 +216,8 @@ func (h *CommentHandler) Create(c *gin.Context) {
 	}
 
 	if err := h.repo.Create(comment); err != nil {
-		response.Error(c, http.StatusInternalServerError, "发表评论失败")
+		log.Printf("[CommentHandler] Create ERROR: %v, comment=%+v", err, comment)
+		response.Error(c, http.StatusInternalServerError, "发表评论失败: "+err.Error())
 		return
 	}
 
