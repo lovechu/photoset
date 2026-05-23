@@ -28,6 +28,7 @@ type ListRequest struct {
 	Tag       string  `form:"tag"`
 	Mine      bool    `form:"mine"`
 	Keyword   string  `form:"keyword"`
+	Status    string  `form:"status"` // draft/published/pending，空默认 published
 	
 	// 高级筛选参数
 	Category   string   `form:"category"`
@@ -87,6 +88,7 @@ func (h *PhotoSetHandler) List(c *gin.Context) {
 		userID, req.Mine,
 		req.Category, req.PriceMin, req.PriceMax, req.IsFree,
 		req.SortBy, req.TimeRange, 0,
+		req.Status,
 	)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "获取套图列表失败")
@@ -338,6 +340,7 @@ func (h *PhotoSetHandler) AdvancedList(c *gin.Context) {
 		userID, onlyMine,
 		req.Category, req.PriceMin, req.PriceMax, req.IsFree, 
 		req.SortBy, req.TimeRange, filterUserID,
+		req.Status,
 	)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "获取套图列表失败")

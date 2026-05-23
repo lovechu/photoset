@@ -118,6 +118,7 @@ func PhotosetAdvancedListCacheKey(
 	isFree *bool,
 	sortBy, timeRange string,
 	filterUserID uint,
+	status string,
 ) string {
 	// 基础参数
 	key := fmt.Sprintf("%s%d:%d:%s:%s", CachePrefixPhotosetList, page, pageSize, tag, keyword)
@@ -162,6 +163,11 @@ func PhotosetAdvancedListCacheKey(
 	// 筛选特定用户参数
 	if filterUserID > 0 {
 		key = fmt.Sprintf("%s:user:%d", key, filterUserID)
+	}
+	
+	// 状态参数
+	if status != "" {
+		key = fmt.Sprintf("%s:status:%s", key, status)
 	}
 	
 	return key

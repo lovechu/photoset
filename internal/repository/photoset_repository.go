@@ -158,11 +158,17 @@ func (r *PhotoSetRepository) ListAdvanced(
 	isFree *bool,
 	sortBy, timeRange string,
 	filterUserID uint,
+	status string,
 ) ([]domain.PhotoSet, int64, error) {
 	var photosets []domain.PhotoSet
 	var total int64
 
-	query := r.db.Model(&domain.PhotoSet{}).Where("photosets.status = ?", "published")
+	// 默认只查已发布，除非明确指定 status
+	statusFilter := status
+	if statusFilter == "" {
+		statusFilter = "published"
+	}
+	query := r.db.Model(&domain.PhotoSet{}).Where("photosets.status = ?", statusFilter)
 
 	// 按标签筛选
 	if tag != "" {

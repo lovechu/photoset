@@ -87,7 +87,7 @@ func (s *PhotoSetService) CreatePhotoSet(photoset *domain.PhotoSet, tagNames []s
 
 // GetPhotoSetList 获取套图列表（带 Redis 缓存）- 兼容旧接口
 func (s *PhotoSetService) GetPhotoSetList(page, pageSize int, tag string, keyword string, userID uint, onlyMine bool) ([]domain.PhotoSet, int64, error) {
-	return s.GetPhotoSetListAdvanced(page, pageSize, tag, keyword, userID, onlyMine, "", 0, 0, nil, "", "", 0)
+	return s.GetPhotoSetListAdvanced(page, pageSize, tag, keyword, userID, onlyMine, "", 0, 0, nil, "", "", 0, "")
 }
 
 // GetPhotoSetListAdvanced 高级套图列表查询（带 Redis 缓存）
@@ -100,15 +100,16 @@ func (s *PhotoSetService) GetPhotoSetListAdvanced(
 	isFree *bool,
 	sortBy, timeRange string,
 	filterUserID uint,
+	status string,
 ) ([]domain.PhotoSet, int64, error) {
 	// 生成高级缓存键
 	cacheKey := PhotosetAdvancedListCacheKey(
 		page, pageSize, tag, keyword, userID, onlyMine,
-		category, priceMin, priceMax, isFree, sortBy, timeRange, filterUserID,
+		category, priceMin, priceMax, isFree, sortBy, timeRange, filterUserID, status,
 	)
 	
-	// 只缓存非"我的"列表（mine=true 不缓存，数据个性化）
-	if !onlyMine {
+	// 只缓存非"我的"列表（mine=true 或指定了status都不缓存，数据个性化）
+	if !onlyMine && status == "" {
 		ctx := context.Background()
 		var cached struct {
 			List  []domain.PhotoSet `json:"list"`
@@ -122,14 +123,14 @@ func (s *PhotoSetService) GetPhotoSetListAdvanced(
 	// 调用增强的 Repository 方法
 	photosets, total, err := s.repo.ListAdvanced(
 		page, pageSize, tag, keyword, userID, onlyMine,
-		category, priceMin, priceMax, isFree, sortBy, timeRange, filterUserID,
+		category, priceMin, priceMax, isFree, sortBy, timeRange, filterUserID, status,
 	)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	// 写入缓存（5 分钟）
-	if !onlyMine {
+	if !onlyMine && status == "" {
 		ctx := context.Background()
 		s.cacheService.Set(ctx, cacheKey, map[string]interface{}{
 			"list":  photosets,
