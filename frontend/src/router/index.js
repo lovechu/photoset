@@ -78,6 +78,12 @@ const routes = [
     meta: { title: '我的订单', requiresAuth: true }
   },
   {
+    path: '/tags',
+    name: 'Tags',
+    component: () => import('@/views/Tags.vue'),
+    meta: { title: '标签' }
+  },
+  {
     path: '/page/:pageType',
     name: 'StaticPage',
     component: () => import('@/views/StaticPage.vue'),

@@ -37,35 +37,6 @@
       </div>
     </div>
 
-    <!-- 分类筛选 -->
-    <div class="category-filter">
-      <el-select 
-        v-model="selectedCategory" 
-        placeholder="全部分类" 
-        clearable 
-        @change="handleCategoryChange"
-        style="width: 160px; margin-right: 16px;"
-      >
-        <el-option label="全部分类" value="" />
-        <el-option 
-          v-for="cat in categoryOptions" 
-          :key="cat.id" 
-          :label="cat.name" 
-          :value="cat.slug" 
-        />
-      </el-select>
-    </div>
-
-    <!-- 标签筛选 -->
-    <div class="tag-filter">
-      <el-radio-group v-model="selectedTag" @change="handleTagChange">
-        <el-radio-button value="">全部</el-radio-button>
-        <el-radio-button v-for="tag in tags" :key="tag.id" :value="tag.name">
-          {{ tag.name }}
-        </el-radio-button>
-      </el-radio-group>
-    </div>
-
     <!-- 筛选状态显示 -->
     <div v-if="activeFilterText" class="filter-status">
       <div class="filter-status-content">
@@ -123,7 +94,7 @@
 <script setup>
 import { ref, onMounted, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { getPhotosetList, getTags, getPhotosetListAdvanced, getCategories } from '@/api'
+import { getPhotosetList, getPhotosetListAdvanced } from '@/api'
 import { getCurrentUser } from '@/api'
 import PhotosetCard from '@/components/PhotosetCard.vue'
 import AdvancedSearch from '@/components/AdvancedSearch.vue'
@@ -133,8 +104,6 @@ const route = useRoute()
 
 const loading = ref(false)
 const photosets = ref([])
-const tags = ref([])
-const categoryOptions = ref([])
 const selectedCategory = ref('')
 const selectedTag = ref('')
 const keyword = ref('')
@@ -144,26 +113,6 @@ const total = ref(0)
 const showAdvancedSearch = ref(false)
 const currentUser = ref({})
 const advancedFilters = ref({})
-
-// 加载标签列表
-const loadTags = async () => {
-  try {
-    const res = await getTags()
-    tags.value = res.data || []
-  } catch (e) {
-    console.error('加载标签失败', e)
-  }
-}
-
-// 加载分类列表
-const loadCategories = async () => {
-  try {
-    const res = await getCategories()
-    categoryOptions.value = res.data || []
-  } catch (e) {
-    console.error('加载分类失败', e)
-  }
-}
 
 // 加载用户信息
 const loadCurrentUser = async () => {
@@ -176,9 +125,11 @@ const loadCurrentUser = async () => {
   }
 }
 
-// 检查是否使用高级搜索
+// 检查是否需要使用高级搜索（有分类、标签或高级筛选条件时）
 const hasAdvancedFilters = computed(() => {
   return Object.keys(advancedFilters.value).length > 0
+    || selectedCategory.value !== ''
+    || selectedTag.value !== ''
 })
 
 // 加载套图列表
@@ -192,8 +143,8 @@ const loadPhotosets = async () => {
       const params = {
         page: currentPage.value,
         page_size: pageSize.value,
-        tag: selectedTag.value || undefined,
         keyword: keyword.value || undefined,
+        tag: selectedTag.value || undefined,
         category: selectedCategory.value || undefined,
         ...advancedFilters.value
       }
@@ -211,9 +162,7 @@ const loadPhotosets = async () => {
       res = await getPhotosetList({
         page: currentPage.value,
         page_size: pageSize.value,
-        tag: selectedTag.value || undefined,
-        keyword: keyword.value || undefined,
-        category: selectedCategory.value || undefined
+        keyword: keyword.value || undefined
       })
     }
     
@@ -246,45 +195,27 @@ const handleSearch = () => {
   loadPhotosets()
 }
 
-// 标签切换
-const handleTagChange = () => {
-  currentPage.value = 1
-  loadPhotosets()
-}
-
-// 分类切换
-const handleCategoryChange = () => {
-  currentPage.value = 1
-  loadPhotosets()
-}
-
 // 显示当前筛选状态
 const activeFilterText = computed(() => {
   const filters = []
-  
+
   if (selectedCategory.value) {
-    const foundCat = categoryOptions.value.find(c => c.slug === selectedCategory.value)
-    filters.push(`分类: ${foundCat ? foundCat.name : selectedCategory.value}`)
+    filters.push(`分类筛选中`)
   }
-  
+
   if (selectedTag.value) {
     filters.push(`标签: ${selectedTag.value}`)
   }
-  
+
   if (keyword.value) {
     filters.push(`关键词: ${keyword.value}`)
   }
-  
+
   // 高级筛选
-  if (advancedFilters.value.category) {
-    const foundCat = categoryOptions.value.find(c => c.slug === advancedFilters.value.category)
-    filters.push(`分类: ${foundCat ? foundCat.name : advancedFilters.value.category}`)
-  }
-  
   if (advancedFilters.value.is_free !== undefined && advancedFilters.value.is_free !== null) {
     filters.push(advancedFilters.value.is_free ? '仅免费' : '付费作品')
   }
-  
+
   if (advancedFilters.value.sort_by && advancedFilters.value.sort_by !== 'latest') {
     const sortMap = {
       'popular': '最受欢迎',
@@ -294,7 +225,7 @@ const activeFilterText = computed(() => {
     }
     filters.push(`排序: ${sortMap[advancedFilters.value.sort_by] || advancedFilters.value.sort_by}`)
   }
-  
+
   if (advancedFilters.value.time_range) {
     const timeMap = {
       'today': '今天',
@@ -305,11 +236,11 @@ const activeFilterText = computed(() => {
     }
     filters.push(`时间: ${timeMap[advancedFilters.value.time_range] || advancedFilters.value.time_range}`)
   }
-  
+
   if (advancedFilters.value.only_mine) {
     filters.push('仅我的作品')
   }
-  
+
   return filters.join(' · ')
 })
 
@@ -329,23 +260,37 @@ const handlePageChange = () => {
 // 初始化加载
 onMounted(() => {
   loadCurrentUser()
-  loadTags()
-  loadCategories()
-  
+
   // 检查 URL 参数中的分类筛选
   if (route.query.category) {
     selectedCategory.value = route.query.category
   }
-  
+
+  // 检查 URL 参数中的标签筛选
+  if (route.query.tag) {
+    selectedTag.value = route.query.tag
+  }
+
   loadPhotosets()
 })
 
-// 监听路由变化
+// 监听路由变化 - 分类
 watch(() => route.query.category, (newCategory) => {
   if (newCategory) {
     selectedCategory.value = newCategory
   } else {
     selectedCategory.value = ''
+  }
+  currentPage.value = 1
+  loadPhotosets()
+})
+
+// 监听路由变化 - 标签
+watch(() => route.query.tag, (newTag) => {
+  if (newTag) {
+    selectedTag.value = newTag
+  } else {
+    selectedTag.value = ''
   }
   currentPage.value = 1
   loadPhotosets()
@@ -402,22 +347,6 @@ watch(advancedFilters, () => {
 
 .advanced-search-button {
   flex-shrink: 0;
-}
-
-.tag-filter {
-  margin-bottom: 24px;
-  overflow-x: auto;
-  padding-bottom: 8px;
-}
-
-.tag-filter :deep(.el-radio-group) {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 8px;
-}
-
-.tag-filter :deep(.el-radio-button__inner) {
-  white-space: nowrap;
 }
 
 .filter-status {
@@ -515,10 +444,6 @@ watch(advancedFilters, () => {
 }
 
 @media (max-width: 480px) {
-  .tag-filter :deep(.el-radio-group) {
-    flex-wrap: wrap;
-  }
-
   .filter-status {
     padding: 10px 12px;
   }

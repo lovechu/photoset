@@ -10,23 +10,18 @@
       <!-- 导航 -->
       <nav class="nav-links">
         <router-link to="/" class="nav-item">首页</router-link>
-        <!-- 分类菜单 -->
-        <el-dropdown v-if="navCategories.length > 0" @command="handleCategoryClick">
-          <span class="nav-item nav-dropdown">
-            分类 <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-          </span>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item 
-                v-for="cat in navCategories" 
-                :key="cat.slug" 
-                :command="cat.slug"
-              >
-                {{ getCategoryName(cat.slug) }}
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+        <!-- 分类平铺导航 -->
+        <router-link
+          v-for="cat in navCategories"
+          :key="cat.slug"
+          :to="{ path: '/', query: { category: cat.slug } }"
+          class="nav-item"
+          :class="{ 'router-link-active': route.query.category === cat.slug }"
+        >
+          {{ getCategoryName(cat.slug) }}
+        </router-link>
+        <!-- 标签页面入口 -->
+        <router-link to="/tags" class="nav-item">标签</router-link>
         <router-link to="/create" v-if="userStore.isCreatorOrAdmin" class="nav-item">
           <el-icon><Plus /></el-icon>
           创建套图
@@ -89,6 +84,16 @@
     <transition name="slide-down">
       <div v-if="mobileMenuVisible" class="mobile-menu-panel">
         <router-link to="/" @click="mobileMenuVisible = false">首页</router-link>
+        <!-- 移动端分类导航 -->
+        <router-link
+          v-for="cat in navCategories"
+          :key="cat.slug"
+          :to="{ path: '/', query: { category: cat.slug } }"
+          @click="mobileMenuVisible = false"
+        >
+          {{ getCategoryName(cat.slug) }}
+        </router-link>
+        <router-link to="/tags" @click="mobileMenuVisible = false">标签</router-link>
         <router-link v-if="userStore.isCreatorOrAdmin" to="/create" @click="mobileMenuVisible = false">
           创建套图
         </router-link>
@@ -109,14 +114,15 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useSiteStore } from '@/stores/site'
-import { Camera, Plus, User, SwitchButton, Menu, Close, Medal, Document, ArrowDown } from '@element-plus/icons-vue'
+import { Camera, Plus, User, SwitchButton, Menu, Close, Medal, Document } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getSettings, getCategories } from '@/api'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 const siteStore = useSiteStore()
 const mobileMenuVisible = ref(false)
@@ -148,11 +154,6 @@ async function loadNavMenu() {
     console.error('加载导航菜单失败', e)
     navCategories.value = []
   }
-}
-
-function handleCategoryClick(slug) {
-  // 跳转到首页并传递分类筛选参数
-  router.push({ path: '/', query: { category: slug } })
 }
 
 async function loadAllCategories() {
