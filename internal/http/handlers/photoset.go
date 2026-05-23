@@ -80,11 +80,13 @@ func (h *PhotoSetHandler) List(c *gin.Context) {
 		userID = uid.(uint)
 	}
 
-	// 调用基础搜索（只使用基础的tag和keyword参数）
-	photosets, total, err := h.service.GetPhotoSetList(
-		req.Page, req.PageSize, 
+	// 调用高级搜索，支持分类等参数
+	photosets, total, err := h.service.GetPhotoSetListAdvanced(
+		req.Page, req.PageSize,
 		req.Tag, req.Keyword,
 		userID, req.Mine,
+		req.Category, req.PriceMin, req.PriceMax, req.IsFree,
+		req.SortBy, req.TimeRange, 0,
 	)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "获取套图列表失败")
