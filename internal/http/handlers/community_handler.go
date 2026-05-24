@@ -444,9 +444,12 @@ func (h *CommunityHandler) GetReplies(c *gin.Context) {
 		return
 	}
 
+	total, _ := h.replyRepo.CountByPostID(uint(postID))
+
 	response.Success(c, gin.H{
 		"replies": replies,
 		"pagination": gin.H{
+			"total":     total,
 			"page":      page,
 			"page_size": pageSize,
 		},
