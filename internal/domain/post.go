@@ -49,6 +49,7 @@ type Post struct {
 	Category    string        `gorm:"type:varchar(20);not null;default:'discussion'" json:"category"`
 	Visibility  string        `gorm:"type:varchar(20);not null;default:'public'" json:"visibility"`
 	IsPinned   bool          `gorm:"not null;default:false" json:"is_pinned"`
+	IsEssence   bool          `gorm:"not null;default:false" json:"is_essence"`
 	ViewCount   int           `gorm:"not null;default:0" json:"view_count"`
 	ReplyCount  int           `gorm:"not null;default:0" json:"reply_count"`
 	LikeCount   int           `gorm:"not null;default:0" json:"like_count"`

@@ -81,7 +81,7 @@ func (h *CommunityHandler) GetPosts(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{
-		"posts": posts,
+		"posts": h.postsToResponseList(posts, userID),
 		"pagination": gin.H{
 			"page":      page,
 			"page_size": pageSize,
@@ -111,7 +111,10 @@ func (h *CommunityHandler) GetPostDetail(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, gin.H{"post": post})
+	// Get user info for is_liked check
+	userID, _ := middleware.GetUserID(c)
+
+	response.Success(c, gin.H{"post": h.postToResponse(*post, userID)})
 }
 
 // CreatePost creates a new post
@@ -144,7 +147,7 @@ func (h *CommunityHandler) CreatePost(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, gin.H{"post": post})
+	response.Success(c, gin.H{"id": post.ID})
 }
 
 // CreateReply creates a reply to a post
@@ -329,6 +332,9 @@ func (h *CommunityHandler) GetHotPosts(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 
+	// Get user info (optional) for is_liked check
+	userID, _ := middleware.GetUserID(c)
+
 	posts, total, err := h.hotPostsService.GetHotPosts(page, pageSize)
 	if err != nil {
 		response.ServerError(c, "failed to get hot posts")
@@ -336,7 +342,7 @@ func (h *CommunityHandler) GetHotPosts(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{
-		"posts": posts,
+		"posts": h.postsToResponseList(posts, userID),
 		"pagination": gin.H{
 			"page":      page,
 			"page_size": pageSize,
@@ -363,7 +369,7 @@ func (h *CommunityHandler) GetMyPosts(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{
-		"posts": posts,
+		"posts": h.postsToResponseList(posts, userID),
 		"pagination": gin.H{
 			"page":      page,
 			"page_size": pageSize,
@@ -445,6 +451,47 @@ func (h *CommunityHandler) GetReplies(c *gin.Context) {
 			"page_size": pageSize,
 		},
 	})
+}
+
+// postToResponse converts a domain.Post to a flat gin.H response (with author_id, author_name, is_liked)
+func (h *CommunityHandler) postToResponse(post domain.Post, userID uint) gin.H {
+	authorName := ""
+	if post.User.ID != 0 {
+		authorName = post.User.Nickname
+	}
+
+	// Check if current user liked this post
+	isLiked := false
+	if userID > 0 {
+		liked, _ := h.likeRepo.Exists(userID, post.ID)
+		isLiked = liked
+	}
+
+	return gin.H{
+		"id":          post.ID,
+		"title":       post.Title,
+		"content":     post.Content,
+		"category":    post.Category,
+		"author_id":   post.UserID,
+		"author_name": authorName,
+		"reply_count": post.ReplyCount,
+		"like_count":  post.LikeCount,
+		"view_count":  post.ViewCount,
+		"is_pinned":   post.IsPinned,
+		"is_essence":  post.IsEssence,
+		"is_liked":    isLiked,
+		"status":      post.Status,
+		"created_at":  post.CreatedAt,
+	}
+}
+
+// postsToResponseList converts a slice of domain.Post to flat gin.H slices
+func (h *CommunityHandler) postsToResponseList(posts []domain.Post, userID uint) []gin.H {
+	result := make([]gin.H, len(posts))
+	for i, post := range posts {
+		result[i] = h.postToResponse(post, userID)
+	}
+	return result
 }
 
 // canViewPost checks if user can view the post based on visibility
