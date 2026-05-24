@@ -12,6 +12,14 @@ var (
 	SensitiveWordsMap sync.Map
 )
 
+// ClearSensitiveWordsMap clears all sensitive words from memory
+func ClearSensitiveWordsMap() {
+	SensitiveWordsMap.Range(func(key, value interface{}) bool {
+		SensitiveWordsMap.Delete(key)
+		return true
+	})
+}
+
 // SensitiveFilterService provides sensitive word filtering
 type SensitiveFilterService struct {
 	wordRepo *repository.SensitiveWordRepository
@@ -29,11 +37,8 @@ func (s *SensitiveFilterService) LoadSensitiveWords() error {
 		return err
 	}
 
-	// Clear existing map
-	SensitiveWordsMap.Range(func(key, value interface{}) bool {
-		SensitiveWordsMap.Delete(key)
-		return true
-	})
+	// Clear existing map by creating a new map (Range+Delete can miss entries)
+	SensitiveWordsMap = sync.Map{}
 
 	// Load new words (store lowercase)
 	for _, w := range words {

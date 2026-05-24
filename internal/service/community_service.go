@@ -1,10 +1,12 @@
 package service
 
 import (
+	"errors"
 	"photoset/internal/domain"
 	"photoset/internal/repository"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // CommunityService provides community business logic
@@ -60,8 +62,8 @@ func (s *CommunityService) CreatePost(userID uint, req *CreatePostRequest) (*dom
 	}
 
 	// Filter sensitive words
-	filteredTitle, _ := s.filterService.FilterText(req.Title)
-	filteredContent, _ := s.filterService.FilterText(req.Content)
+	filteredTitle, _ := s.filterService.FilterTextAdvanced(req.Title)
+	filteredContent, _ := s.filterService.FilterTextAdvanced(req.Content)
 	post.Title = filteredTitle
 	post.Content = filteredContent
 
@@ -110,7 +112,7 @@ func (s *CommunityService) CreateReply(userID, postID uint, req *CreateReplyRequ
 	}
 
 	// Filter sensitive words
-	filteredContent, _ := s.filterService.FilterText(req.Content)
+	filteredContent, _ := s.filterService.FilterTextAdvanced(req.Content)
 	reply.Content = filteredContent
 
 	// Create reply in transaction
@@ -142,7 +144,7 @@ func (s *CommunityService) CreateReply(userID, postID uint, req *CreateReplyRequ
 	return reply, nil
 }
 
-// TogglePostLike toggles like status for a post
+// TogglePostLike toggles like status for a post (with row lock to prevent race conditions)
 func (s *CommunityService) TogglePostLike(userID, postID uint) (string, int, error) {
 	// Check if post exists
 	post, err := s.postRepo.FindByID(postID)
@@ -150,42 +152,52 @@ func (s *CommunityService) TogglePostLike(userID, postID uint) (string, int, err
 		return "", 0, domain.ErrPostNotFound
 	}
 
-	// Check if already liked
-	liked, err := s.likeRepo.Exists(userID, postID)
-	if err != nil {
-		return "", 0, err
-	}
-
 	var action string
 	var likeCount int
 
-	if liked {
-		// Unlike: delete like record and decrement count
-		err = s.likeRepo.DB.Transaction(func(tx *gorm.DB) error {
-			if err := s.likeRepo.Delete(userID, postID); err != nil {
-				return err
-			}
-			return s.postRepo.DecrementLikeCount(postID)
-		})
-		action = "unliked"
-	} else {
-		// Like: create like record and increment count
-		like := &domain.PostLike{
-			UserID: userID,
-			PostID: postID,
+	err = s.likeRepo.DB.Transaction(func(tx *gorm.DB) error {
+		// Lock the post row to prevent race conditions on like toggle
+		var lockedPost domain.Post
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&lockedPost, postID).Error; err != nil {
+			return err
 		}
-		err = s.likeRepo.DB.Transaction(func(tx *gorm.DB) error {
-			if err := s.likeRepo.Create(like); err != nil {
+
+		// Check if already liked (inside transaction, with row lock)
+		var existingLike domain.PostLike
+		likeErr := tx.Where("user_id = ? AND post_id = ?", userID, postID).First(&existingLike).Error
+
+		if likeErr == nil {
+			// Already liked → unlike
+			if err := tx.Delete(&existingLike).Error; err != nil {
 				return err
 			}
-			if err := s.postRepo.IncrementLikeCount(postID); err != nil {
+			if err := tx.Model(&domain.Post{}).Where("id = ?", postID).Update("like_count", gorm.Expr("GREATEST(like_count - 1, 0)")).Error; err != nil {
+				return err
+			}
+			action = "unliked"
+		} else if errors.Is(likeErr, gorm.ErrRecordNotFound) {
+			// Not liked → like
+			like := &domain.PostLike{
+				UserID: userID,
+				PostID: postID,
+			}
+			if err := tx.Create(like).Error; err != nil {
+				return err
+			}
+			if err := tx.Model(&domain.Post{}).Where("id = ?", postID).Update("like_count", gorm.Expr("like_count + 1")).Error; err != nil {
 				return err
 			}
 			// Add points to post author
-			return s.pointService.AddPointsForLiked(post.UserID, 2)
-		})
-		action = "liked"
-	}
+			if err := s.pointService.AddPointsForLiked(post.UserID, 2); err != nil {
+				return err
+			}
+			action = "liked"
+		} else {
+			return likeErr
+		}
+
+		return nil
+	})
 
 	if err != nil {
 		return "", 0, err
@@ -199,7 +211,7 @@ func (s *CommunityService) TogglePostLike(userID, postID uint) (string, int, err
 	return action, likeCount, nil
 }
 
-// ToggleReplyLike toggles like status for a reply
+// ToggleReplyLike toggles like status for a reply (with row lock)
 func (s *CommunityService) ToggleReplyLike(userID, replyID uint) (string, int, error) {
 	// Check if reply exists
 	reply, err := s.replyRepo.FindByID(replyID)
@@ -207,42 +219,52 @@ func (s *CommunityService) ToggleReplyLike(userID, replyID uint) (string, int, e
 		return "", 0, domain.ErrReplyNotFound
 	}
 
-	// Check if already liked
-	liked, err := s.replyLikeRepo.Exists(userID, replyID)
-	if err != nil {
-		return "", 0, err
-	}
-
 	var action string
 	var likeCount int
 
-	if liked {
-		// Unlike
-		err = s.replyLikeRepo.DB.Transaction(func(tx *gorm.DB) error {
-			if err := s.replyLikeRepo.Delete(userID, replyID); err != nil {
-				return err
-			}
-			return s.replyRepo.DecrementLikeCount(replyID)
-		})
-		action = "unliked"
-	} else {
-		// Like
-		like := &domain.PostReplyLike{
-			UserID: userID,
-			ReplyID: replyID,
+	err = s.replyLikeRepo.DB.Transaction(func(tx *gorm.DB) error {
+		// Lock the reply row to prevent race conditions on like toggle
+		var lockedReply domain.PostReply
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&lockedReply, replyID).Error; err != nil {
+			return err
 		}
-		err = s.replyLikeRepo.DB.Transaction(func(tx *gorm.DB) error {
-			if err := s.replyLikeRepo.Create(like); err != nil {
+
+		// Check if already liked (inside transaction, with lock)
+		var existingLike domain.PostReplyLike
+		likeErr := tx.Where("user_id = ? AND reply_id = ?", userID, replyID).First(&existingLike).Error
+
+		if likeErr == nil {
+			// Already liked → unlike
+			if err := tx.Delete(&existingLike).Error; err != nil {
 				return err
 			}
-			if err := s.replyRepo.IncrementLikeCount(replyID); err != nil {
+			if err := tx.Model(&domain.PostReply{}).Where("id = ?", replyID).Update("like_count", gorm.Expr("GREATEST(like_count - 1, 0)")).Error; err != nil {
+				return err
+			}
+			action = "unliked"
+		} else if errors.Is(likeErr, gorm.ErrRecordNotFound) {
+			// Not liked → like
+			like := &domain.PostReplyLike{
+				UserID: userID,
+				ReplyID: replyID,
+			}
+			if err := tx.Create(like).Error; err != nil {
+				return err
+			}
+			if err := tx.Model(&domain.PostReply{}).Where("id = ?", replyID).Update("like_count", gorm.Expr("like_count + 1")).Error; err != nil {
 				return err
 			}
 			// Add points to reply author
-			return s.pointService.AddPointsForLiked(reply.UserID, 1)
-		})
-		action = "liked"
-	}
+			if err := s.pointService.AddPointsForLiked(reply.UserID, 1); err != nil {
+				return err
+			}
+			action = "liked"
+		} else {
+			return likeErr
+		}
+
+		return nil
+	})
 
 	if err != nil {
 		return "", 0, err

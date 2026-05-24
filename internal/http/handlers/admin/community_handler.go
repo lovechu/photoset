@@ -137,15 +137,26 @@ func (h *AdminCommunityHandler) GetReplies(c *gin.Context) {
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 	postIDStr := c.Query("post_id")
 
-	// TODO: Implement admin reply list with filtering
-	_ = postIDStr
+	var postID uint
+	if postIDStr != "" {
+		id, err := strconv.ParseUint(postIDStr, 10, 64)
+		if err == nil {
+			postID = uint(id)
+		}
+	}
+
+	replies, total, err := h.replyRepo.ListForAdmin(page, pageSize, postID)
+	if err != nil {
+		response.ServerError(c, "failed to get replies")
+		return
+	}
 
 	response.Success(c, gin.H{
-		"replies": []interface{}{},
+		"replies": replies,
 		"pagination": gin.H{
 			"page":      page,
 			"page_size": pageSize,
-			"total":     0,
+			"total":     total,
 		},
 	})
 }
@@ -362,14 +373,21 @@ func (h *AdminCommunityHandler) ResolveReport(c *gin.Context) {
 func (h *AdminCommunityHandler) GetUsers(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	levelStr := c.DefaultQuery("level", "0")
+	level, _ := strconv.Atoi(levelStr)
 
-	// TODO: Implement user points list with pagination
+	users, total, err := h.pointRepo.ListForAdmin(page, pageSize, level)
+	if err != nil {
+		response.ServerError(c, "failed to get users")
+		return
+	}
+
 	response.Success(c, gin.H{
-		"users": []interface{}{},
+		"users": users,
 		"pagination": gin.H{
 			"page":      page,
 			"page_size": pageSize,
-			"total":     0,
+			"total":     total,
 		},
 	})
 }
@@ -403,13 +421,47 @@ func (h *AdminCommunityHandler) AdjustPoints(c *gin.Context) {
 
 // GetStats gets community statistics
 func (h *AdminCommunityHandler) GetStats(c *gin.Context) {
-	// TODO: Implement statistics
+	// Count total posts
+	var totalPosts int64
+	if err := h.postRepo.DB.Model(&domain.Post{}).Count(&totalPosts).Error; err != nil {
+		response.ServerError(c, "failed to count posts")
+		return
+	}
+
+	// Count total replies
+	var totalReplies int64
+	if err := h.replyRepo.DB.Model(&domain.PostReply{}).Count(&totalReplies).Error; err != nil {
+		response.ServerError(c, "failed to count replies")
+		return
+	}
+
+	// Count total users with points (unique user_ids in user_points table)
+	var totalUsers int64
+	if err := h.pointRepo.DB.Model(&domain.UserPoint{}).Count(&totalUsers).Error; err != nil {
+		response.ServerError(c, "failed to count users")
+		return
+	}
+
+	// Count total reports
+	var totalReports int64
+	if err := h.reportRepo.DB.Model(&domain.PostReport{}).Count(&totalReports).Error; err != nil {
+		response.ServerError(c, "failed to count reports")
+		return
+	}
+
+	// Count pending reports (status = 'pending')
+	var pendingReports int64
+	if err := h.reportRepo.DB.Model(&domain.PostReport{}).Where("status = ?", "pending").Count(&pendingReports).Error; err != nil {
+		response.ServerError(c, "failed to count pending reports")
+		return
+	}
+
 	stats := gin.H{
-		"total_posts":    0,
-		"total_replies":  0,
-		"total_users":    0,
-		"total_reports":  0,
-		"pending_reports": 0,
+		"total_posts":     totalPosts,
+		"total_replies":   totalReplies,
+		"total_users":     totalUsers,
+		"total_reports":   totalReports,
+		"pending_reports": pendingReports,
 	}
 
 	response.Success(c, gin.H{"stats": stats})

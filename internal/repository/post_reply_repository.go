@@ -117,3 +117,23 @@ func (r *PostReplyRepository) CountByPostID(postID uint) (int64, error) {
 	err := r.DB.Model(&domain.PostReply{}).Where("post_id = ?", postID).Count(&count).Error
 	return count, err
 }
+
+// ListForAdmin returns all replies for admin with optional post_id filter
+func (r *PostReplyRepository) ListForAdmin(page, pageSize int, postID uint) ([]domain.PostReply, int64, error) {
+	var replies []domain.PostReply
+	var total int64
+
+	query := r.DB.Model(&domain.PostReply{}).Preload("User").Preload("Post")
+
+	if postID > 0 {
+		query = query.Where("post_id = ?", postID)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * pageSize
+	err := query.Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&replies).Error
+	return replies, total, err
+}

@@ -64,7 +64,7 @@ func (r *PostRepository) List(page, pageSize int, category, visibility string, u
 		query = query.Where("visibility = ?", "public")
 	} else if userRole == "admin" {
 		// Admin can see all
-	} else if userRole == "vip" || userRole == "creator" {
+	} else if userRole == "vip" || userRole == string(domain.RoleCreator) {
 		// VIP/Creator can see public, member, vip
 		query = query.Where("visibility IN (?, ?, ?)", "public", "member", "vip")
 	} else if userRole == "member" {
@@ -156,9 +156,28 @@ func (r *PostRepository) TogglePin(id uint) error {
 	return r.DB.Model(&domain.Post{}).Where("id = ?", id).Update("is_pinned", !post.IsPinned).Error
 }
 
-// Delete deletes a post (hard delete)
+// Delete deletes a post and its related records (hard delete, with cascade)
 func (r *PostRepository) Delete(id uint) error {
-	return r.DB.Unscoped().Delete(&domain.Post{}, id).Error
+	return r.DB.Transaction(func(tx *gorm.DB) error {
+		// Delete related records in order
+		if err := tx.Where("post_id = ?", id).Unscoped().Delete(&domain.PostLike{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("post_id = ?", id).Unscoped().Delete(&domain.PostReplyLike{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("post_id = ?", id).Unscoped().Delete(&domain.PostReply{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("post_id = ?", id).Unscoped().Delete(&domain.PostReport{}).Error; err != nil {
+			return err
+		}
+		// Delete the post
+		if err := tx.Unscoped().Delete(&domain.Post{}, id).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 // IncrementViewCount increments the view count
@@ -181,9 +200,10 @@ func (r *PostRepository) IncrementLikeCount(id uint) error {
 	return r.DB.Model(&domain.Post{}).Where("id = ?", id).Update("like_count", gorm.Expr("like_count + 1")).Error
 }
 
-// DecrementLikeCount decrements the like count
+// DecrementLikeCount decrements the like count (minimum 0)
 func (r *PostRepository) DecrementLikeCount(id uint) error {
-	return r.DB.Model(&domain.Post{}).Where("id = ?", id).Update("like_count", gorm.Expr("GREATEST(like_count - 1, 0)")).Error
+	return r.DB.Model(&domain.Post{}).Where("id = ?", id).
+		Update("like_count", gorm.Expr("CASE WHEN like_count > 0 THEN like_count - 1 ELSE 0 END")).Error
 }
 
 // FindByUserID finds posts by user ID
