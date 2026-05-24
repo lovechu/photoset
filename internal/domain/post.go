@@ -35,6 +35,17 @@ const (
 	PostStatusRejected PostStatus = "rejected"
 )
 
+// PostType represents the type of a post
+type PostType string
+
+const (
+	PostTypeDynamic  PostType = "dynamic"  // 动态
+	PostTypeArticle  PostType = "article"  // 文章
+	PostTypeQuestion PostType = "question" // 提问
+	PostTypeSuggest  PostType = "suggest"  // 建议
+	PostTypeQuick    PostType = "quick"    // 随手拍
+)
+
 // Post represents a community post
 type Post struct {
 	ID           uint           `gorm:"primaryKey" json:"id"`
@@ -47,6 +58,7 @@ type Post struct {
 	Content     string        `gorm:"type:text;not null" json:"content"`
 	PhotosetID  *uint         `json:"photoset_id"` // nullable, optional association with photoset
 	Category    string        `gorm:"type:varchar(20);not null;default:'discussion'" json:"category"`
+	PostType    string        `gorm:"type:varchar(20);not null;default:'dynamic'" json:"post_type"`
 	Visibility  string        `gorm:"type:varchar(20);not null;default:'public'" json:"visibility"`
 	IsPinned   bool          `gorm:"not null;default:false" json:"is_pinned"`
 	IsEssence   bool          `gorm:"not null;default:false" json:"is_essence"`
@@ -69,11 +81,14 @@ func (Post) TableName() string {
 
 // Validate checks if the post data is valid
 func (p *Post) Validate() error {
-	if p.Title == "" {
-		return ErrTitleRequired
-	}
-	if len(p.Title) > 200 {
-		return ErrTitleTooLong
+	// Title is required only for article type
+	if p.PostType == string(PostTypeArticle) {
+		if p.Title == "" {
+			return ErrTitleRequired
+		}
+		if len(p.Title) > 200 {
+			return ErrTitleTooLong
+		}
 	}
 	if p.Content == "" {
 		return ErrContentRequired
@@ -84,6 +99,18 @@ func (p *Post) Validate() error {
 	// Category is required — actual validity is checked at the service layer against DB
 	if p.Category == "" {
 		return ErrInvalidCategory
+	}
+	// Validate post_type
+	validPostTypes := []PostType{PostTypeDynamic, PostTypeArticle, PostTypeQuestion, PostTypeSuggest, PostTypeQuick}
+	validType := false
+	for _, t := range validPostTypes {
+		if PostType(p.PostType) == t {
+			validType = true
+			break
+		}
+	}
+	if !validType && p.PostType != "" {
+		return ErrInvalidCategory // Reuse error for invalid post type
 	}
 	// Validate visibility
 	validVisibilities := []PostVisibility{VisibilityPublic, VisibilityMember, VisibilityVIP, VisibilityAdmin}

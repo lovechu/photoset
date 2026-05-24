@@ -58,6 +58,7 @@ func (s *CommunityService) CreatePost(userID uint, req *CreatePostRequest) (*dom
 		Content:    req.Content,
 		PhotosetID: req.PhotosetID,
 		Category:   req.Category,
+		PostType:   req.PostType,
 		Visibility: req.Visibility,
 		Status:     string(domain.PostStatusApproved), // Auto-approve on creation
 	}
@@ -356,10 +357,11 @@ func (s *CommunityService) GetPostDetail(postID uint) (*domain.Post, error) {
 
 // Request types
 type CreatePostRequest struct {
-	Title      string `json:"title" binding:"required"`
+	Title      string `json:"title" binding:""`
 	Content    string `json:"content" binding:"required"`
 	PhotosetID *uint  `json:"photoset_id"`
 	Category   string `json:"category"`
+	PostType   string `json:"post_type"`
 	Visibility string `json:"visibility"`
 }
 

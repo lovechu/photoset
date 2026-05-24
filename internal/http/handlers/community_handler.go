@@ -475,6 +475,7 @@ func (h *CommunityHandler) postToResponse(post domain.Post, userID uint) gin.H {
 		"title":       post.Title,
 		"content":     post.Content,
 		"category":    post.Category,
+		"post_type":   post.PostType,
 		"author_id":   post.UserID,
 		"author_name": authorName,
 		"reply_count": post.ReplyCount,
