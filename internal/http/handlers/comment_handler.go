@@ -3,7 +3,9 @@ package handlers
 import (
 	"log"
 	"net/http"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"photoset/internal/domain"
 	"photoset/internal/pkg/response"
@@ -18,6 +20,44 @@ type CommentHandler struct {
 
 func NewCommentHandler(repo *repository.CommentRepository) *CommentHandler {
 	return &CommentHandler{repo: repo}
+}
+
+// sanitizeContent 安全过滤评论内容
+// - 移除 HTML 标签（防 XSS）
+// - 保留表情标记 [表情名] 格式
+func sanitizeContent(content string) string {
+	// 移除所有 HTML 标签（script, iframe, 等）
+	htmlTagRegex := regexp.MustCompile(`<[^>]*>`)
+	cleaned := htmlTagRegex.ReplaceAllString(content, "")
+
+	// 移除危险的 JS 事件属性（如 onclick=, onerror= 等）
+	onEventRegex := regexp.MustCompile(`(?i)\s*on\w+\s*=\s*["'][^"']*["']`)
+	cleaned = onEventRegex.ReplaceAllString(cleaned, "")
+
+	// 移除 javascript: 协议
+	jsProtocolRegex := regexp.MustCompile(`(?i)javascript\s*:`)
+	cleaned = jsProtocolRegex.ReplaceAllString(cleaned, "")
+
+	// 移除 data: 协议（防止 base64 图片 XSS）
+	dataProtocolRegex := regexp.MustCompile(`(?i)data\s*:`)
+	cleaned = dataProtocolRegex.ReplaceAllString(cleaned, "")
+
+	// 防止 SQL 注入尝试（移除常见关键字，但不影响正常文本）
+	sqlKeywords := []string{"DROP TABLE", "DELETE FROM", "INSERT INTO", "UPDATE SET", "UNION SELECT"}
+	for _, keyword := range sqlKeywords {
+		if strings.Contains(strings.ToUpper(cleaned), keyword) {
+			// 如果包含 SQL 注入尝试，清空内容
+			cleaned = "[内容被过滤]"
+			break
+		}
+	}
+
+	// 截断超长内容（防止资源消耗）
+	if len(cleaned) > 1000 {
+		cleaned = cleaned[:1000] + "..."
+	}
+
+	return cleaned
 }
 
 // List 获取套图评论列表
@@ -207,10 +247,13 @@ func (h *CommentHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// 安全过滤评论内容（移除危险标签，保留表情格式）
+	sanitizedContent := sanitizeContent(req.Content)
+
 	comment := &domain.Comment{
 		PhotoSetID: uint(photosetID),
 		UserID:     userID.(uint),
-		Content:    req.Content,
+		Content:    sanitizedContent,
 		ImageURL:   req.ImageURL,
 		ParentID:   req.ParentID,
 	}
