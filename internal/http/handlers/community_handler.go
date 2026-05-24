@@ -211,7 +211,7 @@ func (h *CommunityHandler) TogglePostLike(c *gin.Context) {
 		return
 	}
 
-	response.SuccessWithMessage(c, action, gin.H{"like_count": likeCount})
+	response.SuccessWithMessage(c, action, gin.H{"is_liked": action == "liked", "like_count": likeCount})
 }
 
 // ToggleReplyLike toggles like status for a reply
@@ -238,7 +238,7 @@ func (h *CommunityHandler) ToggleReplyLike(c *gin.Context) {
 		return
 	}
 
-	response.SuccessWithMessage(c, action, gin.H{"like_count": likeCount})
+	response.SuccessWithMessage(c, action, gin.H{"is_liked": action == "liked", "like_count": likeCount})
 }
 
 // ReportPost reports a post

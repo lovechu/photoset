@@ -97,7 +97,7 @@ func (s *CommunityService) CreatePost(userID uint, req *CreatePostRequest) (*dom
 	}
 
 	// Add points after successful post creation (non-critical, can fail independently)
-	s.pointService.AddPointsForPost(userID)
+	go s.pointService.AddPointsForPost(userID)
 
 	// Load associations
 	post, err = s.postRepo.FindByID(post.ID)
@@ -151,7 +151,7 @@ func (s *CommunityService) CreateReply(userID, postID uint, req *CreateReplyRequ
 	}
 
 	// Add points after successful reply creation (non-critical, can fail independently)
-	s.pointService.AddPointsForReply(userID)
+	go s.pointService.AddPointsForReply(userID)
 
 	// Load associations
 	reply, err = s.replyRepo.FindByID(reply.ID)
@@ -204,10 +204,6 @@ func (s *CommunityService) TogglePostLike(userID, postID uint) (string, int, err
 			if err := tx.Model(&domain.Post{}).Where("id = ?", postID).Update("like_count", gorm.Expr("like_count + 1")).Error; err != nil {
 				return err
 			}
-			// Add points to post author
-			if err := s.pointService.AddPointsForLiked(post.UserID, 2); err != nil {
-				return err
-			}
 			action = "liked"
 		} else {
 			return likeErr
@@ -218,6 +214,11 @@ func (s *CommunityService) TogglePostLike(userID, postID uint) (string, int, err
 
 	if err != nil {
 		return "", 0, err
+	}
+
+	// Add points to post author after successful like (non-critical, can fail independently)
+	if action == "liked" {
+		go s.pointService.AddPointsForLiked(post.UserID, 2)
 	}
 
 	// Get updated like count
@@ -271,10 +272,6 @@ func (s *CommunityService) ToggleReplyLike(userID, replyID uint) (string, int, e
 			if err := tx.Model(&domain.PostReply{}).Where("id = ?", replyID).Update("like_count", gorm.Expr("like_count + 1")).Error; err != nil {
 				return err
 			}
-			// Add points to reply author
-			if err := s.pointService.AddPointsForLiked(reply.UserID, 1); err != nil {
-				return err
-			}
 			action = "liked"
 		} else {
 			return likeErr
@@ -285,6 +282,11 @@ func (s *CommunityService) ToggleReplyLike(userID, replyID uint) (string, int, e
 
 	if err != nil {
 		return "", 0, err
+	}
+
+	// Add points to reply author after successful like (non-critical, can fail independently)
+	if action == "liked" {
+		go s.pointService.AddPointsForLiked(reply.UserID, 1)
 	}
 
 	// Get updated like count
