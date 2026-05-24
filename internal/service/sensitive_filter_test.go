@@ -113,6 +113,9 @@ func TestSensitiveFilter_MultipleWords(t *testing.T) {
 
 // Test 4: Test inactive sensitive words are not loaded
 func TestSensitiveFilter_InactiveWords(t *testing.T) {
+	// Clear global map before test
+	ClearSensitiveWordsMap()
+	
 	db := setupTestDB(t)
 
 	// Seed both active and inactive words

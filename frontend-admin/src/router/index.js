@@ -83,6 +83,36 @@ const routes = [
         name: 'AdminLogs',
         component: () => import('@/views/AdminLogs.vue'),
         meta: { title: '操作日志', icon: 'Notebook' }
+      },
+      {
+        path: 'community/posts',
+        name: 'CommunityPosts',
+        component: () => import('@/views/CommunityPosts.vue'),
+        meta: { title: '帖子管理' }
+      },
+      {
+        path: 'community/replies',
+        name: 'CommunityReplies',
+        component: () => import('@/views/CommunityReplies.vue'),
+        meta: { title: '回帖管理' }
+      },
+      {
+        path: 'community/keywords',
+        name: 'CommunityKeywords',
+        component: () => import('@/views/CommunityKeywords.vue'),
+        meta: { title: '敏感词管理' }
+      },
+      {
+        path: 'community/reports',
+        name: 'CommunityReports',
+        component: () => import('@/views/CommunityReports.vue'),
+        meta: { title: '举报处理' }
+      },
+      {
+        path: 'community/users',
+        name: 'CommunityUsers',
+        component: () => import('@/views/CommunityUsers.vue'),
+        meta: { title: '用户积分管理' }
       }
     ]
   },

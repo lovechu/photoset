@@ -52,6 +52,27 @@
           <el-icon><Notebook /></el-icon>
           <span>操作日志</span>
         </el-menu-item>
+        <el-sub-menu index="/community">
+          <template #title>
+            <el-icon><ChatDotRound /></el-icon>
+            <span>社区管理</span>
+          </template>
+          <el-menu-item index="/community/posts">
+            <span>帖子管理</span>
+          </el-menu-item>
+          <el-menu-item index="/community/replies">
+            <span>回帖管理</span>
+          </el-menu-item>
+          <el-menu-item index="/community/keywords">
+            <span>敏感词管理</span>
+          </el-menu-item>
+          <el-menu-item index="/community/reports">
+            <span>举报处理</span>
+          </el-menu-item>
+          <el-menu-item index="/community/users">
+            <span>用户积分管理</span>
+          </el-menu-item>
+        </el-sub-menu>
       </el-menu>
     </el-aside>
 
@@ -99,7 +120,7 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminStore } from '@/stores/admin'
-import { Connection, FolderOpened } from '@element-plus/icons-vue'
+import { Connection, FolderOpened, ChatDotRound } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
 

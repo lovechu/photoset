@@ -81,20 +81,23 @@ func (r *UserPointRepository) LogPointChange(userID uint, points int, action str
 		"points":     points,
 		"action":     action,
 		"related_id":  relatedID,
+		"created_at":  time.Now(), // Explicitly set timestamp
 	}
 	return r.DB.Table("user_point_logs").Create(&log).Error
 }
 
-// GetTodayPoints gets points earned today
+// GetTodayPoints gets total points for a specific action today
 func (r *UserPointRepository) GetTodayPoints(userID uint, action string) (int, error) {
 	var total int
+	
+	// Use LIKE for SQLite date comparison (simpler and more compatible)
 	today := time.Now().Format("2006-01-02")
-
+	
 	err := r.DB.Table("user_point_logs").
-		Where("user_id = ? AND action = ? AND DATE(created_at) = ?", userID, action, today).
+		Where("user_id = ? AND action = ? AND created_at LIKE ?", userID, action, today+"%").
 		Select("COALESCE(SUM(points), 0)").
 		Scan(&total).Error
-
+	
 	if err != nil {
 		return 0, err
 	}
@@ -109,4 +112,24 @@ func (r *UserPointRepository) GetTodayPostPoints(userID uint) (int, error) {
 // GetTodayReplyPoints gets points earned from replies today
 func (r *UserPointRepository) GetTodayReplyPoints(userID uint) (int, error) {
 	return r.GetTodayPoints(userID, "reply_create")
+}
+
+// ListForAdmin returns all user points for admin with pagination and optional level filter
+func (r *UserPointRepository) ListForAdmin(page, pageSize int, level int) ([]domain.UserPoint, int64, error) {
+	var userPoints []domain.UserPoint
+	var total int64
+
+	query := r.DB.Model(&domain.UserPoint{})
+
+	if level > 0 {
+		query = query.Where("level = ?", level)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * pageSize
+	err := query.Preload("User").Order("points DESC").Offset(offset).Limit(pageSize).Find(&userPoints).Error
+	return userPoints, total, err
 }
