@@ -2,6 +2,8 @@ package domain
 
 import (
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // PostCategory represents the category of a post
@@ -38,7 +40,7 @@ type Post struct {
 	ID           uint           `gorm:"primaryKey" json:"id"`
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
-	DeletedAt    *time.Time     `gorm:"index" json:"deleted_at,omitempty"`
+	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
 
 	UserID      uint          `gorm:"not null;index" json:"user_id"`
 	Title       string        `gorm:"type:varchar(200);not null" json:"title"`
@@ -78,21 +80,13 @@ func (p *Post) Validate() error {
 	if len(p.Content) > 5000 {
 		return ErrContentTooLong
 	}
-	// Validate category
-	validCategories := []PostCategory{CategoryDiscussion, CategoryQA, CategoryShowcase, CategorySuggestion}
-	valid := false
-	for _, c := range validCategories {
-		if PostCategory(p.Category) == c {
-			valid = true
-			break
-		}
-	}
-	if !valid && p.Category != "" {
+	// Category is required — actual validity is checked at the service layer against DB
+	if p.Category == "" {
 		return ErrInvalidCategory
 	}
 	// Validate visibility
 	validVisibilities := []PostVisibility{VisibilityPublic, VisibilityMember, VisibilityVIP, VisibilityAdmin}
-	valid = false
+	valid := false
 	for _, v := range validVisibilities {
 		if PostVisibility(p.Visibility) == v {
 			valid = true

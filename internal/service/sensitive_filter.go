@@ -48,35 +48,11 @@ func (s *SensitiveFilterService) LoadSensitiveWords() error {
 	return nil
 }
 
-// FilterText filters sensitive words from text (case-insensitive)
+// FilterText filters sensitive words from text (case-insensitive, preserves original case)
 // Returns the filtered text and number of replacements made
+// Deprecated: Use FilterTextAdvanced for better case preservation
 func (s *SensitiveFilterService) FilterText(text string) (string, int) {
-	if text == "" {
-		return text, 0
-	}
-
-	lowerText := strings.ToLower(text)
-	replacementCount := 0
-
-	// Iterate through all sensitive words
-	SensitiveWordsMap.Range(func(key, value interface{}) bool {
-		word := key.(string)
-		replacement := value.(string)
-
-		// Count occurrences
-		count := strings.Count(lowerText, word)
-		if count > 0 {
-			replacementCount += count
-			// Replace in original text (case-insensitive)
-			text = strings.ReplaceAll(strings.ToLower(text), word, replacement)
-			// Note: This is a simplified implementation
-			// For production, we should preserve original case
-		}
-
-		return true
-	})
-
-	return text, replacementCount
+	return s.FilterTextAdvanced(text)
 }
 
 // FilterTextAdvanced filters sensitive words while preserving original case

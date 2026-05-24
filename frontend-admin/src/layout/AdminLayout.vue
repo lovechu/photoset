@@ -66,6 +66,9 @@
           <el-menu-item index="/community/keywords">
             <span>敏感词管理</span>
           </el-menu-item>
+          <el-menu-item index="/community/categories">
+            <span>分类管理</span>
+          </el-menu-item>
           <el-menu-item index="/community/reports">
             <span>举报处理</span>
           </el-menu-item>

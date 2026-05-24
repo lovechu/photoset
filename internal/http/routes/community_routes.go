@@ -80,5 +80,12 @@ func RegisterCommunityRoutes(
 
 		// Statistics
 		adminGroup.GET("/stats", adminHandler.GetStats)
+
+		// Category management
+		adminGroup.GET("/categories", adminHandler.ListCategories)
+		adminGroup.POST("/categories", adminHandler.CreateCategory)
+		adminGroup.PUT("/categories/sort", adminHandler.SortCategories)
+		adminGroup.PUT("/categories/:id", adminHandler.UpdateCategory)
+		adminGroup.DELETE("/categories/:id", adminHandler.DeleteCategory)
 	}
 }

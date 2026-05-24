@@ -2,6 +2,8 @@ package service
 
 import (
 	"errors"
+	"slices"
+
 	"photoset/internal/domain"
 	"photoset/internal/repository"
 
@@ -17,6 +19,7 @@ type CommunityService struct {
 	replyLikeRepo *repository.PostReplyLikeRepository
 	pointRepo     *repository.UserPointRepository
 	reportRepo    *repository.PostReportRepository
+	categoryRepo  *repository.PostCategoryRepository
 	pointService  *PointService
 	filterService *SensitiveFilterService
 }
@@ -29,6 +32,7 @@ func NewCommunityService(
 	replyLikeRepo *repository.PostReplyLikeRepository,
 	pointRepo *repository.UserPointRepository,
 	reportRepo *repository.PostReportRepository,
+	categoryRepo *repository.PostCategoryRepository,
 	pointService *PointService,
 	filterService *SensitiveFilterService,
 ) *CommunityService {
@@ -39,6 +43,7 @@ func NewCommunityService(
 		replyLikeRepo: replyLikeRepo,
 		pointRepo:     pointRepo,
 		reportRepo:    reportRepo,
+		categoryRepo:  categoryRepo,
 		pointService:  pointService,
 		filterService: filterService,
 	}
@@ -52,13 +57,24 @@ func (s *CommunityService) CreatePost(userID uint, req *CreatePostRequest) (*dom
 		Title:      req.Title,
 		Content:    req.Content,
 		PhotosetID: req.PhotosetID,
-		Category:    req.Category,
-		Visibility:  req.Visibility,
-		Status:     string(domain.PostStatusApproved), // First post, then review
+		Category:   req.Category,
+		Visibility: req.Visibility,
+		Status:     string(domain.PostStatusApproved), // Auto-approve on creation
 	}
 
 	if err := post.Validate(); err != nil {
 		return nil, err
+	}
+
+	// Validate category exists in DB (replaces hardcoded constant check)
+	if post.Category != "" {
+		activeKeys, err := s.categoryRepo.GetActiveKeys()
+		if err != nil {
+			return nil, err
+		}
+		if !slices.Contains(activeKeys, post.Category) {
+			return nil, domain.ErrInvalidCategory
+		}
 	}
 
 	// Filter sensitive words
@@ -69,16 +85,10 @@ func (s *CommunityService) CreatePost(userID uint, req *CreatePostRequest) (*dom
 
 	// Create post in transaction
 	err := s.postRepo.DB.Transaction(func(tx *gorm.DB) error {
-		// Create post
-		if err := s.postRepo.Create(post); err != nil {
+		// Create post using tx (transaction connection)
+		if err := tx.Create(post).Error; err != nil {
 			return err
 		}
-
-		// Add points
-		if err := s.pointService.AddPointsForPost(userID); err != nil {
-			return err
-		}
-
 		return nil
 	})
 
@@ -86,8 +96,14 @@ func (s *CommunityService) CreatePost(userID uint, req *CreatePostRequest) (*dom
 		return nil, err
 	}
 
+	// Add points after successful post creation (non-critical, can fail independently)
+	s.pointService.AddPointsForPost(userID)
+
 	// Load associations
-	post, _ = s.postRepo.FindByID(post.ID)
+	post, err = s.postRepo.FindByID(post.ID)
+	if err != nil {
+		return nil, err
+	}
 	return post, nil
 }
 
@@ -117,18 +133,13 @@ func (s *CommunityService) CreateReply(userID, postID uint, req *CreateReplyRequ
 
 	// Create reply in transaction
 	err = s.replyRepo.DB.Transaction(func(tx *gorm.DB) error {
-		// Create reply
-		if err := s.replyRepo.Create(reply); err != nil {
+		// Create reply using tx (transaction connection)
+		if err := tx.Create(reply).Error; err != nil {
 			return err
 		}
 
-		// Increment post reply count
-		if err := s.postRepo.IncrementReplyCount(postID); err != nil {
-			return err
-		}
-
-		// Add points
-		if err := s.pointService.AddPointsForReply(userID); err != nil {
+		// Increment post reply count using tx
+		if err := tx.Model(&domain.Post{}).Where("id = ?", postID).Update("reply_count", gorm.Expr("reply_count + 1")).Error; err != nil {
 			return err
 		}
 
@@ -139,8 +150,14 @@ func (s *CommunityService) CreateReply(userID, postID uint, req *CreateReplyRequ
 		return nil, err
 	}
 
+	// Add points after successful reply creation (non-critical, can fail independently)
+	s.pointService.AddPointsForReply(userID)
+
 	// Load associations
-	reply, _ = s.replyRepo.FindByID(reply.ID)
+	reply, err = s.replyRepo.FindByID(reply.ID)
+	if err != nil {
+		return nil, err
+	}
 	return reply, nil
 }
 
@@ -293,8 +310,8 @@ func (s *CommunityService) ReportPost(reporterID, postID uint, reason string) er
 	report := &domain.PostReport{
 		PostID:     &postID,
 		ReporterID: reporterID,
-		Reason:      reason,
-		Status:      string(domain.ReportStatusPending),
+		Reason:     reason,
+		Status:     string(domain.ReportStatusPending),
 	}
 
 	return s.reportRepo.Create(report)
@@ -315,8 +332,8 @@ func (s *CommunityService) ReportReply(reporterID, replyID uint, reason string) 
 	report := &domain.PostReport{
 		ReplyID:    &replyID,
 		ReporterID: reporterID,
-		Reason:      reason,
-		Status:      string(domain.ReportStatusPending),
+		Reason:     reason,
+		Status:     string(domain.ReportStatusPending),
 	}
 
 	return s.reportRepo.Create(report)
@@ -339,12 +356,12 @@ func (s *CommunityService) GetPostDetail(postID uint) (*domain.Post, error) {
 type CreatePostRequest struct {
 	Title      string `json:"title" binding:"required"`
 	Content    string `json:"content" binding:"required"`
-	PhotosetID *uint `json:"photoset_id"`
+	PhotosetID *uint  `json:"photoset_id"`
 	Category   string `json:"category"`
 	Visibility string `json:"visibility"`
 }
 
 type CreateReplyRequest struct {
 	Content       string `json:"content" binding:"required"`
-	ParentReplyID *uint `json:"parent_reply_id"`
+	ParentReplyID *uint  `json:"parent_reply_id"`
 }

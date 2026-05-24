@@ -1,6 +1,8 @@
 package admin
 
 import (
+	"fmt"
+	"regexp"
 	"strconv"
 
 	"photoset/internal/domain"
@@ -22,6 +24,7 @@ type AdminCommunityHandler struct {
 	pointRepo       *repository.UserPointRepository
 	wordRepo        *repository.SensitiveWordRepository
 	reportRepo      *repository.PostReportRepository
+	categoryRepo    *repository.PostCategoryRepository
 	pointService    *service.PointService
 	filterService   *service.SensitiveFilterService
 }
@@ -36,6 +39,7 @@ func NewAdminCommunityHandler(db *gorm.DB) *AdminCommunityHandler {
 		pointRepo:     repository.NewUserPointRepository(db),
 		wordRepo:      repository.NewSensitiveWordRepository(db),
 		reportRepo:    repository.NewPostReportRepository(db),
+		categoryRepo:  repository.NewPostCategoryRepository(db),
 		pointService:  service.NewPointService(repository.NewUserPointRepository(db)),
 		filterService: service.NewSensitiveFilterService(repository.NewSensitiveWordRepository(db)),
 	}
@@ -217,7 +221,7 @@ func (h *AdminCommunityHandler) GetKeywords(c *gin.Context) {
 // AddKeyword adds a new sensitive word
 func (h *AdminCommunityHandler) AddKeyword(c *gin.Context) {
 	var req struct {
-		Word       string `json:"word" binding:"required"`
+		Word        string `json:"word" binding:"required"`
 		Replacement string `json:"replacement"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -230,9 +234,9 @@ func (h *AdminCommunityHandler) AddKeyword(c *gin.Context) {
 	}
 
 	word := &domain.SensitiveWord{
-		Word:       req.Word,
+		Word:        req.Word,
 		Replacement: req.Replacement,
-		IsActive:   true,
+		IsActive:    true,
 	}
 
 	if err := h.wordRepo.Create(word); err != nil {
@@ -255,9 +259,9 @@ func (h *AdminCommunityHandler) UpdateKeyword(c *gin.Context) {
 	}
 
 	var req struct {
-		Word       string `json:"word"`
+		Word        string `json:"word"`
 		Replacement string `json:"replacement"`
-		IsActive   *bool  `json:"is_active"`
+		IsActive    *bool  `json:"is_active"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "invalid request")
@@ -465,4 +469,195 @@ func (h *AdminCommunityHandler) GetStats(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"stats": stats})
+}
+
+// ============ Category Management ============
+
+// categoryKeyPattern validates category key: lowercase letters, digits, and underscores only
+var categoryKeyPattern = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+
+// ListCategories returns all post categories with post counts
+func (h *AdminCommunityHandler) ListCategories(c *gin.Context) {
+	categories, err := h.categoryRepo.ListCategories()
+	if err != nil {
+		response.ServerError(c, "failed to get categories")
+		return
+	}
+
+	type CategoryWithCount struct {
+		domain.CommunityCategory
+		PostCount int64 `json:"post_count"`
+	}
+
+	results := make([]CategoryWithCount, 0, len(categories))
+	for _, cat := range categories {
+		count, _ := h.categoryRepo.CountPostsByCategory(cat.Key)
+		results = append(results, CategoryWithCount{
+			CommunityCategory: cat,
+			PostCount:    count,
+		})
+	}
+
+	response.Success(c, gin.H{"categories": results})
+}
+
+// CreateCategory creates a new post category
+func (h *AdminCommunityHandler) CreateCategory(c *gin.Context) {
+	var req struct {
+		Key         string `json:"key" binding:"required"`
+		Name        string `json:"name" binding:"required"`
+		Description string `json:"description"`
+		Color       string `json:"color"`
+		Icon        string `json:"icon"`
+		SortOrder   int    `json:"sort_order"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "key and name are required")
+		return
+	}
+
+	// Validate key format
+	if !categoryKeyPattern.MatchString(req.Key) {
+		response.Error(c, 400, "category key must start with a lowercase letter and contain only lowercase letters, digits, and underscores")
+		return
+	}
+
+	// Check key uniqueness
+	if _, err := h.categoryRepo.GetCategoryByKey(req.Key); err == nil {
+		response.Error(c, 400, "category key already exists")
+		return
+	}
+
+	cat := &domain.CommunityCategory{
+		Key:         req.Key,
+		Name:        req.Name,
+		Description: req.Description,
+		Color:       req.Color,
+		Icon:        req.Icon,
+		SortOrder:   req.SortOrder,
+	}
+
+	if cat.Color == "" {
+		cat.Color = "#409EFF"
+	}
+
+	if err := h.categoryRepo.CreateCategory(cat); err != nil {
+		response.ServerError(c, "failed to create category")
+		return
+	}
+
+	response.Success(c, gin.H{"category": cat})
+}
+
+// UpdateCategory updates an existing post category
+func (h *AdminCommunityHandler) UpdateCategory(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid category id")
+		return
+	}
+
+	var req struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		Color       string `json:"color"`
+		Icon        string `json:"icon"`
+		SortOrder   *int   `json:"sort_order"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body")
+		return
+	}
+
+	// Ensure category exists
+	if _, err := h.categoryRepo.GetCategoryByID(uint(id)); err != nil {
+		response.NotFound(c, "category not found")
+		return
+	}
+
+	updates := map[string]interface{}{}
+	if req.Name != "" {
+		updates["name"] = req.Name
+	}
+	if req.Description != "" {
+		updates["description"] = req.Description
+	}
+	if req.Color != "" {
+		updates["color"] = req.Color
+	}
+	if req.Icon != "" {
+		updates["icon"] = req.Icon
+	}
+	if req.SortOrder != nil {
+		updates["sort_order"] = *req.SortOrder
+	}
+
+	// Do not allow modifying the key
+	if len(updates) == 0 {
+		response.BadRequest(c, "no fields to update")
+		return
+	}
+
+	if err := h.categoryRepo.UpdateCategory(uint(id), updates); err != nil {
+		response.ServerError(c, "failed to update category")
+		return
+	}
+
+	response.Success(c, gin.H{"message": "category updated successfully"})
+}
+
+// DeleteCategory deletes a post category (only if no posts use it)
+func (h *AdminCommunityHandler) DeleteCategory(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid category id")
+		return
+	}
+
+	cat, err := h.categoryRepo.GetCategoryByID(uint(id))
+	if err != nil {
+		response.NotFound(c, "category not found")
+		return
+	}
+
+	// Check if any posts use this category
+	count, err := h.categoryRepo.CountPostsByCategory(cat.Key)
+	if err != nil {
+		response.ServerError(c, "failed to check category usage")
+		return
+	}
+	if count > 0 {
+		response.Error(c, 400, fmt.Sprintf("该分类下有 %d 篇帖子，无法删除", count))
+		return
+	}
+
+	if err := h.categoryRepo.DeleteCategory(uint(id)); err != nil {
+		response.ServerError(c, "failed to delete category")
+		return
+	}
+
+	response.Success(c, gin.H{"message": "category deleted successfully"})
+}
+
+// SortCategories batch-updates sort_order for categories
+func (h *AdminCommunityHandler) SortCategories(c *gin.Context) {
+	var req []struct {
+		ID        uint `json:"id" binding:"required"`
+		SortOrder int  `json:"sort_order"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request body: expected array of {id, sort_order}")
+		return
+	}
+
+	for _, item := range req {
+		if err := h.categoryRepo.UpdateCategory(item.ID, map[string]interface{}{
+			"sort_order": item.SortOrder,
+		}); err != nil {
+			response.ServerError(c, fmt.Sprintf("failed to update category %d: %v", item.ID, err))
+			return
+		}
+	}
+
+	response.Success(c, gin.H{"message": "categories sorted successfully"})
 }

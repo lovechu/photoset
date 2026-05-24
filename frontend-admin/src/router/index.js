@@ -103,6 +103,18 @@ const routes = [
         meta: { title: '敏感词管理' }
       },
       {
+        path: 'community/categories',
+        name: 'CommunityCategories',
+        component: () => import('@/views/CommunityCategories.vue'),
+        meta: { title: '分类管理' }
+      },
+      {
+        path: 'community/categories',
+        name: 'CommunityCategories',
+        component: () => import('@/views/CommunityCategories.vue'),
+        meta: { title: '分类管理' }
+      },
+      {
         path: 'community/reports',
         name: 'CommunityReports',
         component: () => import('@/views/CommunityReports.vue'),

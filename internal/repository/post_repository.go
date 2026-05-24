@@ -159,20 +159,23 @@ func (r *PostRepository) TogglePin(id uint) error {
 // Delete deletes a post and its related records (hard delete, with cascade)
 func (r *PostRepository) Delete(id uint) error {
 	return r.DB.Transaction(func(tx *gorm.DB) error {
-		// Delete related records in order
-		if err := tx.Where("post_id = ?", id).Unscoped().Delete(&domain.PostLike{}).Error; err != nil {
+		// Delete reply likes for all replies of this post (subquery: reply_id IN post_replies WHERE post_id = ?)
+		if err := tx.Unscoped().Where("reply_id IN (SELECT id FROM post_replies WHERE post_id = ?)", id).Delete(&domain.PostReplyLike{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Where("post_id = ?", id).Unscoped().Delete(&domain.PostReplyLike{}).Error; err != nil {
+		// Delete all replies (including nested) for this post
+		if err := tx.Unscoped().Where("post_id = ?", id).Delete(&domain.PostReply{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Where("post_id = ?", id).Unscoped().Delete(&domain.PostReply{}).Error; err != nil {
+		// Delete post likes
+		if err := tx.Unscoped().Where("post_id = ?", id).Delete(&domain.PostLike{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Where("post_id = ?", id).Unscoped().Delete(&domain.PostReport{}).Error; err != nil {
+		// Delete reports for this post
+		if err := tx.Unscoped().Where("post_id = ?", id).Delete(&domain.PostReport{}).Error; err != nil {
 			return err
 		}
-		// Delete the post
+		// Delete the post itself
 		if err := tx.Unscoped().Delete(&domain.Post{}, id).Error; err != nil {
 			return err
 		}

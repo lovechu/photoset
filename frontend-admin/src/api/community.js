@@ -141,3 +141,46 @@ export function adjustUserPoints(id, data) {
 export function getCommunityStats() {
   return request.get('/admin/community/stats')
 }
+
+// ========== 分类管理 ==========
+
+/**
+ * 获取社区分类列表
+ */
+export function getCommunityCategories() {
+  return request.get('/admin/community/categories')
+}
+
+/**
+ * 新增社区分类
+ * @param {Object} data - { key, name, description, color, icon, sort_order }
+ */
+export function createCommunityCategory(data) {
+  return request.post('/admin/community/categories', data)
+}
+
+/**
+ * 更新社区分类
+ * @param {number} id - 分类ID
+ * @param {Object} data - { name, description, color, icon, sort_order }
+ */
+export function updateCommunityCategory(id, data) {
+  return request.put(`/admin/community/categories/${id}`, data)
+}
+
+/**
+ * 删除社区分类
+ * @param {number} id - 分类ID
+ */
+export function deleteCommunityCategory(id) {
+  return request.delete(`/admin/community/categories/${id}`)
+}
+
+/**
+ * 批量排序社区分类
+ * @param {Array} data - [{ id, sort_order }, ...]
+ */
+export function sortCommunityCategories(data) {
+  return request.put('/admin/community/categories/sort', data)
+}
+

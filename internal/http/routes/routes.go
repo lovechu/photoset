@@ -67,6 +67,7 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	pointRepo := repository.NewUserPointRepository(database.GetMySQL())
 	wordRepo := repository.NewSensitiveWordRepository(database.GetMySQL())
 	reportRepo := repository.NewPostReportRepository(database.GetMySQL())
+	categoryRepo := repository.NewPostCategoryRepository(database.GetMySQL())
 
 	pointService := service.NewPointService(pointRepo)
 	filterService := service.NewSensitiveFilterService(wordRepo)
@@ -77,6 +78,7 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 		replyLikeRepo,
 		pointRepo,
 		reportRepo,
+		categoryRepo,
 		pointService,
 		filterService,
 	)

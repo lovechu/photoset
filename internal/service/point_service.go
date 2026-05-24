@@ -111,7 +111,4 @@ func (s *PointService) GetLevelInfo(userID uint) (level int, levelName string, c
 	return level, levelName, currentPoints, nextLevelPoints, nil
 }
 
-// CalculateLevel calculates the level based on points
-func CalculateLevel(points int) int {
-	return domain.CalculateLevel(points)
-}
+

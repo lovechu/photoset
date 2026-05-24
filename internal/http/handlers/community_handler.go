@@ -24,6 +24,7 @@ type CommunityHandler struct {
 	replyLikeRepo    *repository.PostReplyLikeRepository
 	pointRepo        *repository.UserPointRepository
 	reportRepo       *repository.PostReportRepository
+	categoryRepo     *repository.PostCategoryRepository
 }
 
 // NewCommunityHandler creates a new CommunityHandler
@@ -43,6 +44,7 @@ func NewCommunityHandler(
 		replyLikeRepo:   repository.NewPostReplyLikeRepository(db),
 		pointRepo:       repository.NewUserPointRepository(db),
 		reportRepo:      repository.NewPostReportRepository(db),
+		categoryRepo:    repository.NewPostCategoryRepository(db),
 	}
 }
 
@@ -132,6 +134,8 @@ func (h *CommunityHandler) CreatePost(c *gin.Context) {
 			response.BadRequest(c, "title is required")
 		} else if err == domain.ErrContentRequired {
 			response.BadRequest(c, "content is required")
+		} else if err == domain.ErrInvalidCategory {
+			response.BadRequest(c, "invalid category")
 		} else if err == domain.ErrDailyLimitReached {
 			response.Error(c, 400, "daily post limit reached (max 5 posts per day)")
 		} else {
@@ -294,15 +298,30 @@ func (h *CommunityHandler) ReportReply(c *gin.Context) {
 	response.Success(c, gin.H{"message": "report submitted successfully"})
 }
 
-// GetCategories gets available categories
+// GetCategories gets available categories from the database
 func (h *CommunityHandler) GetCategories(c *gin.Context) {
-	categories := []gin.H{
-		{"slug": "discussion", "name": "Discussion"},
-		{"slug": "qa", "name": "Q&A"},
-		{"slug": "showcase", "name": "Showcase"},
-		{"slug": "suggestion", "name": "Suggestion"},
+	categories, err := h.categoryRepo.ListCategories()
+	if err != nil {
+		response.ServerError(c, "failed to get categories")
+		return
 	}
-	response.Success(c, gin.H{"categories": categories})
+
+	// Return simplified format for the public API
+	type CategoryItem struct {
+		Slug  string `json:"slug"`
+		Name  string `json:"name"`
+		Color string `json:"color,omitempty"`
+	}
+	items := make([]CategoryItem, 0, len(categories))
+	for _, cat := range categories {
+		items = append(items, CategoryItem{
+			Slug:  cat.Key,
+			Name:  cat.Name,
+			Color: cat.Color,
+		})
+	}
+
+	response.Success(c, gin.H{"categories": items})
 }
 
 // GetHotPosts gets hot posts

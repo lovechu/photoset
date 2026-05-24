@@ -91,9 +91,23 @@ func (r *PostReplyRepository) Update(id uint, updates map[string]interface{}) er
 	return r.DB.Model(&domain.PostReply{}).Where("id = ?", id).Updates(updates).Error
 }
 
-// Delete deletes a reply (hard delete)
+// Delete deletes a reply and its related records (hard delete, with cascade)
 func (r *PostReplyRepository) Delete(id uint) error {
-	return r.DB.Unscoped().Delete(&domain.PostReply{}, id).Error
+	return r.DB.Transaction(func(tx *gorm.DB) error {
+		// Delete reply likes for this reply
+		if err := tx.Unscoped().Where("reply_id = ?", id).Delete(&domain.PostReplyLike{}).Error; err != nil {
+			return err
+		}
+		// Delete child replies (nested replies)
+		if err := tx.Unscoped().Where("parent_reply_id = ?", id).Delete(&domain.PostReply{}).Error; err != nil {
+			return err
+		}
+		// Delete the reply itself
+		if err := tx.Unscoped().Delete(&domain.PostReply{}, id).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 // IncrementLikeCount increments the like count
