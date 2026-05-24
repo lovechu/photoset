@@ -95,10 +95,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	response.Success(c, gin.H{
 		"token": token,
 		"user": gin.H{
-			"id":       user.ID,
-			"nickname": user.Nickname,
-			"email":    user.Email,
-			"role":     user.Role,
+			"id":         user.ID,
+			"nickname":   user.Nickname,
+			"email":      user.Email,
+			"role":       user.Role,
+			"status":     user.Status,
+			"created_at": user.CreatedAt,
 		},
 	})
 }
