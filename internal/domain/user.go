@@ -13,6 +13,7 @@ const (
 	RoleUser    UserRole = "user"
 	RoleMember  UserRole = "member"
 	RoleCreator UserRole = "creator"
+	RoleVIP     UserRole = "vip"
 	RoleAdmin   UserRole = "admin"
 )
 

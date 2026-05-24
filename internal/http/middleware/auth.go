@@ -11,6 +11,15 @@ import (
 const UserKey = "user_id"
 const RoleKey = "user_role"
 
+const (
+	RoleGuest   = "guest"
+	RoleUser    = "user"
+	RoleMember  = "member"
+	RoleCreator = "creator"
+	RoleVIP     = "vip"
+	RoleAdmin   = "admin"
+)
+
 // Auth 强制鉴权中间件 - 必须提供有效 token
 func Auth() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -88,5 +97,25 @@ func GetUserRole(c *gin.Context) (string, bool) {
 		return "", false
 	}
 	return role.(string), true
+}
+
+// AdminOnly middleware - only allow admin users
+func AdminOnly() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, exists := GetUserRole(c)
+		if !exists {
+			response.Unauthorized(c, "please login first")
+			c.Abort()
+			return
+		}
+
+		if role != RoleAdmin {
+			response.Forbidden(c, "admin access required")
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
 }
 

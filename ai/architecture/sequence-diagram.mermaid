@@ -1,0 +1,108 @@
+sequenceDiagram
+    actor User
+    participant Handler as CommunityHandler
+    participant Service as CommunityService
+    participant Filter as SensitiveFilter
+    participant PointSvc as PointService
+    participant Repo as PostRepository
+    participant DB as MySQL
+
+    User->>Handler: POST /api/community/posts
+    Note over User,Handler: {title, content, category, visibility, photoset_id}
+
+    Handler->>Handler: 参数验证（标题、内容非空，长度检查）
+
+    Handler->>Service: CreatePost(userID, req)
+
+    Service->>Filter: FilterText(title + content)
+    Filter->>Filter: 加载敏感词（内存 sync.Map）
+    Filter->>Filter: 大小写不敏感匹配
+    Filter-->>Service: 返回过滤后文本
+
+    Service->>PointSvc: AddPoints(userID, PointsForPost)
+    PointSvc->>DB: 查询今日已获积分（user_point_logs）
+    PointSvc->>PointSvc: 检查每日上限（50）
+    PointSvc->>DB: 更新 user_points（事务）
+    PointSvc-->>Service: 积分更新成功
+
+    Service->>Repo: Create(post)
+    Repo->>DB: INSERT INTO posts
+    DB-->>Repo: 返回 post.ID
+    Repo-->>Service: 返回 Post 对象
+
+    Service-->>Handler: 返回 Post 对象
+
+    Handler-->>User: 200 OK {code:0, data: post}
+```
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Handler as CommunityHandler
+    participant Service as CommunityService
+    participant Filter as SensitiveFilter
+    participant PointSvc as PointService
+    participant Repo as PostReplyRepository
+    participant PostRepo as PostRepository
+    participant DB as MySQL
+
+    User->>Handler: POST /api/community/posts/:id/reply
+    Note over User,Handler: {content, parent_reply_id}
+
+    Handler->>Handler: 参数验证（内容非空，长度检查）
+
+    Handler->>Service: CreateReply(userID, postID, req)
+
+    Service->>Filter: FilterText(content)
+    Filter->>Filter: 敏感词匹配 + 替换
+    Filter-->>Service: 返回过滤后内容
+
+    Service->>PointSvc: AddPoints(userID, PointsForReply)
+    PointSvc->>DB: 查询今日已获积分
+    PointSvc->>PointSvc: 检查每日上限（30）
+    PointSvc->>DB: 更新 user_points
+    PointSvc-->>Service: 积分更新成功
+
+    Service->>Repo: Create(reply)
+    Repo->>DB: INSERT INTO post_replies
+    DB-->>Repo: 返回 reply.ID
+
+    Repo->>PostRepo: IncrementReplyCount(postID)
+    PostRepo->>DB: UPDATE posts SET reply_count = reply_count + 1
+
+    Service-->>Handler: 返回 Reply 对象
+
+    Handler-->>User: 200 OK {code:0, data: reply}
+```
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Handler as CommunityHandler
+    participant Service as CommunityService
+    participant Repo as PostLikeRepository
+    participant PostRepo as PostRepository
+    participant PointSvc as PointService
+    participant DB as MySQL
+
+    User->>Handler: POST /api/community/posts/:id/like
+
+    Handler->>Service: TogglePostLike(userID, postID)
+
+    Service->>Repo: FindByUserAndPost(userID, postID)
+    Repo->>DB: SELECT * FROM post_likes WHERE user_id=? AND post_id=?
+    DB-->>Repo: 返回记录（是否存在）
+
+    alt 已点赞（记录存在）
+        Repo->>DB: DELETE FROM post_likes（事务 + 行锁）
+        PostRepo->>DB: UPDATE posts SET like_count = like_count - 1
+        Service-->>Handler: {action: "unliked", like_count}
+    else 未点赞（记录不存在）
+        Repo->>DB: INSERT INTO post_likes（事务 + 行锁）
+        PostRepo->>DB: UPDATE posts SET like_count = like_count + 1
+        Service->>PointSvc: AddPoints(post.UserID, PointsForLiked)
+        Note over PointSvc: 帖子作者获得 +2 积分
+        Service-->>Handler: {action: "liked", like_count}
+    end
+
+    Handler-->>User: 200 OK {code:0, message: "liked"/"unliked", data: {like_count}}

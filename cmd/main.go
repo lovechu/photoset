@@ -22,7 +22,7 @@ func main() {
 	}
 	defer database.CloseMySQL()
 
-	// 自动建表（先迁移非关联表）
+	// Auto migrate (migrate non-associated tables first)
 	if err := database.GetMySQL().AutoMigrate(
 		&domain.User{},
 		&domain.PhotoSet{},
@@ -39,6 +39,14 @@ func main() {
 		&domain.ApiKey{},
 		&domain.Comment{},
 		&domain.CommentLike{},
+		// Community module
+		&domain.Post{},
+		&domain.PostReply{},
+		&domain.PostLike{},
+		&domain.PostReplyLike{},
+		&domain.UserPoint{},
+		&domain.SensitiveWord{},
+		&domain.PostReport{},
 	); err != nil {
 		// 忽略多对多关联表的重复主键错误（表已存在时 GORM 会尝试重复添加主键）
 		if !isMultiplePrimaryKeyError(err) {

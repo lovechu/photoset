@@ -1,0 +1,107 @@
+classDiagram
+    class Post {
+        +uint ID
+        +uint UserID
+        +string Title
+        +string Content
+        +uint PhotosetID
+        +string Category
+        +string Visibility
+        +bool IsPinned
+        +int ViewCount
+        +int ReplyCount
+        +int LikeCount
+        +string Status
+        +time.Time CreatedAt
+        +time.Time UpdatedAt
+        +GetPhotoset() Photoset
+        +IncrementViewCount()
+        +UpdateCounts()
+    }
+
+    class PostReply {
+        +uint ID
+        +uint PostID
+        +uint UserID
+        +string Content
+        +uint ParentReplyID
+        +int LikeCount
+        +time.Time CreatedAt
+        +time.Time UpdatedAt
+        +GetChildren() []PostReply
+        +IsDirectReply() bool
+    }
+
+    class PostLike {
+        +uint ID
+        +uint UserID
+        +uint PostID
+        +time.Time CreatedAt
+    }
+
+    class PostReplyLike {
+        +uint ID
+        +uint UserID
+        +uint ReplyID
+        +time.Time CreatedAt
+    }
+
+    class UserPoint {
+        +uint UserID
+        +int Points
+        +int Level
+        +time.Time UpdatedAt
+        +CalculateLevel() int
+        +AddPoints(points int) error
+    }
+
+    class SensitiveWord {
+        +uint ID
+        +string Word
+        +string Replacement
+        +bool IsActive
+        +time.Time CreatedAt
+        +Match(text string) bool
+        +Replace(text string) string
+    }
+
+    class PostReport {
+        +uint ID
+        +uint PostID
+        +uint ReplyID
+        +uint ReporterID
+        +string Reason
+        +string Status
+        +uint HandlerID
+        +time.Time HandledAt
+        +string HandleNote
+        +time.Time CreatedAt
+        +Process(handlerID uint, note string) error
+    }
+
+    class User {
+        +uint ID
+        +string Username
+        +string Role
+        +GetPoints() UserPoint
+    }
+
+    class Photoset {
+        +uint ID
+        +string Title
+        +GetSummary() string
+    }
+
+    Post "1" --> "0..1" Photoset : photoset_id
+    Post "1" --> "many" PostReply : replies
+    Post "1" --> "many" PostLike : likes
+    PostReply "1" --> "0..many" PostReply : parent_reply_id (楼中楼)
+    PostReply "1" --> "many" PostReplyLike : likes
+    PostReport "0..1" --> "1" Post : post_id
+    PostReport "0..1" --> "1" PostReply : reply_id
+    User "1" --> "1" UserPoint : points
+    User "1" --> "many" Post : posts
+    User "1" --> "many" PostReply : replies
+    User "1" --> "many" PostLike : post likes
+    User "1" --> "many" PostReplyLike : reply likes
+    User "1" --> "many" PostReport : reports
