@@ -91,6 +91,7 @@ services:
       - uploads_volume:/app/uploads
       - ./logs:/app/logs
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./.env:/app/.env:ro
     networks:
       - photoset-network
     # 添加 docker 组权限，使 nonroot 用户能访问 docker socket
