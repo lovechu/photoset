@@ -30,6 +30,16 @@ type User struct {
 	Status       int       `gorm:"type:tinyint;default:1;comment:1-active,0-inactive" json:"status"`
 	LastLoginAt  *time.Time `json:"last_login_at"`
 	MembershipExpires *time.Time `gorm:"index" json:"membership_expires"` // 会员过期时间，nil 表示非会员
+
+	Avatar       string    `gorm:"type:varchar(255);default:''" json:"avatar"`
+	Bio          string    `gorm:"type:varchar(500);default:''" json:"bio"`
+	IPLocation   string    `gorm:"type:varchar(50);default:''" json:"ip_location"`
+	Level        int       `gorm:"type:tinyint;default:1" json:"level"`
+	Exp          int       `gorm:"type:int;default:0" json:"exp"`
+	CircleCount  int       `gorm:"type:int;default:0" json:"circle_count"`
+	FollowingCount int     `gorm:"type:int;default:0" json:"following_count"`
+	FollowerCount  int     `gorm:"type:int;default:0" json:"follower_count"`
+	LikeCount    int       `gorm:"type:int;default:0" json:"like_count"`
 }
 
 func (User) TableName() string {

@@ -92,6 +92,11 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	)
 	adminCommunityHandler := admin.NewAdminCommunityHandler(database.GetMySQL())
 
+	// Follow 功能
+	followRepo := repository.NewFollowRepository(database.GetMySQL())
+	followService := service.NewFollowService(followRepo, userRepo)
+	followHandler := handlers.NewFollowHandler(followService)
+
 	// 加载敏感词到内存
 	service.InitSensitiveWords(wordRepo)
 
@@ -104,6 +109,7 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 			auth.POST("/login", middleware.LoginRateLimit(), authHandler.Login)
 			auth.GET("/me", middleware.OptionalAuth(), authHandler.Me)
 			auth.PUT("/password", middleware.Auth(), authHandler.ChangePassword)
+			auth.PUT("/profile", middleware.Auth(), authHandler.UpdateProfile)
 			auth.POST("/forgot-password", authHandler.ForgotPassword)
 			auth.POST("/reset-password", authHandler.ResetPasswordByToken)
 			auth.GET("/email-config", authHandler.CheckEmailConfig)
@@ -258,5 +264,5 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	}
 
 	// === 注册社区路由 ===
-	RegisterCommunityRoutes(r, communityHandler, adminCommunityHandler)
+	RegisterCommunityRoutes(r, communityHandler, followHandler, adminCommunityHandler)
 }

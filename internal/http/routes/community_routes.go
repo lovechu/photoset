@@ -12,6 +12,7 @@ import (
 func RegisterCommunityRoutes(
 	r *gin.Engine,
 	communityHandler *handlers.CommunityHandler,
+	followHandler *handlers.FollowHandler,
 	adminHandler *admin.AdminCommunityHandler,
 ) {
 	// Public routes (with optional auth)
@@ -47,6 +48,14 @@ func RegisterCommunityRoutes(
 		protected.GET("/me/posts", communityHandler.GetMyPosts)
 		protected.GET("/me/replies", communityHandler.GetMyReplies)
 		protected.GET("/me/points", communityHandler.GetMyPoints)
+
+		// Follow
+		protected.POST("/users/:id/follow", followHandler.Follow)
+		protected.DELETE("/users/:id/follow", followHandler.Unfollow)
+		protected.GET("/users/:id/follow/check", followHandler.CheckFollowing)
+		protected.POST("/users/batch-follow-check", followHandler.BatchCheckFollowing)
+		protected.GET("/users/:id/following", followHandler.GetFollowingList)
+		protected.GET("/users/:id/followers", followHandler.GetFollowerList)
 	}
 
 	// Admin routes

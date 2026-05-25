@@ -25,6 +25,7 @@ type CommunityHandler struct {
 	pointRepo        *repository.UserPointRepository
 	reportRepo       *repository.PostReportRepository
 	categoryRepo     *repository.PostCategoryRepository
+	followRepo       *repository.FollowRepository
 }
 
 // NewCommunityHandler creates a new CommunityHandler
@@ -45,6 +46,7 @@ func NewCommunityHandler(
 		pointRepo:       repository.NewUserPointRepository(db),
 		reportRepo:      repository.NewPostReportRepository(db),
 		categoryRepo:    repository.NewPostCategoryRepository(db),
+		followRepo:      repository.NewFollowRepository(db),
 	}
 }
 
@@ -459,8 +461,10 @@ func (h *CommunityHandler) GetReplies(c *gin.Context) {
 // postToResponse converts a domain.Post to a flat gin.H response (with author_id, author_name, is_liked)
 func (h *CommunityHandler) postToResponse(post domain.Post, userID uint) gin.H {
 	authorName := ""
+	authorAvatar := ""
 	if post.User.ID != 0 {
 		authorName = post.User.Nickname
+		authorAvatar = post.User.Avatar
 	}
 
 	// Check if current user liked this post
@@ -470,22 +474,31 @@ func (h *CommunityHandler) postToResponse(post domain.Post, userID uint) gin.H {
 		isLiked = liked
 	}
 
+	// Check if current user is following the author
+	isFollowing := false
+	if userID > 0 && post.UserID > 0 && userID != post.UserID {
+		following, _ := h.followRepo.Exists(userID, post.UserID)
+		isFollowing = following
+	}
+
 	return gin.H{
-		"id":          post.ID,
-		"title":       post.Title,
-		"content":     post.Content,
-		"category":    post.Category,
-		"post_type":   post.PostType,
-		"author_id":   post.UserID,
-		"author_name": authorName,
-		"reply_count": post.ReplyCount,
-		"like_count":  post.LikeCount,
-		"view_count":  post.ViewCount,
-		"is_pinned":   post.IsPinned,
-		"is_essence":  post.IsEssence,
-		"is_liked":    isLiked,
-		"status":      post.Status,
-		"created_at":  post.CreatedAt,
+		"id":           post.ID,
+		"title":        post.Title,
+		"content":      post.Content,
+		"category":     post.Category,
+		"post_type":    post.PostType,
+		"author_id":    post.UserID,
+		"author_name":  authorName,
+		"author_avatar": authorAvatar,
+		"reply_count":  post.ReplyCount,
+		"like_count":   post.LikeCount,
+		"view_count":   post.ViewCount,
+		"is_pinned":    post.IsPinned,
+		"is_essence":   post.IsEssence,
+		"is_liked":     isLiked,
+		"is_following": isFollowing,
+		"status":       post.Status,
+		"created_at":   post.CreatedAt,
 	}
 }
 

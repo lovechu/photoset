@@ -19,6 +19,8 @@ type UserRepository interface {
 	UpdateStatus(id uint, status int) error
 	UpdateRole(id uint, role string) error
 	CountAll() (int64, error)
+	// Follow APIs
+	UpdateField(id uint, field string, value interface{}) error
 }
 
 type userRepository struct {
@@ -135,5 +137,10 @@ func (r *userRepository) CountAll() (int64, error) {
 	var count int64
 	err := r.db.Model(&domain.User{}).Count(&count).Error
 	return count, err
+}
+
+// UpdateField 更新用户指定字段
+func (r *userRepository) UpdateField(id uint, field string, value interface{}) error {
+	return r.db.Model(&domain.User{}).Where("id = ?", id).Update(field, value).Error
 }
 

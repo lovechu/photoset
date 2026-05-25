@@ -126,6 +126,15 @@ func (h *AuthHandler) Me(c *gin.Context) {
 			"id":         user.ID,
 			"nickname":   user.Nickname,
 			"email":      user.Email,
+			"avatar":     user.Avatar,
+			"bio":        user.Bio,
+			"ip_location": user.IPLocation,
+			"level":      user.Level,
+			"exp":        user.Exp,
+			"circle_count": user.CircleCount,
+			"following_count": user.FollowingCount,
+			"follower_count": user.FollowerCount,
+			"like_count": user.LikeCount,
 			"role":       user.Role,
 			"status":     user.Status,
 			"created_at": user.CreatedAt,
@@ -157,6 +166,53 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"message": "密码修改成功"})
+}
+
+// UpdateProfile 更新用户资料
+func (h *AuthHandler) UpdateProfile(c *gin.Context) {
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Error(c, http.StatusUnauthorized, "请先登录")
+		return
+	}
+
+	var req struct {
+		Nickname   string `json:"nickname"`
+		Bio        string `json:"bio"`
+		Avatar     string `json:"avatar"`
+		IPLocation  string `json:"ip_location"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "参数错误")
+		return
+	}
+
+	user, err := h.userService.UpdateProfile(userID, req.Nickname, req.Bio, req.Avatar, req.IPLocation)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{
+		"user": gin.H{
+			"id":         user.ID,
+			"nickname":   user.Nickname,
+			"email":      user.Email,
+			"avatar":     user.Avatar,
+			"bio":        user.Bio,
+			"ip_location": user.IPLocation,
+			"level":      user.Level,
+			"exp":        user.Exp,
+			"circle_count": user.CircleCount,
+			"following_count": user.FollowingCount,
+			"follower_count": user.FollowerCount,
+			"like_count": user.LikeCount,
+			"role":       user.Role,
+			"status":     user.Status,
+			"created_at": user.CreatedAt,
+			"updated_at": user.UpdatedAt,
+		},
+	})
 }
 
 // ForgotPassword 请求密码重置（发送重置邮件）
