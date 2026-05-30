@@ -47,12 +47,9 @@ RUN mkdir -p /app/uploads /app/logs
 ENV TZ=Asia/Shanghai
 
 # 安装 CA 证书、wget，创建 nonroot 用户
-# docker-compose.yml 中 group_add 用 101（docker 组 GID）
 RUN apk add --no-cache ca-certificates tzdata wget && \
-    addgroup -g 101 -S docker && \
     addgroup -S nonroot && \
     adduser -S -G nonroot -s /bin/sh nonroot && \
-    addgroup nonroot docker && \
     chown -R nonroot:nonroot /app && \
     chmod -R g+w /app
 
