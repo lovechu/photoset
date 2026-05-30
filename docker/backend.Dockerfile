@@ -46,8 +46,10 @@ RUN mkdir -p /app/uploads /app/logs
 # 设置时区
 ENV TZ=Asia/Shanghai
 
-# 安装 CA 证书、wget，创建 nonroot 用户（adduser -D 自动创建同名组）
-RUN apk add --no-cache ca-certificates tzdata wget && \
+# 使用国内 Alpine 镜像源（解决网络问题）
+RUN echo "https://mirrors.aliyun.com/alpine/v3.19/main" > /etc/apk/repositories && \
+    echo "https://mirrors.aliyun.com/alpine/v3.19/community" >> /etc/apk/repositories && \
+    apk add --no-cache ca-certificates tzdata wget && \
     adduser -D -s /bin/sh -h /app nonroot && \
     chown -R nonroot:nonroot /app && \
     chmod -R g+w /app

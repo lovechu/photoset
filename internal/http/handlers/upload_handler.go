@@ -114,7 +114,7 @@ func (h *UploadHandler) UploadImage(c *gin.Context) {
 
 	url, err := h.storage.UploadWithType(wrappedFile, header, uploadType, photosetID)
 	if err != nil {
-		response.Error(c, http.StatusInternalServerError, "上传失败: "+err.Error())
+	response.Error(c, http.StatusInternalServerError, "上传失败: "+err.Error())
 		return
 	}
 
