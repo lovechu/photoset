@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"net/http"
 	"strconv"
 
 	"photoset/internal/domain"
@@ -27,6 +28,7 @@ type CommunityHandler struct {
 	categoryRepo       *repository.PostCategoryRepository
 	followRepo         *repository.FollowRepository
 	postFavoriteRepo   *repository.PostFavoriteRepository
+	userRepo           repository.UserRepository
 }
 
 // NewCommunityHandler creates a new CommunityHandler
@@ -49,6 +51,7 @@ func NewCommunityHandler(
 		categoryRepo:       repository.NewPostCategoryRepository(db),
 		followRepo:         repository.NewFollowRepository(db),
 		postFavoriteRepo:   repository.NewPostFavoriteRepository(db),
+		userRepo:           repository.NewUserRepository(),
 	}
 }
 
@@ -382,6 +385,37 @@ func (h *CommunityHandler) GetMyPosts(c *gin.Context) {
 	})
 }
 
+// GetUserPosts gets a specific user's posts
+func (h *CommunityHandler) GetUserPosts(c *gin.Context) {
+	targetUserID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.BadRequest(c, "invalid user id")
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	// Get current user (optional) for is_liked check
+	currentUserID, _ := middleware.GetUserID(c)
+
+	posts, total, err := h.postRepo.FindByUserID(uint(targetUserID), page, pageSize)
+	if err != nil {
+		response.ServerError(c, "failed to get user posts")
+		return
+	}
+
+	response.Success(c, gin.H{
+		"posts": h.postsToResponseList(posts, currentUserID),
+		"total": total,
+		"pagination": gin.H{
+			"page":      page,
+			"page_size": pageSize,
+			"total":     total,
+		},
+	})
+}
+
 // GetMyReplies gets current user's replies
 func (h *CommunityHandler) GetMyReplies(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
@@ -536,6 +570,52 @@ func (h *CommunityHandler) canViewPost(post *domain.Post, userRole string) bool 
 	}
 
 	return false
+}
+
+// GetUserProfile gets a user's public profile info
+func (h *CommunityHandler) GetUserProfile(c *gin.Context) {
+	userID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "无效的用户ID")
+		return
+	}
+
+	user, err := h.userRepo.FindByID(uint(userID))
+	if err != nil {
+		response.ServerError(c, "获取用户信息失败")
+		return
+	}
+	if user == nil {
+		response.Error(c, http.StatusNotFound, "用户不存在")
+		return
+	}
+
+	// Count user's posts
+	var postCount int64
+	h.postRepo.DB.Model(&domain.Post{}).Where("user_id = ?", userID).Count(&postCount)
+
+	// Count user's replies
+	var replyCount int64
+	h.replyRepo.DB.Model(&domain.PostReply{}).Where("user_id = ?", userID).Count(&replyCount)
+
+	// Count user's likes received
+	var likeCount int64
+	h.likeRepo.DB.Model(&domain.PostLike{}).Where("post_id IN (SELECT id FROM posts WHERE user_id = ?)", userID).Count(&likeCount)
+
+	response.Success(c, gin.H{
+		"id":              user.ID,
+		"nickname":        user.Nickname,
+		"avatar":          user.Avatar,
+		"bio":             user.Bio,
+		"ip_location":     user.IPLocation,
+		"level":           user.Level,
+		"following_count": user.FollowingCount,
+		"follower_count":  user.FollowerCount,
+		"like_count":      likeCount,
+		"post_count":      postCount,
+		"reply_count":     replyCount,
+		"created_at":      user.CreatedAt,
+	})
 }
 
 // TogglePostFavorite toggles favorite status for a post

@@ -24,6 +24,10 @@ func RegisterCommunityRoutes(
 		public.GET("/posts/:id/replies", communityHandler.GetReplies)
 		public.GET("/categories", communityHandler.GetCategories)
 		public.GET("/hot", communityHandler.GetHotPosts)
+
+		// User profile
+		public.GET("/users/:id", communityHandler.GetUserProfile)
+		public.GET("/users/:id/posts", communityHandler.GetUserPosts)
 	}
 
 	// Protected routes (require login)
