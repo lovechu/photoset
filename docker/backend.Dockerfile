@@ -46,15 +46,14 @@ RUN mkdir -p /app/uploads /app/logs
 # 设置时区
 ENV TZ=Asia/Shanghai
 
-# 安装 CA 证书、wget 和 docker-cli（用于容器重启API），创建 nonroot 用户并加入 docker 组
-# docker 组 GID 设为 101（需与 docker-compose.yml 中的 group_add 一致）
-# nonroot 组 GID 设为 102
-RUN apk add --no-cache ca-certificates tzdata wget docker-cli && \
+# 安装 CA 证书、wget，创建 nonroot 用户
+# docker-compose.yml 中 group_add 用 101（docker 组 GID）
+RUN apk add --no-cache ca-certificates tzdata wget && \
     addgroup -g 101 -S docker && \
-    addgroup -g 102 -S nonroot && \
-    adduser -u 100 -G docker -g '' -s /bin/sh -H -D nonroot && \
+    addgroup -S nonroot && \
+    adduser -S -G nonroot -s /bin/sh nonroot && \
     addgroup nonroot docker && \
-    chown -R nonroot:docker /app && \
+    chown -R nonroot:nonroot /app && \
     chmod -R g+w /app
 
 # 复制并设置入口脚本（在切换用户之前）
