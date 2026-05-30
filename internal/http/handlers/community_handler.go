@@ -15,17 +15,18 @@ import (
 
 // CommunityHandler handles community-related requests
 type CommunityHandler struct {
-	communityService  *service.CommunityService
-	pointService     *service.PointService
-	hotPostsService  *service.HotPostsService
-	postRepo         *repository.PostRepository
-	replyRepo        *repository.PostReplyRepository
-	likeRepo         *repository.PostLikeRepository
-	replyLikeRepo    *repository.PostReplyLikeRepository
-	pointRepo        *repository.UserPointRepository
-	reportRepo       *repository.PostReportRepository
-	categoryRepo     *repository.PostCategoryRepository
-	followRepo       *repository.FollowRepository
+	communityService    *service.CommunityService
+	pointService       *service.PointService
+	hotPostsService    *service.HotPostsService
+	postRepo           *repository.PostRepository
+	replyRepo          *repository.PostReplyRepository
+	likeRepo           *repository.PostLikeRepository
+	replyLikeRepo      *repository.PostReplyLikeRepository
+	pointRepo          *repository.UserPointRepository
+	reportRepo         *repository.PostReportRepository
+	categoryRepo       *repository.PostCategoryRepository
+	followRepo         *repository.FollowRepository
+	postFavoriteRepo   *repository.PostFavoriteRepository
 }
 
 // NewCommunityHandler creates a new CommunityHandler
@@ -36,17 +37,18 @@ func NewCommunityHandler(
 	hotPostsService *service.HotPostsService,
 ) *CommunityHandler {
 	return &CommunityHandler{
-		communityService: communityService,
-		pointService:    pointService,
-		hotPostsService: hotPostsService,
-		postRepo:        repository.NewPostRepository(db),
-		replyRepo:       repository.NewPostReplyRepository(db),
-		likeRepo:        repository.NewPostLikeRepository(db),
-		replyLikeRepo:   repository.NewPostReplyLikeRepository(db),
-		pointRepo:       repository.NewUserPointRepository(db),
-		reportRepo:      repository.NewPostReportRepository(db),
-		categoryRepo:    repository.NewPostCategoryRepository(db),
-		followRepo:      repository.NewFollowRepository(db),
+		communityService:    communityService,
+		pointService:       pointService,
+		hotPostsService:    hotPostsService,
+		postRepo:           repository.NewPostRepository(db),
+		replyRepo:          repository.NewPostReplyRepository(db),
+		likeRepo:           repository.NewPostLikeRepository(db),
+		replyLikeRepo:      repository.NewPostReplyLikeRepository(db),
+		pointRepo:          repository.NewUserPointRepository(db),
+		reportRepo:         repository.NewPostReportRepository(db),
+		categoryRepo:       repository.NewPostCategoryRepository(db),
+		followRepo:         repository.NewFollowRepository(db),
+		postFavoriteRepo:   repository.NewPostFavoriteRepository(db),
 	}
 }
 
@@ -534,4 +536,98 @@ func (h *CommunityHandler) canViewPost(post *domain.Post, userRole string) bool 
 	}
 
 	return false
+}
+
+// TogglePostFavorite toggles favorite status for a post
+func (h *CommunityHandler) TogglePostFavorite(c *gin.Context) {
+	postID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid post id")
+		return
+	}
+
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "please login first")
+		return
+	}
+
+	// Check if post exists
+	_, err = h.postRepo.FindByID(uint(postID))
+	if err != nil {
+		response.NotFound(c, "post not found")
+		return
+	}
+
+	isFavorited, err := h.postFavoriteRepo.Toggle(userID, uint(postID))
+	if err != nil {
+		response.ServerError(c, "failed to toggle favorite")
+		return
+	}
+
+	message := "收藏成功"
+	if !isFavorited {
+		message = "已取消收藏"
+	}
+
+	response.Success(c, gin.H{
+		"is_favorited": isFavorited,
+		"message":      message,
+	})
+}
+
+// CheckPostFavorite checks if user has favorited a post
+func (h *CommunityHandler) CheckPostFavorite(c *gin.Context) {
+	postID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid post id")
+		return
+	}
+
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Success(c, gin.H{"is_favorited": false})
+		return
+	}
+
+	isFavorited, err := h.postFavoriteRepo.IsFavorited(userID, uint(postID))
+	if err != nil {
+		response.ServerError(c, "failed to check favorite status")
+		return
+	}
+
+	response.Success(c, gin.H{"is_favorited": isFavorited})
+}
+
+// GetMyFavorites gets current user's favorite posts
+func (h *CommunityHandler) GetMyFavorites(c *gin.Context) {
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "please login first")
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	favorites, total, err := h.postFavoriteRepo.List(userID, page, pageSize)
+	if err != nil {
+		response.ServerError(c, "failed to get favorites")
+		return
+	}
+
+	// Convert to response format
+	posts := make([]gin.H, len(favorites))
+	for i, fav := range favorites {
+		posts[i] = h.postToResponse(fav.Post, userID)
+	}
+
+	response.Success(c, gin.H{
+		"posts": posts,
+		"pagination": gin.H{
+			"page":      page,
+			"page_size": pageSize,
+			"total":     total,
+		},
+	})
 }

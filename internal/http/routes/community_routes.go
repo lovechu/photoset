@@ -40,6 +40,11 @@ func RegisterCommunityRoutes(
 		protected.POST("/posts/:id/like", communityHandler.TogglePostLike)
 		protected.POST("/replies/:id/like", communityHandler.ToggleReplyLike)
 
+		// Favorites
+		protected.POST("/posts/:id/favorite", communityHandler.TogglePostFavorite)
+		protected.GET("/posts/:id/favorite/check", communityHandler.CheckPostFavorite)
+		protected.GET("/me/favorites", communityHandler.GetMyFavorites)
+
 		// Reports
 		protected.POST("/posts/:id/report", communityHandler.ReportPost)
 		protected.POST("/replies/:id/report", communityHandler.ReportReply)
