@@ -93,6 +93,8 @@ func (s *S3Storage) Upload(file multipart.File, header *multipart.FileHeader) (s
 // photo → photos/{photosetID}/{uuid}.ext
 // cover → covers/{photosetID}/{uuid}.ext（photosetID=0 时用时间戳）
 func (s *S3Storage) UploadWithType(file multipart.File, header *multipart.FileHeader, ut UploadType, photosetID uint) (string, error) {
+	fmt.Printf("[STORAGE-DEBUG] S3Storage.UploadWithType 开始: type=%s, photosetID=%d, bucket=%s\n", ut, photosetID, s.bucket)
+
 	subDir := "photos"
 	if ut == UploadTypeCover {
 		subDir = "covers"
@@ -101,7 +103,6 @@ func (s *S3Storage) UploadWithType(file multipart.File, header *multipart.FileHe
 	ext := strings.ToLower(filepath.Ext(header.Filename))
 	now := time.Now()
 
-	// photosetID=0 时（封面先上传/其他情况），用时间戳做目录
 	idOrDate := fmt.Sprintf("%d", photosetID)
 	if photosetID == 0 {
 		idOrDate = now.Format("20060102150405")
@@ -109,6 +110,7 @@ func (s *S3Storage) UploadWithType(file multipart.File, header *multipart.FileHe
 
 	key := fmt.Sprintf("%s/%s/%s/%s%s",
 		subDir, idOrDate, now.Format("01"), uuid.New().String(), ext)
+	fmt.Printf("[STORAGE-DEBUG] S3 key: %s\n", key)
 
 	_, err := s.client.PutObject(context.TODO(), &s3.PutObjectInput{
 		Bucket:      aws.String(s.bucket),
@@ -117,10 +119,13 @@ func (s *S3Storage) UploadWithType(file multipart.File, header *multipart.FileHe
 		ContentType: aws.String(mimeType(ext)),
 	})
 	if err != nil {
+		fmt.Printf("[STORAGE-DEBUG] S3 PutObject 失败: %v\n", err)
 		return "", err
 	}
 
-	return fmt.Sprintf("%s/%s", strings.TrimRight(s.publicURL, "/"), key), nil
+	url := fmt.Sprintf("%s/%s", strings.TrimRight(s.publicURL, "/"), key)
+	fmt.Printf("[STORAGE-DEBUG] S3 上传成功: %s\n", url)
+	return url, nil
 }
 
 // TestConnection 测试存储连接

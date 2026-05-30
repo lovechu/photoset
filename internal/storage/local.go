@@ -31,6 +31,8 @@ func (s *LocalStorage) Upload(file multipart.File, header *multipart.FileHeader)
 // photo → /uploads/photos/{photosetID}/{MM}/{uuid}.ext
 // cover → /uploads/covers/{photosetID}/{MM}/{uuid}.ext（photosetID=0 时用时间戳）
 func (s *LocalStorage) UploadWithType(file multipart.File, header *multipart.FileHeader, ut UploadType, photosetID uint) (string, error) {
+	fmt.Printf("[STORAGE-DEBUG] LocalStorage.UploadWithType 开始: type=%s, photosetID=%d\n", ut, photosetID)
+
 	subDir := "photos"
 	if ut == UploadTypeCover {
 		subDir = "covers"
@@ -39,33 +41,41 @@ func (s *LocalStorage) UploadWithType(file multipart.File, header *multipart.Fil
 	ext := strings.ToLower(filepath.Ext(header.Filename))
 	now := time.Now()
 
-	// photosetID=0 时（封面先上传等场景），用时间戳做目录
 	idOrDate := fmt.Sprintf("%d", photosetID)
 	if photosetID == 0 {
 		idOrDate = now.Format("20060102150405")
 	}
 
 	dirPath := filepath.Join(s.UploadDir, subDir, idOrDate, now.Format("01"))
+	fmt.Printf("[STORAGE-DEBUG] 目标目录: %s\n", dirPath)
 
 	if err := os.MkdirAll(dirPath, 0755); err != nil {
+		fmt.Printf("[STORAGE-DEBUG] 创建目录失败: %v\n", err)
 		return "", fmt.Errorf("无法创建存储目录: %v", err)
 	}
+	fmt.Printf("[STORAGE-DEBUG] 目录创建成功\n")
 
 	filename := uuid.New().String() + ext
 	fullPath := filepath.Join(dirPath, filename)
+	fmt.Printf("[STORAGE-DEBUG] 文件路径: %s\n", fullPath)
 
 	dst, err := os.Create(fullPath)
 	if err != nil {
+		fmt.Printf("[STORAGE-DEBUG] 创建文件失败: %v\n", err)
 		return "", err
 	}
 	defer dst.Close()
 
-	if _, err = io.Copy(dst, file); err != nil {
+	written, err := io.Copy(dst, file)
+	if err != nil {
+		fmt.Printf("[STORAGE-DEBUG] 写入文件失败: %v\n", err)
 		return "", err
 	}
+	fmt.Printf("[STORAGE-DEBUG] 写入成功: %d bytes\n", written)
 
 	urlPath := fmt.Sprintf("/uploads/%s/%s/%s/%s",
 		subDir, idOrDate, now.Format("01"), filename)
+	fmt.Printf("[STORAGE-DEBUG] 上传完成: %s\n", urlPath)
 
 	return urlPath, nil
 }

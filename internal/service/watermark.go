@@ -80,29 +80,49 @@ func (s *WatermarkService) getWatermarkConfig() (*WatermarkConfig, error) {
 // AddWatermark 给图片添加水印
 // 返回处理后的图片数据
 func (s *WatermarkService) AddWatermark(imgData []byte, contentType string) ([]byte, error) {
+	fmt.Printf("[WM-DEBUG] ====== AddWatermark 开始 ======\n")
+	fmt.Printf("[WM-DEBUG] 输入: contentType=%s, 数据大小=%d bytes\n", contentType, len(imgData))
+
 	// 检查是否启用水印
 	cfg, err := s.getWatermarkConfig()
-	if err != nil || !cfg.Enabled || cfg.Text == "" {
-		return imgData, nil // 不启用水印或出错时返回原图
+	if err != nil {
+		fmt.Printf("[WM-DEBUG] 获取水印配置失败: %v\n", err)
+		return imgData, nil
+	}
+	fmt.Printf("[WM-DEBUG] 水印配置: Enabled=%v, Text=%q, Opacity=%.1f, Position=%s\n",
+		cfg.Enabled, cfg.Text, cfg.Opacity, cfg.Position)
+	if !cfg.Enabled || cfg.Text == "" {
+		fmt.Printf("[WM-DEBUG] 水印未启用或文本为空, 返回原图\n")
+		return imgData, nil
 	}
 
 	// 解码图片
+	fmt.Printf("[WM-DEBUG] 正在解码图片...\n")
 	img, err := s.decodeImage(imgData, contentType)
 	if err != nil {
-		return imgData, nil // 解码失败返回原图
+		fmt.Printf("[WM-DEBUG] 图片解码失败: %v, 返回原图\n", err)
+		return imgData, nil
 	}
+	fmt.Printf("[WM-DEBUG] 图片解码成功: 尺寸=%dx%d\n", img.Bounds().Dx(), img.Bounds().Dy())
 
 	// 创建水印图片
 	watermark := s.createWatermarkImage(img.Bounds(), cfg)
 	if watermark == nil {
+		fmt.Printf("[WM-DEBUG] 创建水印图片失败, 返回原图\n")
 		return imgData, nil
 	}
+	fmt.Printf("[WM-DEBUG] 水印图片创建成功: 尺寸=%dx%d\n", watermark.Bounds().Dx(), watermark.Bounds().Dy())
 
 	// 合并水印
+	fmt.Printf("[WM-DEBUG] 正在叠加水印...\n")
 	result := s.overlayWatermark(img, watermark, cfg.Position)
 
 	// 编码返回
-	return s.encodeImage(result, contentType)
+	fmt.Printf("[WM-DEBUG] 正在编码图片 (目标格式: %s)...\n", contentType)
+	encoded, encodeErr := s.encodeImage(result, contentType)
+	fmt.Printf("[WM-DEBUG] 编码完成: 输出大小=%d bytes, 错误=%v\n", len(encoded), encodeErr)
+	fmt.Printf("[WM-DEBUG] ====== AddWatermark 完成 ======\n")
+	return encoded, encodeErr
 }
 
 // decodeImage 根据 content-type 解码图片
