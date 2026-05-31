@@ -64,37 +64,45 @@ func (r *MessageRepository) GetConversation(userID, otherUserID uint, page, page
 func (r *MessageRepository) GetConversations(userID uint) ([]domain.Conversation, error) {
 	var conversations []domain.Conversation
 
-	// Get distinct conversation partners
-	subQuery := r.db.Model(&domain.Message{}).
-		Select("CASE WHEN from_user_id = ? THEN to_user_id ELSE from_user_id END as user_id", userID).
-		Where("from_user_id = ? OR to_user_id = ?", userID, userID).
-		Group("user_id")
+	// Use a single raw SQL query to get conversation partners with their latest message and unread count.
+	// The "?" for the subquery is replaced by inlining the subquery SQL directly to avoid
+	// GORM parameter binding issues when mixing raw placeholders with GORM query objects.
+	subQuerySQL := `SELECT CASE WHEN from_user_id = ? THEN to_user_id ELSE from_user_id END as user_id
+		FROM messages WHERE from_user_id = ? OR to_user_id = ? GROUP BY user_id`
 
-	// Get latest message and unread count for each conversation
-	rows, err := r.db.Raw(`
-		SELECT 
-			u.id as user_id,
-			u.nickname as username,
-			u.avatar,
-			m.content as last_message,
-			m.created_at as last_msg_time,
-			COALESCE(unread.cnt, 0) as unread_count
-		FROM users u
-		INNER JOIN (?) AS partners ON partners.user_id = u.id
-		INNER JOIN messages m ON m.id = (
-			SELECT m2.id FROM messages m2 
-			WHERE (m2.from_user_id = ? AND m2.to_user_id = u.id) 
-			   OR (m2.from_user_id = u.id AND m2.to_user_id = ?)
-			ORDER BY m2.created_at DESC LIMIT 1
-		)
-		LEFT JOIN (
-			SELECT from_user_id, COUNT(*) as cnt 
-			FROM messages 
-			WHERE to_user_id = ? AND is_read = false AND deleted_at IS NULL
-			GROUP BY from_user_id
-		) unread ON unread.from_user_id = u.id
-		ORDER BY m.created_at DESC
-	`, userID, userID, userID, userID, subQuery).Rows()
+	querySQL := `SELECT 
+		u.id as user_id,
+		u.nickname as username,
+		u.avatar,
+		m.content as last_message,
+		m.created_at as last_msg_time,
+		COALESCE(unread.cnt, 0) as unread_count
+	FROM users u
+	INNER JOIN (` + subQuerySQL + `) AS partners ON partners.user_id = u.id
+	INNER JOIN messages m ON m.id = (
+		SELECT m2.id FROM messages m2 
+		WHERE (m2.from_user_id = ? AND m2.to_user_id = u.id) 
+		   OR (m2.from_user_id = u.id AND m2.to_user_id = ?)
+		ORDER BY m2.created_at DESC LIMIT 1
+	)
+	LEFT JOIN (
+		SELECT from_user_id, COUNT(*) as cnt 
+		FROM messages 
+		WHERE to_user_id = ? AND is_read = false AND deleted_at IS NULL
+		GROUP BY from_user_id
+	) unread ON unread.from_user_id = u.id
+	ORDER BY m.created_at DESC`
+
+	// Parameters in order of appearance:
+	// subQuery: ?, ?, ? = userID x3
+	// inner select: ?, ? = userID x2
+	// left join: ? = userID x1
+	// Total: 6 parameters
+	rows, err := r.db.Raw(querySQL,
+		userID, userID, userID, // subQuery params
+		userID, userID,          // inner message subquery params
+		userID,                  // unread count param
+	).Rows()
 
 	if err != nil {
 		return nil, err
