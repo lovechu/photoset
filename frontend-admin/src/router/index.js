@@ -109,12 +109,6 @@ const routes = [
         meta: { title: '分类管理' }
       },
       {
-        path: 'community/categories',
-        name: 'CommunityCategories',
-        component: () => import('@/views/CommunityCategories.vue'),
-        meta: { title: '分类管理' }
-      },
-      {
         path: 'community/reports',
         name: 'CommunityReports',
         component: () => import('@/views/CommunityReports.vue'),
@@ -125,6 +119,42 @@ const routes = [
         name: 'CommunityUsers',
         component: () => import('@/views/CommunityUsers.vue'),
         meta: { title: '用户积分管理' }
+      },
+      {
+        path: 'community/levels',
+        name: 'LevelManage',
+        component: () => import('@/views/LevelManage.vue'),
+        meta: { title: '等级管理', icon: 'TrendCharts' }
+      },
+      {
+        path: 'community/achievements',
+        name: 'AchievementManage',
+        component: () => import('@/views/AchievementManage.vue'),
+        meta: { title: '成就管理', icon: 'Trophy' }
+      },
+      {
+        path: 'community/points-mall',
+        name: 'PointsMallManage',
+        component: () => import('@/views/PointsMallManage.vue'),
+        meta: { title: '积分商城', icon: 'ShoppingCart' }
+      },
+      {
+        path: 'community/notifications',
+        name: 'NotificationManage',
+        component: () => import('@/views/NotificationManage.vue'),
+        meta: { title: '通知管理', icon: 'Bell' }
+      },
+      {
+        path: 'system/monitor',
+        name: 'SystemMonitor',
+        component: () => import('@/views/SystemMonitor.vue'),
+        meta: { title: '系统监控', icon: 'Monitor' }
+      },
+      {
+        path: 'system/backup',
+        name: 'DataBackup',
+        component: () => import('@/views/DataBackup.vue'),
+        meta: { title: '数据备份', icon: 'FolderChecked' }
       }
     ]
   },

@@ -25,6 +25,7 @@ type AdminCommunityHandler struct {
 	wordRepo        *repository.SensitiveWordRepository
 	reportRepo      *repository.PostReportRepository
 	categoryRepo    *repository.PostCategoryRepository
+	notificationRepo *repository.NotificationRepository
 	pointService    *service.PointService
 	filterService   *service.SensitiveFilterService
 }
@@ -32,16 +33,17 @@ type AdminCommunityHandler struct {
 // NewAdminCommunityHandler creates a new AdminCommunityHandler
 func NewAdminCommunityHandler(db *gorm.DB) *AdminCommunityHandler {
 	return &AdminCommunityHandler{
-		postRepo:      repository.NewPostRepository(db),
-		replyRepo:     repository.NewPostReplyRepository(db),
-		likeRepo:      repository.NewPostLikeRepository(db),
-		replyLikeRepo: repository.NewPostReplyLikeRepository(db),
-		pointRepo:     repository.NewUserPointRepository(db),
-		wordRepo:      repository.NewSensitiveWordRepository(db),
-		reportRepo:    repository.NewPostReportRepository(db),
-		categoryRepo:  repository.NewPostCategoryRepository(db),
-		pointService:  service.NewPointService(repository.NewUserPointRepository(db)),
-		filterService: service.NewSensitiveFilterService(repository.NewSensitiveWordRepository(db)),
+		postRepo:        repository.NewPostRepository(db),
+		replyRepo:       repository.NewPostReplyRepository(db),
+		likeRepo:        repository.NewPostLikeRepository(db),
+		replyLikeRepo:   repository.NewPostReplyLikeRepository(db),
+		pointRepo:       repository.NewUserPointRepository(db),
+		wordRepo:        repository.NewSensitiveWordRepository(db),
+		reportRepo:      repository.NewPostReportRepository(db),
+		categoryRepo:    repository.NewPostCategoryRepository(db),
+		notificationRepo: repository.NewNotificationRepository(db),
+		pointService:    service.NewPointService(repository.NewUserPointRepository(db)),
+		filterService:   service.NewSensitiveFilterService(repository.NewSensitiveWordRepository(db)),
 	}
 }
 
@@ -489,12 +491,18 @@ func (h *AdminCommunityHandler) ListCategories(c *gin.Context) {
 		PostCount int64 `json:"post_count"`
 	}
 
+	// Batch count in one query instead of N+1
+	countMap, err := h.categoryRepo.BatchCountPosts()
+	if err != nil {
+		// Fallback to zero counts if batch query fails
+		countMap = make(map[string]int64)
+	}
+
 	results := make([]CategoryWithCount, 0, len(categories))
 	for _, cat := range categories {
-		count, _ := h.categoryRepo.CountPostsByCategory(cat.Key)
 		results = append(results, CategoryWithCount{
 			CommunityCategory: cat,
-			PostCount:    count,
+			PostCount:         countMap[cat.Key],
 		})
 	}
 
@@ -660,4 +668,104 @@ func (h *AdminCommunityHandler) SortCategories(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"message": "categories sorted successfully"})
+}
+
+// ============ Notification Management ============
+
+// GetNotifications gets all notifications (admin)
+func (h *AdminCommunityHandler) GetNotifications(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	notificationType := c.Query("type")
+
+	notifications, total, err := h.notificationRepo.ListForAdmin(page, pageSize, notificationType)
+	if err != nil {
+		response.ServerError(c, "failed to get notifications")
+		return
+	}
+
+	response.Success(c, gin.H{
+		"notifications": notifications,
+		"pagination": gin.H{
+			"page":      page,
+			"page_size": pageSize,
+			"total":     total,
+		},
+	})
+}
+
+// SendNotification sends a system notification to users
+func (h *AdminCommunityHandler) SendNotification(c *gin.Context) {
+	var req struct {
+		Title    string `json:"title" binding:"required"`
+		Content  string `json:"content" binding:"required"`
+		UserIDs  []uint `json:"user_ids"` // Empty means broadcast to all users
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "title and content are required")
+		return
+	}
+
+	// Get sender ID from context
+	senderID, _ := middleware.GetUserID(c)
+
+	// If no user_ids provided, broadcast to all users
+	if len(req.UserIDs) == 0 {
+		// Get all user IDs from user_points table (users who have points)
+		var userIDs []uint
+		if err := h.pointRepo.DB.Model(&domain.UserPoint{}).Pluck("user_id", &userIDs).Error; err != nil {
+			response.ServerError(c, "failed to get user ids")
+			return
+		}
+		req.UserIDs = userIDs
+	}
+
+	// Create notifications for each user
+	for _, userID := range req.UserIDs {
+		notification := &domain.Notification{
+			UserID:   userID,
+			Type:     domain.NotificationTypeSystem,
+			Title:    req.Title,
+			Content:  req.Content,
+			SenderID: &senderID,
+		}
+		if err := h.notificationRepo.Create(notification); err != nil {
+			// Log error but continue with other notifications
+			continue
+		}
+	}
+
+	response.Success(c, gin.H{"message": "notification sent successfully"})
+}
+
+// GetNotificationStats gets notification statistics
+func (h *AdminCommunityHandler) GetNotificationStats(c *gin.Context) {
+	// Count total notifications
+	var totalNotifications int64
+	if err := h.notificationRepo.DB.Model(&domain.Notification{}).Count(&totalNotifications).Error; err != nil {
+		response.ServerError(c, "failed to count notifications")
+		return
+	}
+
+	// Count unread notifications
+	var unreadNotifications int64
+	if err := h.notificationRepo.DB.Model(&domain.Notification{}).Where("is_read = ?", false).Count(&unreadNotifications).Error; err != nil {
+		response.ServerError(c, "failed to count unread notifications")
+		return
+	}
+
+	// Count today's notifications
+	var todayNotifications int64
+	if err := h.notificationRepo.DB.Model(&domain.Notification{}).Where("DATE(created_at) = CURDATE()").Count(&todayNotifications).Error; err != nil {
+		response.ServerError(c, "failed to count today's notifications")
+		return
+	}
+
+	stats := gin.H{
+		"total_notifications":  totalNotifications,
+		"unread_notifications": unreadNotifications,
+		"today_notifications":  todayNotifications,
+	}
+
+	response.Success(c, gin.H{"stats": stats})
 }

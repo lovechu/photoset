@@ -33,6 +33,16 @@ func (r *UserLevelRepository) GetLevelConfig(level int) (*domain.UserLevelConfig
 	return &config, nil
 }
 
+// GetLevelConfigByID returns config by primary key
+func (r *UserLevelRepository) GetLevelConfigByID(id uint) (*domain.UserLevelConfig, error) {
+	var config domain.UserLevelConfig
+	err := r.DB.First(&config, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &config, nil
+}
+
 // CreateLevelConfig creates a new level config
 func (r *UserLevelRepository) CreateLevelConfig(config *domain.UserLevelConfig) error {
 	return r.DB.Create(config).Error

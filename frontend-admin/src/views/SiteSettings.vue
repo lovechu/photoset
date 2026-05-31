@@ -18,6 +18,14 @@
             <el-form-item label="ICP 备案号">
               <el-input v-model="form.site_icp" placeholder="例：京ICP备XXXXXXXX号" />
             </el-form-item>
+            <el-form-item label="网站 Logo">
+              <el-input v-model="form.logo_url" placeholder="请输入 Logo 图片 URL" />
+              <div class="form-tip">用于显示网站 Logo，建议尺寸 200x60</div>
+            </el-form-item>
+            <el-form-item label="网站图标">
+              <el-input v-model="form.favicon_url" placeholder="请输入 Favicon 图片 URL" />
+              <div class="form-tip">浏览器标签页图标，建议尺寸 32x32 或 16x16</div>
+            </el-form-item>
             <el-form-item label="开放注册">
               <el-switch v-model="form.register_enabled" active-value="true" inactive-value="false" />
             </el-form-item>
@@ -387,6 +395,9 @@ const form = ref({
   site_url: '',
   api_url: '',
   dev_api_url: '',
+  // Logo 设置
+  logo_url: '',
+  favicon_url: '',
   // 导航菜单
   nav_menu: '[]',
 })
@@ -480,7 +491,7 @@ async function save(group) {
     
     // 按 tab 保存对应的字段
     const groupKeys = {
-      general: ['site_title', 'site_description', 'site_icp', 'register_enabled', 'email_verify_required'],
+      general: ['site_title', 'site_description', 'site_icp', 'register_enabled', 'email_verify_required', 'logo_url', 'favicon_url'],
       seo: ['site_keywords'],
       about: ['about_content'],
       mail: ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_password', 'smtp_from_name'],

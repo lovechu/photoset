@@ -52,6 +52,18 @@
           <el-icon><Notebook /></el-icon>
           <span>操作日志</span>
         </el-menu-item>
+        <el-sub-menu index="/system">
+          <template #title>
+            <el-icon><Monitor /></el-icon>
+            <span>系统管理</span>
+          </template>
+          <el-menu-item index="/system/monitor">
+            <span>系统监控</span>
+          </el-menu-item>
+          <el-menu-item index="/system/backup">
+            <span>数据备份</span>
+          </el-menu-item>
+        </el-sub-menu>
         <el-sub-menu index="/community">
           <template #title>
             <el-icon><ChatDotRound /></el-icon>
@@ -74,6 +86,18 @@
           </el-menu-item>
           <el-menu-item index="/community/users">
             <span>用户积分管理</span>
+          </el-menu-item>
+          <el-menu-item index="/community/levels">
+            <span>等级管理</span>
+          </el-menu-item>
+          <el-menu-item index="/community/achievements">
+            <span>成就管理</span>
+          </el-menu-item>
+          <el-menu-item index="/community/points-mall">
+            <span>积分商城</span>
+          </el-menu-item>
+          <el-menu-item index="/community/notifications">
+            <span>通知管理</span>
           </el-menu-item>
         </el-sub-menu>
       </el-menu>
@@ -123,7 +147,7 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminStore } from '@/stores/admin'
-import { Connection, FolderOpened, ChatDotRound } from '@element-plus/icons-vue'
+import { Connection, FolderOpened, ChatDotRound, Monitor } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
 

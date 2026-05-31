@@ -96,7 +96,8 @@
 <script setup>
 import { ref, reactive, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
 import { getStats, getStatsTrend, getOrderList } from '@/api'
-import { User, PictureFilled, ShoppingCart, Money, Warning } from '@element-plus/icons-vue'
+import { getCommunityStats } from '@/api/community'
+import { User, PictureFilled, ShoppingCart, Money, Warning, ChatDotRound, Document, Bell } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 
 const loading = ref(false)
@@ -107,7 +108,8 @@ const lineChartRef = ref(null)
 let chart = null
 
 const stats = reactive({
-  total_users: 0, total_photosets: 0, total_orders: 0, total_revenue: 0, pending_reviews: 0
+  total_users: 0, total_photosets: 0, total_orders: 0, total_revenue: 0, pending_reviews: 0,
+  total_posts: 0, total_replies: 0, pending_reports: 0, total_notifications: 0
 })
 
 const trendData = ref([])
@@ -117,7 +119,10 @@ const statCards = [
   { key: 'total_photosets', label: '总套图数', icon: PictureFilled, color: '#67C23A' },
   { key: 'total_orders', label: '总订单数', icon: ShoppingCart, color: '#E6A23C' },
   { key: 'total_revenue', label: '总收入', icon: Money, color: '#F56C6C', prefix: '¥', precision: 2 },
-  { key: 'pending_reviews', label: '待审核', icon: Warning, color: '#F56C6C' }
+  { key: 'pending_reviews', label: '待审核', icon: Warning, color: '#F56C6C' },
+  { key: 'total_posts', label: '帖子数', icon: Document, color: '#909399' },
+  { key: 'total_replies', label: '回帖数', icon: ChatDotRound, color: '#9B59B6' },
+  { key: 'pending_reports', label: '待处理举报', icon: Bell, color: '#E67E22' }
 ]
 
 function statCardsValue(item) {
@@ -214,10 +219,21 @@ async function fetchRecentOrders() {
   finally { ordersLoading.value = false }
 }
 
+async function fetchCommunityStats() {
+  try {
+    const res = await getCommunityStats()
+    const communityStats = res.data?.stats || {}
+    stats.total_posts = communityStats.total_posts || 0
+    stats.total_replies = communityStats.total_replies || 0
+    stats.pending_reports = communityStats.pending_reports || 0
+  } catch {}
+}
+
 onMounted(() => {
   fetchStats()
   fetchTrend()
   fetchRecentOrders()
+  fetchCommunityStats()
 })
 
 onBeforeUnmount(() => {

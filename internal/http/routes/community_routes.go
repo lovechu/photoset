@@ -14,6 +14,7 @@ func RegisterCommunityRoutes(
 	communityHandler *handlers.CommunityHandler,
 	followHandler *handlers.FollowHandler,
 	adminHandler *admin.AdminCommunityHandler,
+	adminLevelHandler *admin.AdminLevelHandler,
 	notificationHandler *handlers.NotificationHandler,
 	messageHandler *handlers.MessageHandler,
 	userLevelHandler *handlers.UserLevelHandler,
@@ -189,5 +190,29 @@ func RegisterCommunityRoutes(
 		adminGroup.PUT("/categories/sort", adminHandler.SortCategories)
 		adminGroup.PUT("/categories/:id", adminHandler.UpdateCategory)
 		adminGroup.DELETE("/categories/:id", adminHandler.DeleteCategory)
+
+		// Level config management
+		adminGroup.GET("/levels", adminLevelHandler.GetLevelConfigs)
+		adminGroup.PUT("/levels/:id", adminLevelHandler.UpdateLevelConfig)
+
+		// Achievement management
+		adminGroup.GET("/achievements", adminLevelHandler.GetAchievements)
+		adminGroup.POST("/achievements", adminLevelHandler.CreateAchievement)
+		adminGroup.PUT("/achievements/:id", adminLevelHandler.UpdateAchievement)
+		adminGroup.DELETE("/achievements/:id", adminLevelHandler.DeleteAchievement)
+
+		// Points mall management
+		adminGroup.GET("/points-mall/items", adminLevelHandler.GetPointsMallItems)
+		adminGroup.POST("/points-mall/items", adminLevelHandler.CreatePointsMallItem)
+		adminGroup.PUT("/points-mall/items/:id", adminLevelHandler.UpdatePointsMallItem)
+		adminGroup.DELETE("/points-mall/items/:id", adminLevelHandler.DeletePointsMallItem)
+
+		// Exchange history
+		adminGroup.GET("/exchanges", adminLevelHandler.GetAllExchanges)
+
+		// Notification management
+		adminGroup.GET("/notifications", adminHandler.GetNotifications)
+		adminGroup.POST("/notifications", adminHandler.SendNotification)
+		adminGroup.GET("/notifications/stats", adminHandler.GetNotificationStats)
 	}
 }

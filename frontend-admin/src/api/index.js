@@ -80,6 +80,10 @@ export function resetUserPassword(id, newPassword) {
   return request.put(`/admin/users/${id}/password`, { new_password: newPassword })
 }
 
+export function createUser(data) {
+  return request.post('/admin/users', data)
+}
+
 // ============ 套图编辑模块 ============
 
 export function getPhotosetDetail(id) {
@@ -107,6 +111,11 @@ export function uploadImage(file) {
 // 管理员删除套图
 export function deletePhotoset(id) {
   return request.delete(`/photosets/${id}`)
+}
+
+// 导出套图列表
+export function exportPhotosets(params) {
+  return request.get('/admin/photosets/export', { params, responseType: 'blob' })
 }
 
 // 获取订单列表（带分页和筛选）
@@ -240,4 +249,32 @@ export function getApiDocs() {
 
 export function getSignUrlDocs() {
   return request.get('/admin/dev/sign-url-docs')
+}
+
+// ============ 系统监控 ============
+
+export function getSystemStatus() {
+  return request.get('/admin/system/status')
+}
+
+export function getSystemHealth() {
+  return request.get('/admin/system/health')
+}
+
+// ============ 数据备份 ============
+
+export function createBackup() {
+  return request.post('/admin/backups')
+}
+
+export function getBackupList() {
+  return request.get('/admin/backups')
+}
+
+export function downloadBackup(filename) {
+  return request.get(`/admin/backups/${filename}/download`, { responseType: 'blob' })
+}
+
+export function deleteBackup(filename) {
+  return request.delete(`/admin/backups/${filename}`)
 }

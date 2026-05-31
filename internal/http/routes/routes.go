@@ -147,6 +147,7 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	userLevelService := service.NewUserLevelService(levelRepo, achievementRepo, pointsMallRepo, pointRepo, database.GetMySQL())
 	userLevelService.Initialize() // 初始化默认数据
 	userLevelHandler := handlers.NewUserLevelHandler(userLevelService)
+	adminLevelHandler := admin.NewAdminLevelHandler(database.GetMySQL())
 
 	// 加载敏感词到内存
 	service.InitSensitiveWords(wordRepo)
@@ -245,79 +246,99 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 			orders.POST("/:id/refund", orderHandler.Refund)
 		}
 
-		// 管理后台路由（需 admin 权限）
-		adminHandler := handlers.NewAdminHandler(photosetRepo, orderRepo, orderService)
-		admin := api.Group("/admin")
-		{
-			admin.Use(middleware.Auth(), middleware.RequireRoles("admin"))
-			admin.GET("/users", adminHandler.GetUsers)
-			admin.GET("/users/export", adminHandler.ExportUsers)
-			admin.GET("/users/:id", adminHandler.GetUserDetail)
-			admin.GET("/photosets", adminHandler.GetPhotoSetsByStatus)
-			admin.POST("/photosets/:id/approve", adminHandler.ApprovePhotoSet)
-			admin.POST("/photosets/:id/reject", adminHandler.RejectPhotoSet)
-			admin.POST("/photosets/batch/approve", adminHandler.BatchApprovePhotoSets)
-			admin.POST("/photosets/batch/reject", adminHandler.BatchRejectPhotoSets)
-			admin.POST("/photosets/batch/delete", adminHandler.BatchDeletePhotoSets)
-			admin.PUT("/users/:id/ban", adminHandler.BanUser)
-			admin.PUT("/users/:id/role", adminHandler.UpdateUserRole)
-			admin.PUT("/users/:id/password", adminHandler.ResetUserPassword)
-			admin.GET("/stats", adminHandler.Stats)
-			admin.GET("/stats/trend", adminHandler.StatsTrend)
-			admin.GET("/logs", adminHandler.GetAdminLogs)
+	// 管理后台路由（需 admin 权限）
+	adminHandler := handlers.NewAdminHandler(photosetRepo, orderRepo, orderService)
+	systemHandler := admin.NewSystemHandler()
+	backupService := service.NewBackupService(cfg)
+	backupHandler := admin.NewBackupHandler(backupService)
+	admin := api.Group("/admin")
+	{
+		admin.Use(middleware.Auth(), middleware.RequireRoles("admin"))
+		admin.GET("/users", adminHandler.GetUsers)
+		admin.POST("/users", adminHandler.CreateUser)
+		admin.GET("/users/export", adminHandler.ExportUsers)
+		admin.GET("/users/:id", adminHandler.GetUserDetail)
+		admin.GET("/photosets", adminHandler.GetPhotoSetsByStatus)
+		admin.POST("/photosets/:id/approve", adminHandler.ApprovePhotoSet)
+		admin.POST("/photosets/:id/reject", adminHandler.RejectPhotoSet)
+		admin.POST("/photosets/batch/approve", adminHandler.BatchApprovePhotoSets)
+		admin.POST("/photosets/batch/reject", adminHandler.BatchRejectPhotoSets)
+		admin.POST("/photosets/batch/delete", adminHandler.BatchDeletePhotoSets)
+		admin.PUT("/users/:id/ban", adminHandler.BanUser)
+		admin.PUT("/users/:id/role", adminHandler.UpdateUserRole)
+		admin.PUT("/users/:id/password", adminHandler.ResetUserPassword)
+		admin.GET("/stats", adminHandler.Stats)
+		admin.GET("/stats/trend", adminHandler.StatsTrend)
+		admin.GET("/logs", adminHandler.GetAdminLogs)
 
-			// 订单管理
-			admin.GET("/orders", adminHandler.GetOrders)
-			admin.GET("/orders/export", adminHandler.ExportOrders)
-			admin.POST("/orders/:id/refund", adminHandler.AdminRefund)
+		// 订单管理
+		admin.GET("/orders", adminHandler.GetOrders)
+		admin.GET("/orders/export", adminHandler.ExportOrders)
+		admin.POST("/orders/:id/refund", adminHandler.AdminRefund)
 
-			// 标签管理 CRUD
-			admin.GET("/tags", tagHandler.AdminList)
-			admin.POST("/tags", tagHandler.Create)
-			admin.PUT("/tags/:id", tagHandler.Update)
-			admin.DELETE("/tags/:id", tagHandler.Delete)
+		// 套图导出
+		admin.GET("/photosets/export", adminHandler.ExportPhotoSets)
 
-			// 分类管理 CRUD
-			admin.GET("/categories", categoryHandler.AdminList)
-			admin.POST("/categories", categoryHandler.Create)
-			admin.PUT("/categories/:id", categoryHandler.Update)
-			admin.DELETE("/categories/:id", categoryHandler.Delete)
+		// 标签管理 CRUD
+		admin.GET("/tags", tagHandler.AdminList)
+		admin.POST("/tags", tagHandler.Create)
+		admin.PUT("/tags/:id", tagHandler.Update)
+		admin.DELETE("/tags/:id", tagHandler.Delete)
 
-			// 站点设置
-			admin.GET("/settings", adminHandler.GetSettings)
-			admin.PUT("/settings", adminHandler.UpdateSettings)
-			// 系统管理
-			admin.POST("/system/restart", adminHandler.RestartServer)
-			// 邮件配置
-			admin.POST("/mail/test-connection", adminHandler.TestMailConnection)
-			admin.GET("/mail/config", adminHandler.GetMailConfig)
-			admin.POST("/mail/send-test", adminHandler.SendTestMail)
-			// 水印配置
-			admin.GET("/watermark/info", adminHandler.GetWatermarkInfo)
-			// 存储配置
-			admin.POST("/storage/test", adminHandler.TestStorageConnection)
-			admin.GET("/storage/status", adminHandler.GetStorageStatus)
+		// 分类管理 CRUD
+		admin.GET("/categories", categoryHandler.AdminList)
+		admin.POST("/categories", categoryHandler.Create)
+		admin.PUT("/categories/:id", categoryHandler.Update)
+		admin.DELETE("/categories/:id", categoryHandler.Delete)
 
-			// 页面管理 CRUD
-			admin.GET("/pages", pageHandler.AdminList)
-			admin.POST("/pages", pageHandler.AdminCreate)
-			admin.GET("/pages/:id", pageHandler.AdminGet)
-			admin.PUT("/pages/:id", pageHandler.AdminUpdate)
-			admin.DELETE("/pages/:id", pageHandler.AdminDelete)
+		// 站点设置
+		admin.GET("/settings", adminHandler.GetSettings)
+		admin.PUT("/settings", adminHandler.UpdateSettings)
+		// 系统管理
+		admin.POST("/system/restart", adminHandler.RestartServer)
+		// 邮件配置
+		admin.POST("/mail/test-connection", adminHandler.TestMailConnection)
+		admin.GET("/mail/config", adminHandler.GetMailConfig)
+		admin.POST("/mail/send-test", adminHandler.SendTestMail)
+		// 水印配置
+		admin.GET("/watermark/info", adminHandler.GetWatermarkInfo)
+		// 存储配置
+		admin.POST("/storage/test", adminHandler.TestStorageConnection)
+		admin.GET("/storage/status", adminHandler.GetStorageStatus)
 
-			// 会员套餐管理 CRUD
-			admin.GET("/memberships", membershipHandler.AdminList)
-			admin.POST("/memberships", membershipHandler.AdminCreate)
-			admin.PUT("/memberships/:id", membershipHandler.AdminUpdate)
-			admin.DELETE("/memberships/:id", membershipHandler.AdminDelete)
+		// 页面管理 CRUD
+		admin.GET("/pages", pageHandler.AdminList)
+		admin.POST("/pages", pageHandler.AdminCreate)
+		admin.GET("/pages/:id", pageHandler.AdminGet)
+		admin.PUT("/pages/:id", pageHandler.AdminUpdate)
+		admin.DELETE("/pages/:id", pageHandler.AdminDelete)
 
-			// 开发者中心
-			admin.GET("/dev/api-keys", adminHandler.ListApiKeys)
-			admin.POST("/dev/api-keys", adminHandler.CreateApiKey)
-			admin.DELETE("/dev/api-keys/:id", adminHandler.DeleteApiKey)
-			admin.GET("/dev/api-docs", adminHandler.GetApiDocs)
-			admin.GET("/dev/sign-url-docs", adminHandler.GetSignUrlDocs)
-		}
+		// 会员套餐管理 CRUD
+		admin.GET("/memberships", membershipHandler.AdminList)
+		admin.POST("/memberships", membershipHandler.AdminCreate)
+		admin.PUT("/memberships/:id", membershipHandler.AdminUpdate)
+		admin.DELETE("/memberships/:id", membershipHandler.AdminDelete)
+
+		// 开发者中心
+		admin.GET("/dev/api-keys", adminHandler.ListApiKeys)
+		admin.POST("/dev/api-keys", adminHandler.CreateApiKey)
+		admin.DELETE("/dev/api-keys/:id", adminHandler.DeleteApiKey)
+		admin.GET("/dev/api-docs", adminHandler.GetApiDocs)
+		admin.GET("/dev/sign-url-docs", adminHandler.GetSignUrlDocs)
+
+		// 系统监控
+		admin.GET("/system/status", systemHandler.GetSystemStatus)
+		admin.GET("/system/health", systemHandler.HealthCheck)
+
+		// 数据备份
+		admin.POST("/backups", backupHandler.CreateBackup)
+		admin.GET("/backups", backupHandler.ListBackups)
+		admin.GET("/backups/:filename/download", backupHandler.DownloadBackup)
+		admin.DELETE("/backups/:filename", backupHandler.DeleteBackup)
+	}
+
+	// 公开路由 - 健康检查
+	api.GET("/system/health", systemHandler.HealthCheck)
 
 		// 公开路由 - 站点设置（不需要认证）
 		api.GET("/settings", adminHandler.GetPublicSettings)
@@ -328,5 +349,5 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	}
 
 	// === 注册社区路由 ===
-	RegisterCommunityRoutes(r, communityHandler, followHandler, adminCommunityHandler, notificationHandler, messageHandler, userLevelHandler, wsHandler, blockHandler)
+	RegisterCommunityRoutes(r, communityHandler, followHandler, adminCommunityHandler, adminLevelHandler, notificationHandler, messageHandler, userLevelHandler, wsHandler, blockHandler)
 }

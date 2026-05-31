@@ -637,6 +637,33 @@ func (h *AdminHandler) ExportOrders(c *gin.Context) {
 	}
 }
 
+// ExportPhotoSets 导出套图列表为 CSV
+func (h *AdminHandler) ExportPhotoSets(c *gin.Context) {
+	status := c.Query("status")
+	
+	var photosets []domain.PhotoSet
+	var err error
+	if status != "" {
+		photosets, err = h.photosetRepo.ListByStatus(status)
+	} else {
+		photosets, err = h.photosetRepo.ListAll()
+	}
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "导出套图列表失败")
+		return
+	}
+
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", "attachment; filename=photosets.csv")
+	c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
+	c.Writer.WriteString("ID,标题,封面,用户ID,状态,创建时间\n")
+	for _, p := range photosets {
+		line := fmt.Sprintf("%d,%s,%s,%d,%s,%s\n",
+			p.ID, escapeCSV(p.Title), escapeCSV(p.Cover), p.UserID, p.Status, p.CreatedAt.Format("2006-01-02 15:04:05"))
+		c.Writer.WriteString(line)
+	}
+}
+
 // escapeCSV 转义 CSV 字段中的逗号和双引号
 func escapeCSV(s string) string {
 	if strings.ContainsAny(s, ",\"") {
@@ -1029,4 +1056,45 @@ return message + "&sign=" + sign;`,
 	}
 
 	response.Success(c, docs)
+}
+
+// CreateUser 管理员创建用户
+func (h *AdminHandler) CreateUser(c *gin.Context) {
+	var req struct {
+		Nickname string `json:"nickname" binding:"required,min=2,max=50"`
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required,min=6"`
+		Role     string `json:"role" binding:"required,oneof=guest user member creator admin"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "参数错误: "+err.Error())
+		return
+	}
+
+	// 检查邮箱是否已存在
+	existingUser, _ := h.userRepo.FindByEmail(req.Email)
+	if existingUser != nil {
+		response.Error(c, http.StatusBadRequest, "该邮箱已被注册")
+		return
+	}
+
+	// 创建用户
+	user, err := h.userService.AdminCreateUser(req.Nickname, req.Email, req.Password, req.Role)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "创建用户失败: "+err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{
+		"message": "用户创建成功",
+		"user": gin.H{
+			"id":         user.ID,
+			"nickname":   user.Nickname,
+			"email":      user.Email,
+			"role":       user.Role,
+			"status":     user.Status,
+			"created_at": user.CreatedAt,
+		},
+	})
+	h.recordLog(c, "create_user", "用户#"+strconv.Itoa(int(user.ID)), "创建用户 "+req.Email+" 角色: "+req.Role)
 }

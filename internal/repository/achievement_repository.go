@@ -88,6 +88,11 @@ func (r *AchievementRepository) UpdateAchievement(achievement *domain.Achievemen
 	return r.DB.Save(achievement).Error
 }
 
+// DeleteAchievement soft-deletes an achievement
+func (r *AchievementRepository) DeleteAchievement(id uint) error {
+	return r.DB.Delete(&domain.Achievement{}, id).Error
+}
+
 // InitDefaultAchievements initializes default achievements if not exists
 func (r *AchievementRepository) InitDefaultAchievements() error {
 	var count int64

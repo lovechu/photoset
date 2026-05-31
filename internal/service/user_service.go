@@ -21,6 +21,7 @@ type UserService interface {
 	ResetPassword(userID uint, newPassword string) error
 	RequestPasswordReset(email string) (token string, err error)
 	ResetPasswordByToken(token, newPassword string) error
+	AdminCreateUser(nickname, email, password, role string) (*domain.User, error)
 }
 
 type userService struct {
@@ -248,5 +249,32 @@ func (s *userService) ResetPasswordByToken(token, newPassword string) error {
 	}
 
 	return nil
+}
+
+// AdminCreateUser 管理员创建用户（可指定角色）
+func (s *userService) AdminCreateUser(nickname, email, pwd, role string) (*domain.User, error) {
+	existing, _ := s.userRepo.FindByEmail(email)
+	if existing != nil {
+		return nil, errors.New("该邮箱已被注册")
+	}
+
+	hashedPassword, err := password.Hash(pwd)
+	if err != nil {
+		return nil, err
+	}
+
+	user := &domain.User{
+		Nickname:     nickname,
+		Email:        email,
+		PasswordHash: hashedPassword,
+		Role:         domain.UserRole(role),
+		Status:       1,
+	}
+
+	if err := s.userRepo.Create(user); err != nil {
+		return nil, err
+	}
+
+	return user, nil
 }
 

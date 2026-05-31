@@ -8,6 +8,10 @@
         <el-radio-button value="draft">已拒绝</el-radio-button>
       </el-radio-group>
 
+      <el-button type="primary" plain @click="handleExport" :loading="exportLoading">
+        导出 CSV
+      </el-button>
+
       <div class="batch-actions" v-if="selectedIds.length > 0">
         <el-text type="primary" size="small">已选择 {{ selectedIds.length }} 条</el-text>
         <el-button type="success" size="small" @click="handleBatchApprove" :loading="batchProcessing">
@@ -104,12 +108,13 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { getPhotoSetsByStatus, approvePhotoSet, rejectPhotoSet, deletePhotoset, batchApprovePhotoSets, batchRejectPhotoSets, batchDeletePhotoSets } from '@/api'
+import { getPhotoSetsByStatus, approvePhotoSet, rejectPhotoSet, deletePhotoset, batchApprovePhotoSets, batchRejectPhotoSets, batchDeletePhotoSets, exportPhotosets } from '@/api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const loading = ref(false)
 const list = ref([])
 const currentStatus = ref('')
+const exportLoading = ref(false)
 
 const rejectDialogVisible = ref(false)
 const rejectReason = ref('')
@@ -319,6 +324,31 @@ async function handleBatchDelete() {
     }
   } finally {
     batchProcessing.value = false
+  }
+}
+
+// 导出套图列表
+async function handleExport() {
+  exportLoading.value = true
+  try {
+    const params = {}
+    if (currentStatus.value) params.status = currentStatus.value
+    
+    const response = await exportPhotosets(params)
+    const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `photosets_${new Date().toISOString().slice(0,10)}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch (error) {
+    ElMessage.error('导出失败')
+  } finally {
+    exportLoading.value = false
   }
 }
 

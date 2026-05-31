@@ -23,6 +23,13 @@ func (r *PointsMallRepository) GetAllItems() ([]domain.PointsMallItem, error) {
 	return items, err
 }
 
+// GetAllItemsIncludingInactive returns all items (admin view)
+func (r *PointsMallRepository) GetAllItemsIncludingInactive() ([]domain.PointsMallItem, error) {
+	var items []domain.PointsMallItem
+	err := r.DB.Order("sort_order ASC").Find(&items).Error
+	return items, err
+}
+
 // GetItemsByCategory returns items by category
 func (r *PointsMallRepository) GetItemsByCategory(category string) ([]domain.PointsMallItem, error) {
 	var items []domain.PointsMallItem
@@ -50,6 +57,11 @@ func (r *PointsMallRepository) CreateItem(item *domain.PointsMallItem) error {
 // UpdateItem updates an item
 func (r *PointsMallRepository) UpdateItem(item *domain.PointsMallItem) error {
 	return r.DB.Save(item).Error
+}
+
+// DeleteItem soft-deletes an item
+func (r *PointsMallRepository) DeleteItem(id uint) error {
+	return r.DB.Delete(&domain.PointsMallItem{}, id).Error
 }
 
 // ExchangeItem exchanges points for an item (with transaction)
@@ -113,6 +125,19 @@ func (r *PointsMallRepository) HasExchanged(userID uint, itemID uint) bool {
 		Where("user_id = ? AND item_id = ? AND status = ?", userID, itemID, "completed").
 		Count(&count)
 	return count > 0
+}
+
+// GetAllExchanges returns all exchange records (admin view)
+func (r *PointsMallRepository) GetAllExchanges(page, pageSize int) ([]domain.UserPointsExchange, int64, error) {
+	var exchanges []domain.UserPointsExchange
+	var total int64
+
+	query := r.DB.Model(&domain.UserPointsExchange{})
+	query.Count(&total)
+
+	offset := (page - 1) * pageSize
+	err := query.Preload("User").Preload("Item").Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&exchanges).Error
+	return exchanges, total, err
 }
 
 // InitDefaultItems initializes default items if not exists

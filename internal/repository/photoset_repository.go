@@ -456,6 +456,13 @@ func (r *PhotoSetRepository) ListByStatus(status string) ([]domain.PhotoSet, err
 	return photosets, err
 }
 
+// ListAll 查询所有套图列表（管理员导出用）
+func (r *PhotoSetRepository) ListAll() ([]domain.PhotoSet, error) {
+	var photosets []domain.PhotoSet
+	err := r.db.Model(&domain.PhotoSet{}).Preload("User").Order("created_at DESC").Find(&photosets).Error
+	return photosets, err
+}
+
 // UpdateStatus 更新套图状态
 func (r *PhotoSetRepository) UpdateStatus(id uint, status string) error {
 	return r.db.Model(&domain.PhotoSet{}).Where("id = ?", id).Update("status", status).Error

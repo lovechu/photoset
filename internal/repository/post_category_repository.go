@@ -68,6 +68,34 @@ func (r *PostCategoryRepository) CountPostsByCategory(key string) (int64, error)
 	return count, err
 }
 
+// CategoryPostCount holds a category key and its post count
+type CategoryPostCount struct {
+	Category string `gorm:"column:category"`
+	Count    int64  `gorm:"column:cnt"`
+}
+
+// BatchCountPosts counts posts for all categories in one query using GROUP BY.
+// Returns a map: category_key -> post_count.
+// This avoids the N+1 query problem in ListCategories.
+func (r *PostCategoryRepository) BatchCountPosts() (map[string]int64, error) {
+	var results []CategoryPostCount
+	err := r.DB.Raw(`
+		SELECT category, COUNT(*) AS cnt
+		FROM posts
+		WHERE deleted_at IS NULL
+		GROUP BY category
+	`).Scan(&results).Error
+	if err != nil {
+		return nil, err
+	}
+
+	countMap := make(map[string]int64, len(results))
+	for _, r := range results {
+		countMap[r.Category] = r.Count
+	}
+	return countMap, nil
+}
+
 // GetActiveKeys returns all category keys currently in the database
 // Used for validating post category input
 func (r *PostCategoryRepository) GetActiveKeys() ([]string, error) {

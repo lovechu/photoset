@@ -184,3 +184,28 @@ export function sortCommunityCategories(data) {
   return request.put('/admin/community/categories/sort', data)
 }
 
+// ============ 通知管理 ============
+
+/**
+ * 获取通知列表（管理员）
+ * @param {Object} params - { page, page_size, type }
+ */
+export function getNotifications(params) {
+  return request.get('/admin/community/notifications', { params })
+}
+
+/**
+ * 发送系统通知
+ * @param {Object} data - { title, content, user_ids }
+ */
+export function sendNotification(data) {
+  return request.post('/admin/community/notifications', data)
+}
+
+/**
+ * 获取通知统计信息
+ */
+export function getNotificationStats() {
+  return request.get('/admin/community/notifications/stats')
+}
+

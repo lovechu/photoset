@@ -80,3 +80,26 @@ func (r *NotificationRepository) Delete(id uint, userID uint) error {
 func (r *NotificationRepository) DeleteAll(userID uint) error {
 	return r.DB.Where("user_id = ?", userID).Delete(&domain.Notification{}).Error
 }
+
+// ListForAdmin returns notifications for admin with pagination and optional type filter
+func (r *NotificationRepository) ListForAdmin(page, pageSize int, notificationType string) ([]domain.Notification, int64, error) {
+	var notifications []domain.Notification
+	var total int64
+
+	query := r.DB.Model(&domain.Notification{})
+	if notificationType != "" {
+		query = query.Where("type = ?", notificationType)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * pageSize
+	err := query.Preload("User").Preload("Sender").Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&notifications).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return notifications, total, nil
+}

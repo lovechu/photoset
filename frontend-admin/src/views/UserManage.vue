@@ -1,38 +1,42 @@
 <template>
   <div class="user-manage">
-    <!-- 筛选栏 -->
-    <div class="filter-bar">
-      <el-button type="success" plain @click="handleExport" :loading="exporting">
-        导出 CSV
-      </el-button>
-      <el-input
-        v-model="keyword"
-        placeholder="搜索昵称 / 邮箱"
-        clearable
-        style="width: 220px"
-        @clear="fetchUsers"
-        @keyup.enter="handleSearch"
-      >
-        <template #append>
-          <el-button @click="handleSearch"><el-icon><Search /></el-icon></el-button>
-        </template>
-      </el-input>
+  <!-- 筛选栏 -->
+  <div class="filter-bar">
+    <el-button type="primary" @click="openCreateDialog">
+      <el-icon><Plus /></el-icon>
+      新增用户
+    </el-button>
+    <el-button type="success" plain @click="handleExport" :loading="exporting">
+      导出 CSV
+    </el-button>
+    <el-input
+      v-model="keyword"
+      placeholder="搜索昵称 / 邮箱"
+      clearable
+      style="width: 220px"
+      @clear="fetchUsers"
+      @keyup.enter="handleSearch"
+    >
+      <template #append>
+        <el-button @click="handleSearch"><el-icon><Search /></el-icon></el-button>
+      </template>
+    </el-input>
 
-      <el-select v-model="filterRole" placeholder="角色筛选" clearable @change="fetchUsers" style="width: 140px; margin-left: 12px">
-        <el-option label="全部角色" value="" />
-        <el-option label="访客" value="guest" />
-        <el-option label="普通用户" value="user" />
-        <el-option label="会员" value="member" />
-        <el-option label="创作者" value="creator" />
-        <el-option label="管理员" value="admin" />
-      </el-select>
+    <el-select v-model="filterRole" placeholder="角色筛选" clearable @change="fetchUsers" style="width: 140px; margin-left: 12px">
+      <el-option label="全部角色" value="" />
+      <el-option label="访客" value="guest" />
+      <el-option label="普通用户" value="user" />
+      <el-option label="会员" value="member" />
+      <el-option label="创作者" value="creator" />
+      <el-option label="管理员" value="admin" />
+    </el-select>
 
-      <el-select v-model="filterStatus" placeholder="状态筛选" clearable @change="fetchUsers" style="width: 120px; margin-left: 12px">
-        <el-option label="全部状态" value="" />
-        <el-option label="正常" value="1" />
-        <el-option label="已封禁" value="0" />
-      </el-select>
-    </div>
+    <el-select v-model="filterStatus" placeholder="状态筛选" clearable @change="fetchUsers" style="width: 120px; margin-left: 12px">
+      <el-option label="全部状态" value="" />
+      <el-option label="正常" value="1" />
+      <el-option label="已封禁" value="0" />
+    </el-select>
+  </div>
 
     <!-- 用户表格 -->
     <el-table :data="userList" v-loading="loading" stripe style="width: 100%" border>
@@ -183,14 +187,42 @@
         <el-button type="primary" :loading="passwordLoading" @click="handleResetPassword">确认重置</el-button>
       </template>
     </el-dialog>
+
+    <!-- 创建用户对话框 -->
+    <el-dialog v-model="createDialogVisible" title="新增用户" width="480px" destroy-on-close>
+      <el-form :model="createForm" :rules="createRules" ref="createFormRef" label-width="80px">
+        <el-form-item label="昵称" prop="nickname">
+          <el-input v-model="createForm.nickname" placeholder="请输入昵称（2-50个字符）" />
+        </el-form-item>
+        <el-form-item label="邮箱" prop="email">
+          <el-input v-model="createForm.email" placeholder="请输入邮箱地址" />
+        </el-form-item>
+        <el-form-item label="密码" prop="password">
+          <el-input v-model="createForm.password" type="password" placeholder="请输入密码（至少6位）" show-password />
+        </el-form-item>
+        <el-form-item label="角色" prop="role">
+          <el-select v-model="createForm.role" placeholder="请选择角色" style="width: 100%">
+            <el-option label="访客" value="guest" />
+            <el-option label="普通用户" value="user" />
+            <el-option label="会员" value="member" />
+            <el-option label="创作者" value="creator" />
+            <el-option label="管理员" value="admin" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="createDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="createLoading" @click="handleCreateUser">确认创建</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { getUserList, banUser, updateUserRole, getUserDetail, resetUserPassword, exportUsers } from '@/api'
+import { getUserList, banUser, updateUserRole, getUserDetail, resetUserPassword, exportUsers, createUser } from '@/api'
 import { ElMessage } from 'element-plus'
-import { Search } from '@element-plus/icons-vue'
+import { Search, Plus } from '@element-plus/icons-vue'
 
 // 列表状态
 const loading = ref(false)
@@ -213,6 +245,34 @@ const roleDialogVisible = ref(false)
 const roleTarget = ref(null)
 const newRole = ref('')
 const roleLoading = ref(false)
+
+// 创建用户
+const createDialogVisible = ref(false)
+const createLoading = ref(false)
+const createFormRef = ref(null)
+const createForm = ref({
+  nickname: '',
+  email: '',
+  password: '',
+  role: 'user'
+})
+const createRules = {
+  nickname: [
+    { required: true, message: '请输入昵称', trigger: 'blur' },
+    { min: 2, max: 50, message: '昵称长度在2-50个字符', trigger: 'blur' },
+  ],
+  email: [
+    { required: true, message: '请输入邮箱', trigger: 'blur' },
+    { type: 'email', message: '请输入有效的邮箱地址', trigger: 'blur' },
+  ],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 6, message: '密码长度不能少于6位', trigger: 'blur' },
+  ],
+  role: [
+    { required: true, message: '请选择角色', trigger: 'change' },
+  ],
+}
 
 const roleMap = {
   guest: '访客', user: '普通用户', member: '会员', creator: '创作者', admin: '管理员'
@@ -337,6 +397,27 @@ async function handleResetPassword() {
       passwordDialogVisible.value = false
     } catch { /* handled */ }
     finally { passwordLoading.value = false }
+  })
+}
+
+// 创建用户
+function openCreateDialog() {
+  createForm.value = { nickname: '', email: '', password: '', role: 'user' }
+  createDialogVisible.value = true
+}
+
+async function handleCreateUser() {
+  if (!createFormRef.value) return
+  await createFormRef.value.validate(async (valid) => {
+    if (!valid) return
+    createLoading.value = true
+    try {
+      await createUser(createForm.value)
+      ElMessage.success('用户创建成功')
+      createDialogVisible.value = false
+      fetchUsers()
+    } catch { /* handled */ }
+    finally { createLoading.value = false }
   })
 }
 
