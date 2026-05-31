@@ -13,12 +13,14 @@ import (
 // MessageHandler handles message-related requests
 type MessageHandler struct {
 	messageService *service.MessageService
+	hub            *service.Hub
 }
 
 // NewMessageHandler creates a new MessageHandler
-func NewMessageHandler(messageService *service.MessageService) *MessageHandler {
+func NewMessageHandler(messageService *service.MessageService, hub *service.Hub) *MessageHandler {
 	return &MessageHandler{
 		messageService: messageService,
+		hub:            hub,
 	}
 }
 
@@ -44,6 +46,18 @@ func (h *MessageHandler) SendMessage(c *gin.Context) {
 	if err != nil {
 		response.ServerError(c, err.Error())
 		return
+	}
+
+	// Send real-time WebSocket notification to recipient
+	if h.hub != nil {
+		h.hub.SendToUser(req.ToUserID, service.WSTypeMessage, map[string]interface{}{
+			"message": h.messageService.FormatMessage(*message),
+		})
+		// Also send unread count update
+		unreadCount, _ := h.messageService.GetUnreadCount(req.ToUserID)
+		h.hub.SendToUser(req.ToUserID, service.WSTypeUnreadCount, map[string]interface{}{
+			"message_unread": unreadCount,
+		})
 	}
 
 	response.Success(c, gin.H{

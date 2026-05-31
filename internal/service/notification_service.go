@@ -9,13 +9,37 @@ import (
 // NotificationService provides notification business logic
 type NotificationService struct {
 	notificationRepo *repository.NotificationRepository
+	hub              *Hub
 }
 
 // NewNotificationService creates a new NotificationService
-func NewNotificationService(notificationRepo *repository.NotificationRepository) *NotificationService {
+func NewNotificationService(notificationRepo *repository.NotificationRepository, hub *Hub) *NotificationService {
 	return &NotificationService{
 		notificationRepo: notificationRepo,
+		hub:              hub,
 	}
+}
+
+// sendRealTimeNotification sends a WebSocket notification to the user
+func (s *NotificationService) sendRealTimeNotification(userID uint, notification *domain.Notification) {
+	if s.hub == nil {
+		return
+	}
+	s.hub.SendToUser(userID, WSTypeNotification, map[string]interface{}{
+		"id":          notification.ID,
+		"type":        notification.Type,
+		"title":       notification.Title,
+		"content":     notification.Content,
+		"sender_id":   notification.SenderID,
+		"target_id":   notification.TargetID,
+		"target_type": notification.TargetType,
+		"created_at":  notification.CreatedAt,
+	})
+	// Also send updated unread count
+	unreadCount, _ := s.notificationRepo.CountUnread(userID)
+	s.hub.SendToUser(userID, WSTypeUnreadCount, map[string]interface{}{
+		"notification_unread": unreadCount,
+	})
 }
 
 // CreateLikeNotification creates a notification when someone likes a post
@@ -34,7 +58,13 @@ func (s *NotificationService) CreateLikeNotification(userID, senderID, postID ui
 		TargetType: "post",
 	}
 
-	return s.notificationRepo.Create(notification)
+	if err := s.notificationRepo.Create(notification); err != nil {
+		return err
+	}
+
+	// Send real-time notification
+	s.sendRealTimeNotification(userID, notification)
+	return nil
 }
 
 // CreateReplyNotification creates a notification when someone replies to a post
@@ -53,7 +83,13 @@ func (s *NotificationService) CreateReplyNotification(userID, senderID, postID u
 		TargetType: "post",
 	}
 
-	return s.notificationRepo.Create(notification)
+	if err := s.notificationRepo.Create(notification); err != nil {
+		return err
+	}
+
+	// Send real-time notification
+	s.sendRealTimeNotification(userID, notification)
+	return nil
 }
 
 // CreateFollowNotification creates a notification when someone follows a user
@@ -70,7 +106,13 @@ func (s *NotificationService) CreateFollowNotification(userID, senderID uint) er
 		SenderID: &senderID,
 	}
 
-	return s.notificationRepo.Create(notification)
+	if err := s.notificationRepo.Create(notification); err != nil {
+		return err
+	}
+
+	// Send real-time notification
+	s.sendRealTimeNotification(userID, notification)
+	return nil
 }
 
 // CreateMentionNotification creates a notification when someone mentions a user
@@ -89,7 +131,13 @@ func (s *NotificationService) CreateMentionNotification(userID, senderID, postID
 		TargetType: "post",
 	}
 
-	return s.notificationRepo.Create(notification)
+	if err := s.notificationRepo.Create(notification); err != nil {
+		return err
+	}
+
+	// Send real-time notification
+	s.sendRealTimeNotification(userID, notification)
+	return nil
 }
 
 // CreateSystemNotification creates a system notification
@@ -101,7 +149,13 @@ func (s *NotificationService) CreateSystemNotification(userID uint, title, conte
 		Content: content,
 	}
 
-	return s.notificationRepo.Create(notification)
+	if err := s.notificationRepo.Create(notification); err != nil {
+		return err
+	}
+
+	// Send real-time notification
+	s.sendRealTimeNotification(userID, notification)
+	return nil
 }
 
 // GetNotifications returns notifications for a user

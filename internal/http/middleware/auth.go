@@ -23,21 +23,14 @@ const (
 // Auth 强制鉴权中间件 - 必须提供有效 token
 func Auth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			response.Unauthorized(c, "missing authorization header")
+		token := extractToken(c)
+		if token == "" {
+			response.Unauthorized(c, "missing authorization token")
 			c.Abort()
 			return
 		}
 
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			response.Unauthorized(c, "invalid authorization format")
-			c.Abort()
-			return
-		}
-
-		claims, err := jwt.ParseToken(parts[1])
+		claims, err := jwt.ParseToken(token)
 		if err != nil {
 			response.Unauthorized(c, "invalid or expired token")
 			c.Abort()
@@ -51,24 +44,32 @@ func Auth() gin.HandlerFunc {
 	}
 }
 
+// extractToken extracts JWT token from Authorization header or query parameter
+// WebSocket connections use query parameter since custom headers are not supported
+func extractToken(c *gin.Context) string {
+	// First try Authorization header
+	authHeader := c.GetHeader("Authorization")
+	if authHeader != "" {
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) == 2 && parts[0] == "Bearer" {
+			return parts[1]
+		}
+	}
+	// Fallback to query parameter (for WebSocket connections)
+	return c.Query("token")
+}
+
 // OptionalAuth 可选鉴权中间件 - 没有按游客处理,有则解析
 func OptionalAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
+		token := extractToken(c)
+		if token == "" {
 			// 没有提供 token,按游客处理,直接放行
 			c.Next()
 			return
 		}
 
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			// token 格式错误,按游客处理,直接放行
-			c.Next()
-			return
-		}
-
-		claims, err := jwt.ParseToken(parts[1])
+		claims, err := jwt.ParseToken(token)
 		if err != nil {
 			// token 无效或过期,按游客处理,直接放行
 			c.Next()

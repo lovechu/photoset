@@ -17,6 +17,8 @@ func RegisterCommunityRoutes(
 	notificationHandler *handlers.NotificationHandler,
 	messageHandler *handlers.MessageHandler,
 	userLevelHandler *handlers.UserLevelHandler,
+	wsHandler *handlers.WebSocketHandler,
+	blockHandler *handlers.UserBlockHandler,
 ) {
 	// Public routes (with optional auth)
 	public := r.Group("/api/community")
@@ -109,6 +111,13 @@ func RegisterCommunityRoutes(
 		protected.GET("/users/:id/following", followHandler.GetFollowingList)
 		protected.GET("/users/:id/followers", followHandler.GetFollowerList)
 
+		// User Block/Mute
+		protected.POST("/users/:id/block", blockHandler.BlockUser)
+		protected.POST("/users/:id/mute", blockHandler.MuteUser)
+		protected.DELETE("/users/:id/block", blockHandler.UnblockUser)
+		protected.GET("/users/:id/block/status", blockHandler.GetBlockStatus)
+		protected.GET("/me/blocks", blockHandler.GetBlockedUsers)
+
 		// Notifications
 		protected.GET("/notifications", notificationHandler.GetNotifications)
 		protected.GET("/notifications/unread-count", notificationHandler.GetUnreadCount)
@@ -136,6 +145,10 @@ func RegisterCommunityRoutes(
 
 		// Points Leaderboard
 		protected.GET("/points/leaderboard", userLevelHandler.GetPointsLeaderboard)
+
+		// WebSocket
+		protected.GET("/ws", wsHandler.HandleConnection)
+		protected.GET("/ws/online", wsHandler.GetOnlineStatus)
 	}
 
 	// Admin routes

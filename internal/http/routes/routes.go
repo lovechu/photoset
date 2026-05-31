@@ -121,14 +121,19 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	)
 	adminCommunityHandler := admin.NewAdminCommunityHandler(database.GetMySQL())
 
+	// WebSocket 实时消息（必须在通知和私信功能之前初始化）
+	wsHub := service.NewHub()
+	go wsHub.Run()
+	wsHandler := handlers.NewWebSocketHandler(wsHub)
+
 	// 通知功能
-	notificationService := service.NewNotificationService(notificationRepo)
+	notificationService := service.NewNotificationService(notificationRepo, wsHub)
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 
 	// 私信功能
 	messageRepo := repository.NewMessageRepository(database.GetMySQL())
 	messageService := service.NewMessageService(messageRepo, userRepo)
-	messageHandler := handlers.NewMessageHandler(messageService)
+	messageHandler := handlers.NewMessageHandler(messageService, wsHub)
 
 	// Follow 功能
 	followRepo := repository.NewFollowRepository(database.GetMySQL())
@@ -145,6 +150,11 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 
 	// 加载敏感词到内存
 	service.InitSensitiveWords(wordRepo)
+
+	// 用户拉黑/屏蔽功能
+	blockRepo := repository.NewUserBlockRepository(database.GetMySQL())
+	blockService := service.NewUserBlockService(blockRepo)
+	blockHandler := handlers.NewUserBlockHandler(blockService)
 
 	api := r.Group("/api")
 	{
@@ -310,5 +320,5 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	}
 
 	// === 注册社区路由 ===
-	RegisterCommunityRoutes(r, communityHandler, followHandler, adminCommunityHandler, notificationHandler, messageHandler, userLevelHandler)
+	RegisterCommunityRoutes(r, communityHandler, followHandler, adminCommunityHandler, notificationHandler, messageHandler, userLevelHandler, wsHandler, blockHandler)
 }
