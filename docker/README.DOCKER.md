@@ -2,6 +2,8 @@
 
 本目录包含 PhotoSet 项目的完整 Docker 编排配置，支持一键式部署开发和生产环境。
 
+---
+
 ## 📁 文件结构
 
 ```
@@ -15,15 +17,19 @@ docker/
 └── (docker-compose.yml 在项目根目录)
 ```
 
+---
+
 ## 🚀 快速开始
 
 ### 1. 环境准备
+
 确保已安装：
 - Docker Engine 20.10+
 - Docker Compose v2
 - Git
 
 ### 2. 配置环境变量
+
 ```bash
 # 复制 Docker 环境模板
 cp .env.docker.example .env.docker
@@ -33,11 +39,12 @@ nano .env.docker
 ```
 
 **必须修改的配置**：
-- `JWT_SECRET` - 生产环境 JWT 密钥
-- `SIGN_SECRET` - URL 签名密钥
-- `CORS_ALLOW_ORIGINS` - 前端域名
+- `JWT_SECRET` — 生产环境 JWT 密钥
+- `SIGN_SECRET` — URL 签名密钥
+- `CORS_ALLOW_ORIGINS` — 前端域名
 
 ### 3. 启动全部服务
+
 ```bash
 # 构建并启动所有容器（第一次使用）
 docker-compose up -d --build
@@ -50,18 +57,26 @@ docker-compose ps
 ```
 
 ### 4. 访问服务
+
 | 服务 | 访问地址 | 端口映射 | 说明 |
 |------|----------|----------|------|
-| **MySQL** | `mysql:3306` | - | 仅容器内访问 |
-| **Redis** | `redis:6379` | - | 仅容器内访问 |
-| **后端API** | `http://localhost:8080` | 8080 | Go Gin 服务 |
+| **MySQL** | `mysql:3306` | — | 仅容器内访问 |
+| **Redis** | `redis:6379` | — | 仅容器内访问 |
+| **后端 API** | `http://localhost:8080` | 8080 | Go Gin 服务 |
 | **用户端前端** | `http://localhost:3000` | 3000 | Vue 3 用户端 |
 | **管理后台** | `http://localhost:3001` | 3001 | Vue 3 管理后台 |
 
 ### 5. 数据库初始化
-后端启动时会自动执行 GORM AutoMigrate，创建：
-- users, photosets, photos, orders, order_items
-- tags, favorites, categories (新加的分类系统)
+
+后端启动时会自动执行 GORM AutoMigrate，创建所有数据表：
+
+**核心表**：users, photosets, photos, orders, order_items, tags, favorites, categories, pages, site_settings, admin_logs, api_keys
+
+**社区功能表**：posts, post_replies, post_likes, post_reply_likes, post_favorites, post_shares, post_tags, post_topics, topics, tags, drafts, sensitive_words, post_reports, user_points
+
+**消息通知表**：messages, notifications
+
+**用户等级表**：user_levels, user_achievements, achievement_configs, points_mall_items, user_exchanges
 
 如果需要手动初始化数据：
 ```bash
@@ -73,6 +88,8 @@ SHOW DATABASES;
 USE photoset;
 SHOW TABLES;
 ```
+
+---
 
 ## 🌐 宝塔 Nginx 伪静态规则
 
@@ -129,6 +146,8 @@ location /admin/ {
 }
 ```
 
+---
+
 ## 🔧 生产部署建议
 
 ### 1. 使用 Docker Swarm 或 Kubernetes
@@ -155,7 +174,6 @@ ssl_certificate_key /etc/ssl/private/your-key.pem;
 备份数据：
 ```bash
 docker-compose exec mysql sh -c 'exec mysqldump --all-databases -uroot -p"$MYSQL_ROOT_PASSWORD"' > backup.sql
-
 docker-compose exec redis redis-cli SAVE
 ```
 
@@ -171,6 +189,8 @@ docker stats
 # 进入容器调试
 docker-compose exec backend sh
 ```
+
+---
 
 ## 🛠️ 开发模式
 
@@ -223,6 +243,8 @@ volumes:
 docker-compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
+---
+
 ## ⚙️ 容器管理命令
 
 ```bash
@@ -246,6 +268,8 @@ docker-compose exec backend sh
 docker-compose exec mysql mysql -u photoset -p photoset123
 ```
 
+---
+
 ## 🐛 常见问题
 
 ### Q1: 数据库连接失败
@@ -262,11 +286,16 @@ docker-compose exec mysql mysqladmin ping
 CORS_ALLOW_ORIGINS=http://frontend:80,http://admin:80
 ```
 
-### Q3: 图片上传失败
-检查上传目录权限：
+### Q3: 图片上传失败（permission denied）
+检查上传目录权限（容器内 nonroot 用户 UID=1000）：
 ```bash
-docker-compose exec backend ls -la /app/uploads
-docker-compose exec backend chmod 777 /app/uploads
+# 宿主机执行
+chown -R 1000:1000 /opt/photoset/uploads/
+chmod -R 755 /opt/photoset/uploads/
+
+# 容器内执行
+docker exec -u root photoset-backend mkdir -p /app/uploads/photos /app/uploads/covers /app/uploads/avatars
+docker exec -u root photoset-backend chown -R nonroot:nonroot /app/uploads
 ```
 
 ### Q4: 内存不足
@@ -306,6 +335,8 @@ docker exec photoset-frontend nginx -s reload
 - 宝塔 Nginx 已配置 `client_max_body_size 50m`，限制主要在前端容器
 - 后端 Go 代码限制为 10MB（upload_handler.go 中 `MaxSize: 10 << 20`）
 
+---
+
 ## 📊 性能调优
 
 ### 1. 启用多阶段构建
@@ -317,15 +348,18 @@ docker exec photoset-frontend nginx -s reload
 各服务都有健康检查，确保容器正常工作后才开始服务依赖。
 
 ### 3. 合理配置缓存
-- Redis 缓存数据
+- Redis 缓存数据（列表 5min、详情 10min、标签 30min）
 - Nginx 缓存静态资源
 - 浏览器缓存静态文件
+- URL 签名防盗链（HMAC-SHA256）
+
+---
 
 ## 🔒 安全建议
 
 1. **生产环境必须修改**：
    - JWT_SECRET
-   - SIGN_SECRET  
+   - SIGN_SECRET
    - MySQL 密码
    - Redis 密码（如果需要）
 
@@ -344,33 +378,18 @@ docker-compose pull
 docker-compose up -d
 ```
 
-## 📈 监控集成
-
-### 1. Prometheus 监控
-为后端添加指标端点：
-```go
-// internal/http/routes/routes.go 中添加
-r.GET("/metrics", gin.WrapH(promhttp.Handler()))
-```
-
-### 2. 日志聚合
-使用 ELK 或 Loki：
-```yaml
-logging:
-  driver: loki
-  options:
-    loki-url: "http://loki:3100/api/prom/push"
-```
+---
 
 ## 📚 相关文档
 
+- [前端 README](../frontend/README.md) — 用户端详细文档
+- [管理后台 README](../frontend-admin/README.md) — 后台详细文档
+- [社区 API 文档](../docs/community-api.md) — 社区功能接口文档
 - [Docker Compose 文档](https://docs.docker.com/compose/)
 - [Go 官方多阶段构建指南](https://docs.docker.com/language/golang/)
-- [Nginx 容器化配置](https://hub.docker.com/_/nginx)
-- [MySQL Docker 配置](https://hub.docker.com/_/mysql)
 
 ---
 
-**维护者**: PhotoSet 团队  
-**最后更新**: 2026-04-19  
-**状态**: ✅ 生产就绪 — Phase 1~6 全部完成
+**维护者**: PhotoSet 团队
+**最后更新**: 2026-05-31
+**状态**: ✅ 生产就绪 — Phase 1~7 + 社区 + 消息通知 + 等级体系 全部完成

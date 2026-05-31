@@ -765,7 +765,7 @@ flutter run
 
 ## 相关文档
 
-- [后端 API 文档](./docker/) — Docker 部署指南
+- [后端 API 文档](./docker/README.DOCKER.md) — Docker 部署指南
 - [前端 README](./frontend/README.md) — 用户端详细文档
 - [管理后台 README](./frontend-admin/README.md) — 后台详细文档
 

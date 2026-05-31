@@ -38,6 +38,7 @@ npm run preview      # 预览构建结果
 - 封号 / 解封
 - 角色修改（guest/user/member/creator/admin）
 - 用户详情抽屉（发布套图数、订单数、消费总额）
+- 用户积分调整
 
 ### 订单管理 (OrderManage)
 - 订单列表 + 筛选 + 分页
@@ -49,6 +50,14 @@ npm run preview      # 预览构建结果
 
 ### 分类管理 (CategoryManage)
 - 分类 CRUD + 排序
+
+### 社区管理 (CommunityManage)
+- 帖子管理（审核/置顶/加精/删除）
+- 回帖管理（删除）
+- 敏感词管理（CRUD + 热加载）
+- 举报处理（通过/警告/忽略）
+- 用户积分管理（调整积分）
+- 社区统计面板
 
 ### 站点设置 (SiteSettings)
 - **基本信息**：站点名称、描述、Logo、备案号
@@ -73,7 +82,8 @@ frontend-admin/
 ├── src/
 │   ├── api/
 │   │   ├── index.js        # 核心 API 封装
-│   │   └── pages.js        # 页面管理 API
+│   │   ├── pages.js        # 页面管理 API
+│   │   └── community.js    # 社区管理 API
 │   ├── layout/
 │   │   └── AdminLayout.vue  # 主布局（侧边栏菜单）
 │   ├── router/
@@ -88,6 +98,7 @@ frontend-admin/
 │   │   ├── OrderManage.vue     # 订单管理
 │   │   ├── TagManage.vue       # 标签管理
 │   │   ├── CategoryManage.vue  # 分类管理
+│   │   ├── CommunityManage.vue # 社区管理
 │   │   ├── SiteSettings.vue    # 站点设置
 │   │   ├── Pages.vue           # 页面管理
 │   │   ├── EditPhotoset.vue    # 编辑套图
@@ -124,7 +135,24 @@ frontend-admin/
 | GET/POST/PUT/DELETE | `/admin/pages` | 页面管理 |
 | GET | `/admin/logs` | 操作日志 |
 
+### 社区管理接口
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/admin/community/posts` | 帖子列表 |
+| PUT | `/admin/community/posts/:id/pin` | 置顶/取消置顶 |
+| PUT | `/admin/community/posts/:id/essence` | 加精/取消加精 |
+| PUT | `/admin/community/posts/:id/status` | 审核状态 |
+| DELETE | `/admin/community/posts/:id` | 删除帖子 |
+| GET | `/admin/community/replies` | 回帖列表 |
+| DELETE | `/admin/community/replies/:id` | 删除回帖 |
+| GET/POST/PUT/DELETE | `/admin/community/keywords` | 敏感词管理 |
+| PUT | `/admin/community/keywords/reload` | 热加载敏感词 |
+| GET/PUT | `/admin/community/reports` | 举报处理 |
+| GET/PUT | `/admin/community/users` | 社区用户积分管理 |
+| GET | `/admin/community/stats` | 社区统计 |
+
 ---
 
-**最后更新**: 2026-04-19
+**最后更新**: 2026-05-31
 **状态**: ✅ 生产就绪

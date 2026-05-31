@@ -52,6 +52,17 @@ npm run preview      # 预览构建结果
 - 会员套餐展示
 - 会员等级权益
 
+### 社区功能
+- 帖子列表浏览（讨论/建议/作品展示/问答）
+- 发帖 / 回帖（支持楼中楼）
+- 点赞 / 收藏帖子
+- 关注用户
+- 积分等级展示
+
+### 消息通知
+- 系统消息
+- 互动通知（点赞/回帖/关注）
+
 ### 静态页面
 - 站点自定义页面（`/p/:slug`）
 
@@ -80,6 +91,9 @@ frontend/
 │   │   ├── Favorites.vue         # 收藏
 │   │   ├── Orders.vue            # 订单
 │   │   ├── Membership.vue        # 会员
+│   │   ├── Community.vue         # 社区
+│   │   ├── PostDetail.vue        # 帖子详情
+│   │   ├── Messages.vue          # 消息通知
 │   │   ├── StaticPage.vue        # 静态页面
 │   │   └── NotFound.vue
 │   ├── App.vue
@@ -102,6 +116,9 @@ frontend/
 | `/favorites` | 收藏 | 登录 |
 | `/orders` | 订单 | 登录 |
 | `/membership` | 会员套餐 | 公开 |
+| `/community` | 社区 | 公开 |
+| `/community/post/:id` | 帖子详情 | 公开 |
+| `/messages` | 消息通知 | 登录 |
 | `/p/:slug` | 静态页面 | 公开 |
 
 ## 开发配置
@@ -117,5 +134,5 @@ frontend/
 
 ---
 
-**最后更新**: 2026-04-19
+**最后更新**: 2026-05-31
 **状态**: ✅ 生产就绪
