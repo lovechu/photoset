@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"photoset/internal/http/middleware"
+	"photoset/internal/logger"
 	"photoset/internal/pkg/email"
 	"photoset/internal/pkg/jwt"
 	"photoset/internal/pkg/response"
@@ -51,9 +52,11 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	user, err := h.userService.Register(req.Nickname, req.Email, req.Password)
 	if err != nil {
+		logger.Warn("User registration failed", "email", req.Email, "error", err)
 		response.Error(c, -1, err.Error())
 		return
 	}
+	logger.Info("User registered successfully", "user_id", user.ID, "email", req.Email)
 
 	response.Success(c, gin.H{
 		"user": user,
@@ -82,15 +85,18 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	user, err := h.userService.Login(req.Email, req.Password)
 	if err != nil {
+		logger.Warn("User login failed", "email", req.Email, "error", err)
 		response.Error(c, -1, err.Error())
 		return
 	}
 
 	token, err := jwt.GenerateToken(user.ID, string(user.Role))
 	if err != nil {
+		logger.Error("Failed to generate JWT token", "user_id", user.ID, "error", err)
 		response.ServerError(c, "failed to generate token")
 		return
 	}
+	logger.Info("User logged in successfully", "user_id", user.ID, "email", req.Email)
 
 	response.Success(c, gin.H{
 		"token": token,
@@ -117,6 +123,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 
 	user, err := h.userService.GetProfile(userID)
 	if err != nil {
+		logger.Error("Failed to get user profile", "user_id", userID, "error", err)
 		response.ServerError(c, "failed to get user profile")
 		return
 	}

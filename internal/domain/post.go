@@ -65,6 +65,7 @@ type Post struct {
 	ViewCount   int           `gorm:"not null;default:0" json:"view_count"`
 	ReplyCount  int           `gorm:"not null;default:0" json:"reply_count"`
 	LikeCount   int           `gorm:"not null;default:0" json:"like_count"`
+	ShareCount  int           `gorm:"not null;default:0" json:"share_count"`
 	Status      string        `gorm:"type:varchar(20);not null;default:'approved'" json:"status"`
 
 	// Associations
@@ -72,6 +73,9 @@ type Post struct {
 	Photoset  *PhotoSet  `gorm:"foreignKey:PhotosetID" json:"photoset,omitempty"`
 	Replies   []PostReply `gorm:"foreignKey:PostID" json:"replies,omitempty"`
 	Likes     []PostLike  `gorm:"foreignKey:PostID" json:"-"`
+	Shares    []PostShare `gorm:"foreignKey:PostID" json:"-"`
+	Tags      []Tag      `gorm:"many2many:post_tags;joinForeignKey:post_id;joinReferences:tag_id" json:"tags,omitempty"`
+	Topics    []Topic    `gorm:"many2many:post_topics;joinForeignKey:post_id;joinReferences:topic_id" json:"topics,omitempty"`
 }
 
 // TableName specifies the table name

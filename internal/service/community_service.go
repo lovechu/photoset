@@ -17,11 +17,18 @@ type CommunityService struct {
 	replyRepo     *repository.PostReplyRepository
 	likeRepo      *repository.PostLikeRepository
 	replyLikeRepo *repository.PostReplyLikeRepository
+	shareRepo     *repository.PostShareRepository
 	pointRepo     *repository.UserPointRepository
 	reportRepo    *repository.PostReportRepository
 	categoryRepo  *repository.PostCategoryRepository
+	draftRepo     *repository.DraftRepository
+	tagRepo       *repository.TagRepository
+	postTagRepo   *repository.PostTagRepository
+	topicRepo     *repository.TopicRepository
+	postTopicRepo *repository.PostTopicRepository
 	pointService  *PointService
 	filterService *SensitiveFilterService
+	mentionService *MentionService
 }
 
 // NewCommunityService creates a new CommunityService
@@ -30,22 +37,36 @@ func NewCommunityService(
 	replyRepo *repository.PostReplyRepository,
 	likeRepo *repository.PostLikeRepository,
 	replyLikeRepo *repository.PostReplyLikeRepository,
+	shareRepo *repository.PostShareRepository,
 	pointRepo *repository.UserPointRepository,
 	reportRepo *repository.PostReportRepository,
 	categoryRepo *repository.PostCategoryRepository,
+	draftRepo *repository.DraftRepository,
+	tagRepo *repository.TagRepository,
+	postTagRepo *repository.PostTagRepository,
+	topicRepo *repository.TopicRepository,
+	postTopicRepo *repository.PostTopicRepository,
 	pointService *PointService,
 	filterService *SensitiveFilterService,
+	mentionService *MentionService,
 ) *CommunityService {
 	return &CommunityService{
 		postRepo:      postRepo,
 		replyRepo:     replyRepo,
 		likeRepo:      likeRepo,
 		replyLikeRepo: replyLikeRepo,
+		shareRepo:     shareRepo,
 		pointRepo:     pointRepo,
 		reportRepo:    reportRepo,
 		categoryRepo:  categoryRepo,
+		draftRepo:     draftRepo,
+		tagRepo:       tagRepo,
+		postTagRepo:   postTagRepo,
+		topicRepo:     topicRepo,
+		postTopicRepo: postTopicRepo,
 		pointService:  pointService,
 		filterService: filterService,
+		mentionService: mentionService,
 	}
 }
 
@@ -97,8 +118,43 @@ func (s *CommunityService) CreatePost(userID uint, req *CreatePostRequest) (*dom
 		return nil, err
 	}
 
+	// Handle tags
+	if len(req.Tags) > 0 {
+		tags, err := s.tagRepo.FindOrCreateBatch(req.Tags)
+		if err != nil {
+			// Log error but don't fail post creation
+			_ = err
+		} else {
+			if err := s.postTagRepo.AddTagsToPost(post.ID, tags); err != nil {
+				// Log error but don't fail post creation
+				_ = err
+			}
+		}
+	}
+
+	// Handle topics
+	if len(req.Topics) > 0 {
+		topics, err := s.topicRepo.FindOrCreateBatch(req.Topics)
+		if err != nil {
+			// Log error but don't fail post creation
+			_ = err
+		} else {
+			if err := s.postTopicRepo.AddTopicsToPost(post.ID, topics); err != nil {
+				// Log error but don't fail post creation
+				_ = err
+			}
+			// Increment post count for each topic
+			for _, topic := range topics {
+				go s.topicRepo.IncrementPostCount(topic.ID)
+			}
+		}
+	}
+
 	// Add points after successful post creation (non-critical, can fail independently)
 	go s.pointService.AddPointsForPost(userID)
+
+	// Send mention notifications (non-critical, async)
+	go s.mentionService.SendMentionNotifications(userID, post.ID, req.Content)
 
 	// Load associations
 	post, err = s.postRepo.FindByID(post.ID)
@@ -153,6 +209,9 @@ func (s *CommunityService) CreateReply(userID, postID uint, req *CreateReplyRequ
 
 	// Add points after successful reply creation (non-critical, can fail independently)
 	go s.pointService.AddPointsForReply(userID)
+
+	// Send mention notifications (non-critical, async)
+	go s.mentionService.SendMentionNotifications(userID, postID, req.Content)
 
 	// Load associations
 	reply, err = s.replyRepo.FindByID(reply.ID)
@@ -355,17 +414,521 @@ func (s *CommunityService) GetPostDetail(postID uint) (*domain.Post, error) {
 	return post, nil
 }
 
+// UpdatePost updates a post (only by the owner)
+func (s *CommunityService) UpdatePost(userID, postID uint, req *UpdatePostRequest) (*domain.Post, error) {
+	// Find the post
+	post, err := s.postRepo.FindByID(postID)
+	if err != nil {
+		return nil, domain.ErrPostNotFound
+	}
+
+	// Check ownership
+	if post.UserID != userID {
+		return nil, domain.ErrPermissionDenied
+	}
+
+	// Build updates map
+	updates := map[string]interface{}{}
+
+	if req.Title != nil {
+		filteredTitle, _ := s.filterService.FilterTextAdvanced(*req.Title)
+		updates["title"] = filteredTitle
+	}
+	if req.Content != nil {
+		filteredContent, _ := s.filterService.FilterTextAdvanced(*req.Content)
+		updates["content"] = filteredContent
+	}
+	if req.Category != nil {
+		// Validate category exists
+		activeKeys, err := s.categoryRepo.GetActiveKeys()
+		if err != nil {
+			return nil, err
+		}
+		if !slices.Contains(activeKeys, *req.Category) {
+			return nil, domain.ErrInvalidCategory
+		}
+		updates["category"] = *req.Category
+	}
+	if req.PostType != nil {
+		validPostTypes := []domain.PostType{domain.PostTypeDynamic, domain.PostTypeArticle, domain.PostTypeQuestion, domain.PostTypeSuggest, domain.PostTypeQuick}
+		valid := false
+		for _, t := range validPostTypes {
+			if domain.PostType(*req.PostType) == t {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			return nil, domain.ErrInvalidCategory
+		}
+		updates["post_type"] = *req.PostType
+	}
+	if req.Visibility != nil {
+		validVisibilities := []domain.PostVisibility{domain.VisibilityPublic, domain.VisibilityMember, domain.VisibilityVIP, domain.VisibilityAdmin}
+		valid := false
+		for _, v := range validVisibilities {
+			if domain.PostVisibility(*req.Visibility) == v {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			return nil, domain.ErrInvalidVisibility
+		}
+		updates["visibility"] = *req.Visibility
+	}
+
+	if len(updates) == 0 && req.Tags == nil && req.Topics == nil {
+		return post, nil // Nothing to update
+	}
+
+	if len(updates) > 0 {
+		if err := s.postRepo.Update(postID, updates); err != nil {
+			return nil, err
+		}
+	}
+
+	// Handle tags update
+	if req.Tags != nil {
+		if len(req.Tags) == 0 {
+			// Remove all tags
+			if err := s.postTagRepo.RemoveAllTagsFromPost(postID); err != nil {
+				// Log error but don't fail update
+				_ = err
+			}
+		} else {
+			tags, err := s.tagRepo.FindOrCreateBatch(req.Tags)
+			if err != nil {
+				// Log error but don't fail update
+				_ = err
+			} else {
+				if err := s.postTagRepo.AddTagsToPost(postID, tags); err != nil {
+					// Log error but don't fail update
+					_ = err
+				}
+			}
+		}
+	}
+
+	// Handle topics update
+	if req.Topics != nil {
+		// Get old topics to decrement count
+		oldTopics, _ := s.postTopicRepo.GetTopicsByPostID(postID)
+
+		if len(req.Topics) == 0 {
+			// Remove all topics
+			if err := s.postTopicRepo.RemoveAllTopicsFromPost(postID); err != nil {
+				// Log error but don't fail update
+				_ = err
+			}
+			// Decrement post count for old topics
+			for _, topic := range oldTopics {
+				go s.topicRepo.DecrementPostCount(topic.ID)
+			}
+		} else {
+			topics, err := s.topicRepo.FindOrCreateBatch(req.Topics)
+			if err != nil {
+				// Log error but don't fail update
+				_ = err
+			} else {
+				if err := s.postTopicRepo.AddTopicsToPost(postID, topics); err != nil {
+					// Log error but don't fail update
+					_ = err
+				}
+				// Decrement post count for old topics
+				for _, topic := range oldTopics {
+					go s.topicRepo.DecrementPostCount(topic.ID)
+				}
+				// Increment post count for new topics
+				for _, topic := range topics {
+					go s.topicRepo.IncrementPostCount(topic.ID)
+				}
+			}
+		}
+	}
+
+	// Reload post
+	return s.postRepo.FindByID(postID)
+}
+
+// DeletePost deletes a post (only by the owner)
+func (s *CommunityService) DeletePost(userID, postID uint) error {
+	// Find the post
+	post, err := s.postRepo.FindByID(postID)
+	if err != nil {
+		return domain.ErrPostNotFound
+	}
+
+	// Check ownership
+	if post.UserID != userID {
+		return domain.ErrPermissionDenied
+	}
+
+	return s.postRepo.Delete(postID)
+}
+
+// UpdateReply updates a reply (only by the owner)
+func (s *CommunityService) UpdateReply(userID, replyID uint, req *UpdateReplyRequest) (*domain.PostReply, error) {
+	// Find the reply
+	reply, err := s.replyRepo.FindByID(replyID)
+	if err != nil {
+		return nil, domain.ErrReplyNotFound
+	}
+
+	// Check ownership
+	if reply.UserID != userID {
+		return nil, domain.ErrPermissionDenied
+	}
+
+	// Filter sensitive words
+	filteredContent, _ := s.filterService.FilterTextAdvanced(req.Content)
+
+	updates := map[string]interface{}{
+		"content": filteredContent,
+	}
+
+	if err := s.replyRepo.Update(replyID, updates); err != nil {
+		return nil, err
+	}
+
+	// Reload reply
+	return s.replyRepo.FindByID(replyID)
+}
+
+// DeleteReply deletes a reply (only by the owner)
+func (s *CommunityService) DeleteReply(userID, replyID uint) error {
+	// Find the reply
+	reply, err := s.replyRepo.FindByID(replyID)
+	if err != nil {
+		return domain.ErrReplyNotFound
+	}
+
+	// Check ownership
+	if reply.UserID != userID {
+		return domain.ErrPermissionDenied
+	}
+
+	// Delete reply and decrement post reply count
+	if err := s.replyRepo.Delete(replyID); err != nil {
+		return err
+	}
+
+	// Decrement post reply count (non-critical)
+	s.postRepo.DecrementReplyCount(reply.PostID)
+
+	return nil
+}
+
+// SaveDraft saves a draft (create or update)
+func (s *CommunityService) SaveDraft(userID uint, req *SaveDraftRequest) (*domain.Draft, error) {
+	// Limit to 20 drafts per user
+	count, err := s.draftRepo.CountByUserID(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if req.ID != nil {
+		// Update existing draft
+		draft, err := s.draftRepo.FindByID(*req.ID)
+		if err != nil {
+			return nil, err
+		}
+		// Check ownership
+		if draft.UserID != userID {
+			return nil, domain.ErrPermissionDenied
+		}
+
+		updates := map[string]interface{}{}
+		if req.Title != "" {
+			updates["title"] = req.Title
+		}
+		if req.Content != "" {
+			updates["content"] = req.Content
+		}
+		if req.Category != "" {
+			updates["category"] = req.Category
+		}
+		if req.PostType != "" {
+			updates["post_type"] = req.PostType
+		}
+		if req.Visibility != "" {
+			updates["visibility"] = req.Visibility
+		}
+
+		if len(updates) > 0 {
+			if err := s.draftRepo.Update(*req.ID, updates); err != nil {
+				return nil, err
+			}
+		}
+
+		return s.draftRepo.FindByID(*req.ID)
+	}
+
+	// Create new draft
+	if count >= 20 {
+		return nil, domain.ErrDraftLimitReached
+	}
+
+	draft := &domain.Draft{
+		UserID:     userID,
+		Title:      req.Title,
+		Content:    req.Content,
+		Category:   req.Category,
+		PostType:   req.PostType,
+		Visibility: req.Visibility,
+	}
+
+	if draft.Category == "" {
+		draft.Category = "discussion"
+	}
+	if draft.PostType == "" {
+		draft.PostType = "dynamic"
+	}
+	if draft.Visibility == "" {
+		draft.Visibility = "public"
+	}
+
+	if err := s.draftRepo.Create(draft); err != nil {
+		return nil, err
+	}
+
+	return draft, nil
+}
+
+// GetDrafts gets user's drafts with pagination
+func (s *CommunityService) GetDrafts(userID uint, page, pageSize int) ([]domain.Draft, int64, error) {
+	return s.draftRepo.ListByUserID(userID, page, pageSize)
+}
+
+// DeleteDraft deletes a draft (only by the owner)
+func (s *CommunityService) DeleteDraft(userID, draftID uint) error {
+	draft, err := s.draftRepo.FindByID(draftID)
+	if err != nil {
+		return domain.ErrPostNotFound // reuse error
+	}
+
+	if draft.UserID != userID {
+		return domain.ErrPermissionDenied
+	}
+
+	return s.draftRepo.Delete(draftID)
+}
+
+// GetPopularTags returns popular tags
+func (s *CommunityService) GetPopularTags(limit int) ([]domain.Tag, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	return s.tagRepo.GetPopularTags(limit)
+}
+
+// SearchTags searches tags by keyword
+func (s *CommunityService) SearchTags(keyword string, limit int) ([]domain.Tag, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	return s.tagRepo.SearchByName(keyword, limit)
+}
+
+// GetPostsByTagName gets posts by tag name
+func (s *CommunityService) GetPostsByTagName(tagName string, page, pageSize int) ([]domain.Post, int64, error) {
+	tag, err := s.tagRepo.FindByName(tagName)
+	if err != nil {
+		return nil, 0, domain.ErrTagNotFound
+	}
+
+	postIDs, err := s.postTagRepo.GetPostIDsByTagID(tag.ID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if len(postIDs) == 0 {
+		return []domain.Post{}, 0, nil
+	}
+
+	// Get posts with pagination
+	var posts []domain.Post
+	var total int64
+
+	offset := (page - 1) * pageSize
+	err = s.postRepo.DB.
+		Where("id IN ?", postIDs).
+		Preload("User").
+		Preload("Tags").
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(pageSize).
+		Find(&posts).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	err = s.postRepo.DB.
+		Model(&domain.Post{}).
+		Where("id IN ?", postIDs).
+		Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return posts, total, nil
+}
+
+// GetHotTopics returns hot topics
+func (s *CommunityService) GetHotTopics(limit int) ([]domain.Topic, error) {
+	if limit <= 0 {
+		limit = 20
+	}
+	return s.topicRepo.GetHotTopics(limit)
+}
+
+// SearchTopics searches topics by keyword
+func (s *CommunityService) SearchTopics(keyword string, limit int) ([]domain.Topic, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	return s.topicRepo.SearchByName(keyword, limit)
+}
+
+// GetPostsByTopicName gets posts by topic name
+func (s *CommunityService) GetPostsByTopicName(topicName string, page, pageSize int) ([]domain.Post, int64, error) {
+	topic, err := s.topicRepo.FindByName(topicName)
+	if err != nil {
+		return nil, 0, domain.ErrTopicNotFound
+	}
+
+	postIDs, err := s.postTopicRepo.GetPostIDsByTopicID(topic.ID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if len(postIDs) == 0 {
+		return []domain.Post{}, 0, nil
+	}
+
+	// Get posts with pagination
+	var posts []domain.Post
+	var total int64
+
+	offset := (page - 1) * pageSize
+	err = s.postRepo.DB.
+		Where("id IN ?", postIDs).
+		Preload("User").
+		Preload("Tags").
+		Preload("Topics").
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(pageSize).
+		Find(&posts).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	err = s.postRepo.DB.
+		Model(&domain.Post{}).
+		Where("id IN ?", postIDs).
+		Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return posts, total, nil
+}
+
 // Request types
 type CreatePostRequest struct {
-	Title      string `json:"title" binding:""`
-	Content    string `json:"content" binding:"required"`
-	PhotosetID *uint  `json:"photoset_id"`
-	Category   string `json:"category"`
-	PostType   string `json:"post_type"`
-	Visibility string `json:"visibility"`
+	Title      string   `json:"title" binding:""`
+	Content    string   `json:"content" binding:"required"`
+	PhotosetID *uint    `json:"photoset_id"`
+	Category   string   `json:"category"`
+	PostType   string   `json:"post_type"`
+	Visibility string   `json:"visibility"`
+	Tags       []string `json:"tags"`
+	Topics     []string `json:"topics"`
+}
+
+type UpdatePostRequest struct {
+	Title      *string  `json:"title"`
+	Content    *string  `json:"content"`
+	Category   *string  `json:"category"`
+	PostType   *string  `json:"post_type"`
+	Visibility *string  `json:"visibility"`
+	Tags       []string `json:"tags"`
+	Topics     []string `json:"topics"`
 }
 
 type CreateReplyRequest struct {
 	Content       string `json:"content" binding:"required"`
 	ParentReplyID *uint  `json:"parent_reply_id"`
+}
+
+type UpdateReplyRequest struct {
+	Content string `json:"content" binding:"required"`
+}
+
+type SaveDraftRequest struct {
+	ID         *uint  `json:"id"`         // nil for create, non-nil for update
+	Title      string `json:"title"`
+	Content    string `json:"content" binding:"required"`
+	Category   string `json:"category"`
+	PostType   string `json:"post_type"`
+	Visibility string `json:"visibility"`
+}
+
+// RecordShare records a share action and increments post share count atomically
+func (s *CommunityService) RecordShare(userID, postID uint, platform string) error {
+	// Validate platform
+	validPlatforms := map[string]bool{
+		"wechat": true,
+		"weibo":  true,
+		"link":   true,
+		"other":  true,
+	}
+	if !validPlatforms[platform] {
+		platform = "other"
+	}
+
+	// Check post exists
+	_, err := s.postRepo.FindByID(postID)
+	if err != nil {
+		return domain.ErrPostNotFound
+	}
+
+	// Record share and increment count in transaction
+	return s.shareRepo.DB.Transaction(func(tx *gorm.DB) error {
+		share := &domain.PostShare{
+			UserID:   userID,
+			PostID:   postID,
+			Platform: platform,
+		}
+		if err := tx.Create(share).Error; err != nil {
+			return err
+		}
+		// Atomic increment
+		if err := tx.Model(&domain.Post{}).Where("id = ?", postID).Update("share_count", gorm.Expr("share_count + 1")).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+// GetShareStats returns total and per-platform share counts for a post
+func (s *CommunityService) GetShareStats(postID uint) (int64, map[string]int64, error) {
+	// Check post exists
+	_, err := s.postRepo.FindByID(postID)
+	if err != nil {
+		return 0, nil, domain.ErrPostNotFound
+	}
+
+	total, err := s.shareRepo.CountByPostID(postID)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	platformCounts, err := s.shareRepo.CountByPostIDAndPlatform(postID)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	return total, platformCounts, nil
 }

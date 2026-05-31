@@ -7,6 +7,7 @@ import (
 	"photoset/internal/database"
 	"photoset/internal/domain"
 	"photoset/internal/http/routes"
+	"photoset/internal/logger"
 	"photoset/internal/pkg/jwt"
 
 	"github.com/gin-gonic/gin"
@@ -16,8 +17,13 @@ import (
 func main() {
 	cfg := config.Load()
 
+	// 初始化日志系统
+	logger.Init(cfg.Log.Level, cfg.Log.Format)
+	logger.Info("Logger initialized", "level", cfg.Log.Level, "format", cfg.Log.Format)
+
 	// 初始化 MySQL
 	if err := database.InitMySQL(cfg); err != nil {
+		logger.Error("Failed to initialize MySQL", "error", err)
 		log.Fatalf("Failed to initialize MySQL: %v", err)
 	}
 	defer database.CloseMySQL()
@@ -49,12 +55,23 @@ func main() {
 		&domain.PostReport{},
 		&domain.CommunityCategory{},
 		&domain.Follow{},
+		&domain.Notification{},
+		&domain.Message{},
+		&domain.PostShare{},
+		&domain.Draft{},
+		&domain.Topic{},
+		// User level system
+		&domain.UserLevelConfig{},
+		&domain.Achievement{},
+		&domain.UserAchievement{},
+		&domain.PointsMallItem{},
+		&domain.UserPointsExchange{},
 	); err != nil {
 		// 忽略多对多关联表的重复主键错误（表已存在时 GORM 会尝试重复添加主键）
 		if !isMultiplePrimaryKeyError(err) {
 			log.Fatalf("Failed to auto migrate: %v", err)
 		}
-		log.Printf("Warning: migrate skipped duplicate primary key issue (safe to ignore): %v", err)
+		logger.Warn("Migrate skipped duplicate primary key issue (safe to ignore)", "error", err)
 	}
 
 	// 确保 FULLTEXT 索引存在（容错方式）
@@ -69,12 +86,13 @@ func main() {
 			CREATE FULLTEXT INDEX ft_title_description
 			ON photosets (title, description) WITH PARSER ngram
 		`).Error; err != nil {
-			log.Printf("Warning: Failed to create FULLTEXT index: %v", err)
+			logger.Warn("Failed to create FULLTEXT index", "error", err)
 		}
 	}
 
 	// 初始化 Redis（付费缓存依赖 Redis，必须成功）
 	if err := database.InitRedis(cfg); err != nil {
+		logger.Error("Failed to initialize Redis (required for paid cache)", "error", err)
 		log.Fatalf("Failed to initialize Redis (required for paid cache): %v", err)
 	}
 	defer database.CloseRedis()
@@ -93,10 +111,10 @@ func main() {
 
 	// 启动服务器
 	addr := ":" + cfg.Server.Port
-	log.Printf("Starting PhotoSet API server on %s", addr)
-	log.Printf("Server mode: %s", cfg.Server.Mode)
+	logger.Info("Starting PhotoSet API server", "addr", addr, "mode", cfg.Server.Mode)
 
 	if err := r.Run(addr); err != nil {
+		logger.Error("Failed to start server", "error", err)
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }

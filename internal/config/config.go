@@ -14,6 +14,12 @@ type Config struct {
 	Redis   RedisConfig
 	JWT     JWTConfig
 	Storage StorageConfig
+	Log     LogConfig
+}
+
+type LogConfig struct {
+	Level  string // debug/info/warn/error
+	Format string // json/text
 }
 
 type ServerConfig struct {
@@ -96,6 +102,10 @@ func Load() *Config {
 			R2PublicURL: getEnv("R2_PUBLIC_URL", ""),
 			SignSecret:  getEnv("SIGN_SECRET", "default-sign-secret-change-me"),
 			SignExpire:  getEnvAsInt("SIGN_EXPIRE", 7200),
+		},
+		Log: LogConfig{
+			Level:  getEnv("LOG_LEVEL", "info"),
+			Format: getEnv("LOG_FORMAT", "text"),
 		},
 	}
 

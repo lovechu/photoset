@@ -34,6 +34,10 @@ func setupCommunityTest(t *testing.T) (
 		&domain.UserPointLog{},
 		&domain.SensitiveWord{},
 		&domain.PostReport{},
+		&domain.Draft{},
+		&domain.PostShare{},
+		&domain.Tag{},
+		&domain.Topic{},
 	)
 	if err != nil {
 		t.Fatalf("failed to migrate database: %v", err)
@@ -46,21 +50,38 @@ func setupCommunityTest(t *testing.T) (
 	replyLikeRepo := repository.NewPostReplyLikeRepository(db)
 	pointRepo := repository.NewUserPointRepository(db)
 	reportRepo := repository.NewPostReportRepository(db)
+	categoryRepo := repository.NewPostCategoryRepository(db)
 	wordRepo := repository.NewSensitiveWordRepository(db)
+	draftRepo := repository.NewDraftRepository(db)
+	shareRepo := repository.NewPostShareRepository(db)
+	tagRepo := repository.NewTagRepository(db)
+	postTagRepo := repository.NewPostTagRepository(db)
+	topicRepo := repository.NewTopicRepository(db)
+	postTopicRepo := repository.NewPostTopicRepository(db)
+	notificationRepo := repository.NewNotificationRepository(db)
 
 	// Create services
 	pointService := NewPointService(pointRepo)
 	filterService := NewSensitiveFilterService(wordRepo)
-	
+	mentionService := NewMentionService(repository.NewUserRepository(), notificationRepo)
+
 	communityService := NewCommunityService(
 		postRepo,
 		replyRepo,
 		likeRepo,
 		replyLikeRepo,
+		shareRepo,
 		pointRepo,
 		reportRepo,
+		categoryRepo,
+		draftRepo,
+		tagRepo,
+		postTagRepo,
+		topicRepo,
+		postTopicRepo,
 		pointService,
 		filterService,
+		mentionService,
 	)
 
 	return communityService, pointService, filterService, db

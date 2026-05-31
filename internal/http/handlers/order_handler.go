@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"photoset/internal/logger"
 	"photoset/internal/pkg/response"
 	"photoset/internal/service"
 
@@ -37,10 +38,11 @@ func (h *OrderHandler) Create(c *gin.Context) {
 
 	order, err := h.service.CreateOrder(userID.(uint), req.Type, req.MembershipID, req.PhotoSetID)
 	if err != nil {
+		logger.Warn("Order creation failed", "user_id", userID, "type", req.Type, "error", err)
 		response.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
-
+	logger.Info("Order created", "order_id", order.ID, "user_id", userID, "type", req.Type)
 	response.Success(c, order)
 }
 
@@ -57,10 +59,11 @@ func (h *OrderHandler) Pay(c *gin.Context) {
 
 	token, err := h.service.MockPay(userID.(uint), uint(orderID))
 	if err != nil {
+		logger.Warn("Payment failed", "order_id", orderID, "user_id", userID, "error", err)
 		response.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
-
+	logger.Info("Payment successful", "order_id", orderID, "user_id", userID)
 	response.Success(c, gin.H{
 		"message": "支付成功",
 		"token":   token,

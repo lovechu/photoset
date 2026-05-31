@@ -23,6 +23,7 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	healthHandler := handlers.NewHealthHandler()
 
 	r.Use(middleware.CORS())
+	r.Use(middleware.RequestID())
 	r.Use(middleware.Logger())
 	r.Use(middleware.Recovery())
 
@@ -68,34 +69,79 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	wordRepo := repository.NewSensitiveWordRepository(database.GetMySQL())
 	reportRepo := repository.NewPostReportRepository(database.GetMySQL())
 	categoryRepo := repository.NewPostCategoryRepository(database.GetMySQL())
+	draftRepo := repository.NewDraftRepository(database.GetMySQL())
+	shareRepo := repository.NewPostShareRepository(database.GetMySQL())
+	tagRepo := repository.NewTagRepository(database.GetMySQL())
+	postTagRepo := repository.NewPostTagRepository(database.GetMySQL())
+	topicRepo := repository.NewTopicRepository(database.GetMySQL())
+	postTopicRepo := repository.NewPostTopicRepository(database.GetMySQL())
+	notificationRepo := repository.NewNotificationRepository(database.GetMySQL())
 
 	pointService := service.NewPointService(pointRepo)
 	filterService := service.NewSensitiveFilterService(wordRepo)
+	mentionService := service.NewMentionService(userRepo, notificationRepo)
 	communityService := service.NewCommunityService(
 		postRepo,
 		replyRepo,
 		likeRepo,
 		replyLikeRepo,
+		shareRepo,
 		pointRepo,
 		reportRepo,
 		categoryRepo,
+		draftRepo,
+		tagRepo,
+		postTagRepo,
+		topicRepo,
+		postTopicRepo,
 		pointService,
 		filterService,
+		mentionService,
 	)
 	hotPostsService := service.NewHotPostsService(postRepo)
+	recommendationService := service.NewRecommendationService(
+		database.GetMySQL(),
+		postRepo,
+		likeRepo,
+		shareRepo,
+		replyRepo,
+		postTagRepo,
+		postTopicRepo,
+		tagRepo,
+		topicRepo,
+		hotPostsService,
+	)
 
 	communityHandler := handlers.NewCommunityHandler(
 		database.GetMySQL(),
 		communityService,
 		pointService,
 		hotPostsService,
+		recommendationService,
 	)
 	adminCommunityHandler := admin.NewAdminCommunityHandler(database.GetMySQL())
+
+	// 通知功能
+	notificationService := service.NewNotificationService(notificationRepo)
+	notificationHandler := handlers.NewNotificationHandler(notificationService)
+
+	// 私信功能
+	messageRepo := repository.NewMessageRepository(database.GetMySQL())
+	messageService := service.NewMessageService(messageRepo, userRepo)
+	messageHandler := handlers.NewMessageHandler(messageService)
 
 	// Follow 功能
 	followRepo := repository.NewFollowRepository(database.GetMySQL())
 	followService := service.NewFollowService(followRepo, userRepo)
 	followHandler := handlers.NewFollowHandler(followService)
+
+	// 用户等级系统
+	levelRepo := repository.NewUserLevelRepository(database.GetMySQL())
+	achievementRepo := repository.NewAchievementRepository(database.GetMySQL())
+	pointsMallRepo := repository.NewPointsMallRepository(database.GetMySQL())
+	userLevelService := service.NewUserLevelService(levelRepo, achievementRepo, pointsMallRepo, pointRepo, database.GetMySQL())
+	userLevelService.Initialize() // 初始化默认数据
+	userLevelHandler := handlers.NewUserLevelHandler(userLevelService)
 
 	// 加载敏感词到内存
 	service.InitSensitiveWords(wordRepo)
@@ -264,5 +310,5 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	}
 
 	// === 注册社区路由 ===
-	RegisterCommunityRoutes(r, communityHandler, followHandler, adminCommunityHandler)
+	RegisterCommunityRoutes(r, communityHandler, followHandler, adminCommunityHandler, notificationHandler, messageHandler, userLevelHandler)
 }

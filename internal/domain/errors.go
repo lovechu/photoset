@@ -38,4 +38,30 @@ var (
 	// Permission errors
 	ErrPermissionDenied      = errors.New("permission denied")
 	ErrLoginRequired         = errors.New("login required")
+
+	// Draft errors
+	ErrDraftLimitReached     = errors.New("draft limit reached (max 20)")
+
+	// Tag errors
+	ErrTagNotFound           = errors.New("tag not found")
+	ErrTagNameRequired       = errors.New("tag name is required")
+	ErrTagNameTooLong        = errors.New("tag name cannot exceed 50 characters")
+	ErrMaxTagsReached        = errors.New("maximum tags reached (max 10)")
+
+	// Topic errors
+	ErrTopicNotFound         = errors.New("topic not found")
+	ErrTopicNameRequired     = errors.New("topic name is required")
+	ErrTopicNameTooLong      = errors.New("topic name cannot exceed 100 characters")
+
+	// Points Mall errors
+	ErrItemNotFound          = errors.New("item not found")
+	ErrItemNotActive         = errors.New("item is not active")
+	ErrOutOfStock            = errors.New("item is out of stock")
+	ErrInsufficientPoints    = errors.New("insufficient points")
+	ErrLevelTooLow           = errors.New("level too low for this item")
+	ErrAlreadyExchanged      = errors.New("already exchanged this item")
+
+	// Achievement errors
+	ErrAchievementNotFound   = errors.New("achievement not found")
+	ErrAchievementLocked     = errors.New("achievement is locked")
 )

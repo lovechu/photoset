@@ -10,6 +10,7 @@ type Tag struct {
 
 	// 关联
 	PhotoSets []PhotoSet `gorm:"many2many:photoset_tags;joinForeignKey:tag_id;joinReferences:photoset_id" json:"photosets,omitempty"`
+	Posts     []Post     `gorm:"many2many:post_tags;joinForeignKey:tag_id;joinReferences:post_id" json:"posts,omitempty"`
 }
 
 // TableName 指定表名

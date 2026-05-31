@@ -228,3 +228,46 @@ func (r *PostRepository) FindByUserID(userID uint, page, pageSize int) ([]domain
 
 	return posts, total, nil
 }
+
+// Search searches posts by keyword in title and content
+func (r *PostRepository) Search(keyword string, page, pageSize int, userID uint, userRole string) ([]domain.Post, int64, error) {
+	var posts []domain.Post
+	var total int64
+
+	query := r.DB.Model(&domain.Post{}).Where("status = ?", "approved")
+
+	// Visibility filter based on user role
+	if userID == 0 {
+		query = query.Where("visibility = ?", "public")
+	} else if userRole == "admin" {
+		// Admin can see all
+	} else if userRole == "vip" || userRole == string(domain.RoleCreator) {
+		query = query.Where("visibility IN (?, ?, ?)", "public", "member", "vip")
+	} else if userRole == "member" {
+		query = query.Where("visibility IN (?, ?)", "public", "member")
+	} else {
+		query = query.Where("visibility = ?", "public")
+	}
+
+	// Keyword search in title and content
+	if keyword != "" {
+		searchPattern := "%" + keyword + "%"
+		query = query.Where("(title LIKE ? OR content LIKE ?)", searchPattern, searchPattern)
+	}
+
+	// Count total
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Order by relevance (title match first, then latest)
+	offset := (page - 1) * pageSize
+	err := query.Preload("User").
+		Order(gorm.Expr("CASE WHEN title LIKE ? THEN 0 ELSE 1 END, created_at DESC", "%"+keyword+"%")).
+		Offset(offset).Limit(pageSize).Find(&posts).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return posts, total, nil
+}

@@ -21,6 +21,9 @@ type UserRepository interface {
 	CountAll() (int64, error)
 	// Follow APIs
 	UpdateField(id uint, field string, value interface{}) error
+	// Search APIs (for @mention)
+	SearchByNickname(keyword string, limit int) ([]domain.User, error)
+	FindByIDs(ids []uint) ([]domain.User, error)
 }
 
 type userRepository struct {
@@ -142,5 +145,29 @@ func (r *userRepository) CountAll() (int64, error) {
 // UpdateField 更新用户指定字段
 func (r *userRepository) UpdateField(id uint, field string, value interface{}) error {
 	return r.db.Model(&domain.User{}).Where("id = ?", id).Update(field, value).Error
+}
+
+// SearchByNickname 根据昵称模糊搜索用户（用于@提及）
+func (r *userRepository) SearchByNickname(keyword string, limit int) ([]domain.User, error) {
+	var users []domain.User
+	like := "%" + keyword + "%"
+	err := r.db.Select("id, nickname, avatar").
+		Where("nickname LIKE ? AND status = ?", like, 1).
+		Order("nickname ASC").
+		Limit(limit).
+		Find(&users).Error
+	return users, err
+}
+
+// FindByIDs 根据ID列表批量查询用户
+func (r *userRepository) FindByIDs(ids []uint) ([]domain.User, error) {
+	var users []domain.User
+	if len(ids) == 0 {
+		return users, nil
+	}
+	err := r.db.Select("id, nickname, avatar").
+		Where("id IN ?", ids).
+		Find(&users).Error
+	return users, err
 }
 

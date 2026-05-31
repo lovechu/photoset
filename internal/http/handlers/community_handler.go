@@ -6,6 +6,7 @@ import (
 
 	"photoset/internal/domain"
 	"photoset/internal/http/middleware"
+	"photoset/internal/logger"
 	"photoset/internal/pkg/response"
 	"photoset/internal/repository"
 	"photoset/internal/service"
@@ -16,19 +17,21 @@ import (
 
 // CommunityHandler handles community-related requests
 type CommunityHandler struct {
-	communityService    *service.CommunityService
-	pointService       *service.PointService
-	hotPostsService    *service.HotPostsService
-	postRepo           *repository.PostRepository
-	replyRepo          *repository.PostReplyRepository
-	likeRepo           *repository.PostLikeRepository
-	replyLikeRepo      *repository.PostReplyLikeRepository
-	pointRepo          *repository.UserPointRepository
-	reportRepo         *repository.PostReportRepository
-	categoryRepo       *repository.PostCategoryRepository
-	followRepo         *repository.FollowRepository
-	postFavoriteRepo   *repository.PostFavoriteRepository
-	userRepo           repository.UserRepository
+	communityService      *service.CommunityService
+	pointService          *service.PointService
+	hotPostsService       *service.HotPostsService
+	recommendationService *service.RecommendationService
+	postRepo              *repository.PostRepository
+	replyRepo             *repository.PostReplyRepository
+	likeRepo              *repository.PostLikeRepository
+	replyLikeRepo         *repository.PostReplyLikeRepository
+	pointRepo             *repository.UserPointRepository
+	reportRepo            *repository.PostReportRepository
+	categoryRepo          *repository.PostCategoryRepository
+	followRepo            *repository.FollowRepository
+	postFavoriteRepo      *repository.PostFavoriteRepository
+	draftRepo             *repository.DraftRepository
+	userRepo              repository.UserRepository
 }
 
 // NewCommunityHandler creates a new CommunityHandler
@@ -37,21 +40,24 @@ func NewCommunityHandler(
 	communityService *service.CommunityService,
 	pointService *service.PointService,
 	hotPostsService *service.HotPostsService,
+	recommendationService *service.RecommendationService,
 ) *CommunityHandler {
 	return &CommunityHandler{
-		communityService:    communityService,
-		pointService:       pointService,
-		hotPostsService:    hotPostsService,
-		postRepo:           repository.NewPostRepository(db),
-		replyRepo:          repository.NewPostReplyRepository(db),
-		likeRepo:           repository.NewPostLikeRepository(db),
-		replyLikeRepo:      repository.NewPostReplyLikeRepository(db),
-		pointRepo:          repository.NewUserPointRepository(db),
-		reportRepo:         repository.NewPostReportRepository(db),
-		categoryRepo:       repository.NewPostCategoryRepository(db),
-		followRepo:         repository.NewFollowRepository(db),
-		postFavoriteRepo:   repository.NewPostFavoriteRepository(db),
-		userRepo:           repository.NewUserRepository(),
+		communityService:      communityService,
+		pointService:          pointService,
+		hotPostsService:       hotPostsService,
+		recommendationService: recommendationService,
+		postRepo:              repository.NewPostRepository(db),
+		replyRepo:             repository.NewPostReplyRepository(db),
+		likeRepo:              repository.NewPostLikeRepository(db),
+		replyLikeRepo:         repository.NewPostReplyLikeRepository(db),
+		pointRepo:             repository.NewUserPointRepository(db),
+		reportRepo:            repository.NewPostReportRepository(db),
+		categoryRepo:          repository.NewPostCategoryRepository(db),
+		followRepo:            repository.NewFollowRepository(db),
+		postFavoriteRepo:      repository.NewPostFavoriteRepository(db),
+		draftRepo:             repository.NewDraftRepository(db),
+		userRepo:              repository.NewUserRepository(),
 	}
 }
 
@@ -83,6 +89,7 @@ func (h *CommunityHandler) GetPosts(c *gin.Context) {
 	}
 
 	if err != nil {
+		logger.Error("Failed to get posts", "error", err, "page", page, "category", category, "sort", sortBy)
 		response.ServerError(c, "failed to get posts")
 		return
 	}
@@ -140,6 +147,7 @@ func (h *CommunityHandler) CreatePost(c *gin.Context) {
 
 	post, err := h.communityService.CreatePost(userID, &req)
 	if err != nil {
+		logger.Warn("Post creation failed", "user_id", userID, "error", err)
 		if err == domain.ErrTitleRequired {
 			response.BadRequest(c, "title is required")
 		} else if err == domain.ErrContentRequired {
@@ -153,7 +161,7 @@ func (h *CommunityHandler) CreatePost(c *gin.Context) {
 		}
 		return
 	}
-
+	logger.Info("Post created", "post_id", post.ID, "user_id", userID, "category", req.Category)
 	response.Success(c, gin.H{"id": post.ID})
 }
 
@@ -179,6 +187,7 @@ func (h *CommunityHandler) CreateReply(c *gin.Context) {
 
 	reply, err := h.communityService.CreateReply(userID, uint(postID), &req)
 	if err != nil {
+		logger.Warn("Reply creation failed", "user_id", userID, "post_id", postID, "error", err)
 		if err == domain.ErrPostNotFound {
 			response.NotFound(c, "post not found")
 		} else if err == domain.ErrReplyContentRequired {
@@ -190,6 +199,7 @@ func (h *CommunityHandler) CreateReply(c *gin.Context) {
 		}
 		return
 	}
+	logger.Info("Reply created", "reply_id", reply.ID, "post_id", postID, "user_id", userID)
 
 	response.Success(c, gin.H{"reply": reply})
 }
@@ -517,6 +527,24 @@ func (h *CommunityHandler) postToResponse(post domain.Post, userID uint) gin.H {
 		isFollowing = following
 	}
 
+	// Convert tags to response format
+	tags := make([]gin.H, len(post.Tags))
+	for i, tag := range post.Tags {
+		tags[i] = gin.H{
+			"id":   tag.ID,
+			"name": tag.Name,
+		}
+	}
+
+	// Convert topics to response format
+	topics := make([]gin.H, len(post.Topics))
+	for i, topic := range post.Topics {
+		topics[i] = gin.H{
+			"id":   topic.ID,
+			"name": topic.Name,
+		}
+	}
+
 	return gin.H{
 		"id":           post.ID,
 		"title":        post.Title,
@@ -528,6 +556,7 @@ func (h *CommunityHandler) postToResponse(post domain.Post, userID uint) gin.H {
 		"author_avatar": authorAvatar,
 		"reply_count":  post.ReplyCount,
 		"like_count":   post.LikeCount,
+		"share_count":  post.ShareCount,
 		"view_count":   post.ViewCount,
 		"is_pinned":    post.IsPinned,
 		"is_essence":   post.IsEssence,
@@ -535,6 +564,8 @@ func (h *CommunityHandler) postToResponse(post domain.Post, userID uint) gin.H {
 		"is_following": isFollowing,
 		"status":       post.Status,
 		"created_at":   post.CreatedAt,
+		"tags":         tags,
+		"topics":       topics,
 	}
 }
 
@@ -709,5 +740,601 @@ func (h *CommunityHandler) GetMyFavorites(c *gin.Context) {
 			"page_size": pageSize,
 			"total":     total,
 		},
+	})
+}
+
+// UpdatePost updates a post (only by the owner)
+func (h *CommunityHandler) UpdatePost(c *gin.Context) {
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "please login first")
+		return
+	}
+
+	postID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid post id")
+		return
+	}
+
+	var req service.UpdatePostRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request: "+err.Error())
+		return
+	}
+
+	post, err := h.communityService.UpdatePost(userID, uint(postID), &req)
+	if err != nil {
+		if err == domain.ErrPostNotFound {
+			response.NotFound(c, "post not found")
+		} else if err == domain.ErrPermissionDenied {
+			response.Forbidden(c, "you can only edit your own posts")
+		} else if err == domain.ErrInvalidCategory {
+			response.BadRequest(c, "invalid category or post type")
+		} else if err == domain.ErrInvalidVisibility {
+			response.BadRequest(c, "invalid visibility")
+		} else {
+			response.ServerError(c, "failed to update post: "+err.Error())
+		}
+		return
+	}
+
+	response.Success(c, gin.H{"post": h.postToResponse(*post, userID)})
+}
+
+// DeletePost deletes a post (only by the owner)
+func (h *CommunityHandler) DeletePost(c *gin.Context) {
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "please login first")
+		return
+	}
+
+	postID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid post id")
+		return
+	}
+
+	if err := h.communityService.DeletePost(userID, uint(postID)); err != nil {
+		if err == domain.ErrPostNotFound {
+			response.NotFound(c, "post not found")
+		} else if err == domain.ErrPermissionDenied {
+			response.Forbidden(c, "you can only delete your own posts")
+		} else {
+			response.ServerError(c, "failed to delete post: "+err.Error())
+		}
+		return
+	}
+
+	response.Success(c, gin.H{"message": "post deleted successfully"})
+}
+
+// UpdateReply updates a reply (only by the owner)
+func (h *CommunityHandler) UpdateReply(c *gin.Context) {
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "please login first")
+		return
+	}
+
+	replyID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid reply id")
+		return
+	}
+
+	var req service.UpdateReplyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request: "+err.Error())
+		return
+	}
+
+	reply, err := h.communityService.UpdateReply(userID, uint(replyID), &req)
+	if err != nil {
+		if err == domain.ErrReplyNotFound {
+			response.NotFound(c, "reply not found")
+		} else if err == domain.ErrPermissionDenied {
+			response.Forbidden(c, "you can only edit your own replies")
+		} else if err == domain.ErrReplyContentRequired {
+			response.BadRequest(c, "reply content is required")
+		} else {
+			response.ServerError(c, "failed to update reply: "+err.Error())
+		}
+		return
+	}
+
+	response.Success(c, gin.H{"reply": reply})
+}
+
+// DeleteReply deletes a reply (only by the owner)
+func (h *CommunityHandler) DeleteReply(c *gin.Context) {
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "please login first")
+		return
+	}
+
+	replyID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid reply id")
+		return
+	}
+
+	if err := h.communityService.DeleteReply(userID, uint(replyID)); err != nil {
+		if err == domain.ErrReplyNotFound {
+			response.NotFound(c, "reply not found")
+		} else if err == domain.ErrPermissionDenied {
+			response.Forbidden(c, "you can only delete your own replies")
+		} else {
+			response.ServerError(c, "failed to delete reply: "+err.Error())
+		}
+		return
+	}
+
+	response.Success(c, gin.H{"message": "reply deleted successfully"})
+}
+
+// SaveDraft saves a draft (create or update)
+func (h *CommunityHandler) SaveDraft(c *gin.Context) {
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "please login first")
+		return
+	}
+
+	var req service.SaveDraftRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request: "+err.Error())
+		return
+	}
+
+	draft, err := h.communityService.SaveDraft(userID, &req)
+	if err != nil {
+		if err == domain.ErrPermissionDenied {
+			response.Forbidden(c, "you can only edit your own drafts")
+		} else if err == domain.ErrDraftLimitReached {
+			response.Error(c, 400, "draft limit reached (max 20)")
+		} else {
+			response.ServerError(c, "failed to save draft: "+err.Error())
+		}
+		return
+	}
+
+	response.Success(c, gin.H{"draft": draft})
+}
+
+// GetMyDrafts gets current user's drafts
+func (h *CommunityHandler) GetMyDrafts(c *gin.Context) {
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "please login first")
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	drafts, total, err := h.communityService.GetDrafts(userID, page, pageSize)
+	if err != nil {
+		response.ServerError(c, "failed to get drafts")
+		return
+	}
+
+	response.Success(c, gin.H{
+		"drafts": drafts,
+		"pagination": gin.H{
+			"page":      page,
+			"page_size": pageSize,
+			"total":     total,
+		},
+	})
+}
+
+// DeleteDraft deletes a draft
+func (h *CommunityHandler) DeleteDraft(c *gin.Context) {
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "please login first")
+		return
+	}
+
+	draftID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid draft id")
+		return
+	}
+
+	if err := h.communityService.DeleteDraft(userID, uint(draftID)); err != nil {
+		if err == domain.ErrPostNotFound {
+			response.NotFound(c, "draft not found")
+		} else if err == domain.ErrPermissionDenied {
+			response.Forbidden(c, "you can only delete your own drafts")
+		} else {
+			response.ServerError(c, "failed to delete draft: "+err.Error())
+		}
+		return
+	}
+
+	response.Success(c, gin.H{"message": "draft deleted successfully"})
+}
+
+// SearchPosts searches posts by keyword
+func (h *CommunityHandler) SearchPosts(c *gin.Context) {
+	keyword := c.Query("keyword")
+	if keyword == "" {
+		response.BadRequest(c, "keyword is required")
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	// Get user info (optional)
+	userID, _ := middleware.GetUserID(c)
+	userRole, _ := middleware.GetUserRole(c)
+
+	posts, total, err := h.postRepo.Search(keyword, page, pageSize, userID, userRole)
+	if err != nil {
+		response.ServerError(c, "failed to search posts")
+		return
+	}
+
+	response.Success(c, gin.H{
+		"posts": h.postsToResponseList(posts, userID),
+		"pagination": gin.H{
+			"page":      page,
+			"page_size": pageSize,
+			"total":     total,
+		},
+	})
+}
+
+// SearchUsersForMention searches users for @mention autocomplete
+func (h *CommunityHandler) SearchUsersForMention(c *gin.Context) {
+	keyword := c.Query("keyword")
+	if keyword == "" {
+		response.BadRequest(c, "keyword is required")
+		return
+	}
+
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	if limit <= 0 || limit > 20 {
+		limit = 10
+	}
+
+	users, err := h.userRepo.SearchByNickname(keyword, limit)
+	if err != nil {
+		response.ServerError(c, "failed to search users")
+		return
+	}
+
+	// Format response
+	result := make([]gin.H, len(users))
+	for i, user := range users {
+		result[i] = gin.H{
+			"id":       user.ID,
+			"nickname": user.Nickname,
+			"avatar":   user.Avatar,
+		}
+	}
+
+	response.Success(c, gin.H{"users": result})
+}
+
+// RecordShare records a share action for a post
+func (h *CommunityHandler) RecordShare(c *gin.Context) {
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "please login first")
+		return
+	}
+
+	postID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid post id")
+		return
+	}
+
+	var req struct {
+		Platform string `json:"platform"`
+	}
+	// Platform is optional, defaults to "other"
+	_ = c.ShouldBindJSON(&req)
+
+	if req.Platform == "" {
+		req.Platform = "other"
+	}
+
+	if err := h.communityService.RecordShare(userID, uint(postID), req.Platform); err != nil {
+		if err == domain.ErrPostNotFound {
+			response.NotFound(c, "post not found")
+		} else {
+			response.ServerError(c, "failed to record share: "+err.Error())
+		}
+		return
+	}
+
+	response.Success(c, gin.H{"message": "share recorded"})
+}
+
+// GetShareStats gets share statistics for a post
+func (h *CommunityHandler) GetShareStats(c *gin.Context) {
+	postID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid post id")
+		return
+	}
+
+	total, platformCounts, err := h.communityService.GetShareStats(uint(postID))
+	if err != nil {
+		if err == domain.ErrPostNotFound {
+			response.NotFound(c, "post not found")
+		} else {
+			response.ServerError(c, "failed to get share stats")
+		}
+		return
+	}
+
+	response.Success(c, gin.H{
+		"total":           total,
+		"platform_counts": platformCounts,
+	})
+}
+
+// GetPopularTags gets popular tags
+func (h *CommunityHandler) GetPopularTags(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+
+	tags, err := h.communityService.GetPopularTags(limit)
+	if err != nil {
+		response.ServerError(c, "failed to get popular tags")
+		return
+	}
+
+	// Convert to response format
+	result := make([]gin.H, len(tags))
+	for i, tag := range tags {
+		result[i] = gin.H{
+			"id":   tag.ID,
+			"name": tag.Name,
+		}
+	}
+
+	response.Success(c, gin.H{"tags": result})
+}
+
+// SearchTags searches tags by keyword
+func (h *CommunityHandler) SearchTags(c *gin.Context) {
+	keyword := c.Query("keyword")
+	if keyword == "" {
+		response.BadRequest(c, "keyword is required")
+		return
+	}
+
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	tags, err := h.communityService.SearchTags(keyword, limit)
+	if err != nil {
+		response.ServerError(c, "failed to search tags")
+		return
+	}
+
+	// Convert to response format
+	result := make([]gin.H, len(tags))
+	for i, tag := range tags {
+		result[i] = gin.H{
+			"id":   tag.ID,
+			"name": tag.Name,
+		}
+	}
+
+	response.Success(c, gin.H{"tags": result})
+}
+
+// GetPostsByTagName gets posts by tag name
+func (h *CommunityHandler) GetPostsByTagName(c *gin.Context) {
+	tagName := c.Param("name")
+	if tagName == "" {
+		response.BadRequest(c, "tag name is required")
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	// Get user info (optional)
+	userID, _ := middleware.GetUserID(c)
+
+	posts, total, err := h.communityService.GetPostsByTagName(tagName, page, pageSize)
+	if err != nil {
+		if err == domain.ErrTagNotFound {
+			response.NotFound(c, "tag not found")
+		} else {
+			response.ServerError(c, "failed to get posts by tag")
+		}
+		return
+	}
+
+	response.Success(c, gin.H{
+		"posts":     h.postsToResponseList(posts, userID),
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
+}
+
+// GetHotTopics gets hot topics
+func (h *CommunityHandler) GetHotTopics(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+
+	topics, err := h.communityService.GetHotTopics(limit)
+	if err != nil {
+		response.ServerError(c, "failed to get hot topics")
+		return
+	}
+
+	// Convert to response format
+	result := make([]gin.H, len(topics))
+	for i, topic := range topics {
+		result[i] = gin.H{
+			"id":         topic.ID,
+			"name":       topic.Name,
+			"cover":      topic.Cover,
+			"description": topic.Description,
+			"post_count": topic.PostCount,
+			"is_hot":     topic.IsHot,
+		}
+	}
+
+	response.Success(c, gin.H{"topics": result})
+}
+
+// SearchTopics searches topics by keyword
+func (h *CommunityHandler) SearchTopics(c *gin.Context) {
+	keyword := c.Query("keyword")
+	if keyword == "" {
+		response.BadRequest(c, "keyword is required")
+		return
+	}
+
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	topics, err := h.communityService.SearchTopics(keyword, limit)
+	if err != nil {
+		response.ServerError(c, "failed to search topics")
+		return
+	}
+
+	// Convert to response format
+	result := make([]gin.H, len(topics))
+	for i, topic := range topics {
+		result[i] = gin.H{
+			"id":         topic.ID,
+			"name":       topic.Name,
+			"cover":      topic.Cover,
+			"description": topic.Description,
+			"post_count": topic.PostCount,
+			"is_hot":     topic.IsHot,
+		}
+	}
+
+	response.Success(c, gin.H{"topics": result})
+}
+
+// GetPostsByTopicName gets posts by topic name
+func (h *CommunityHandler) GetPostsByTopicName(c *gin.Context) {
+	topicName := c.Param("name")
+	if topicName == "" {
+		response.BadRequest(c, "topic name is required")
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	// Get user info (optional)
+	userID, _ := middleware.GetUserID(c)
+
+	posts, total, err := h.communityService.GetPostsByTopicName(topicName, page, pageSize)
+	if err != nil {
+		if err == domain.ErrTopicNotFound {
+			response.NotFound(c, "topic not found")
+		} else {
+			response.ServerError(c, "failed to get posts by topic")
+		}
+		return
+	}
+
+	response.Success(c, gin.H{
+		"posts":     h.postsToResponseList(posts, userID),
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
+	})
+}
+
+// GetRecommendations gets recommended posts based on algorithm type
+func (h *CommunityHandler) GetRecommendations(c *gin.Context) {
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "please login first")
+		return
+	}
+
+	recType := service.RecommendationType(c.DefaultQuery("type", "mixed"))
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	req := &service.RecommendationRequest{
+		UserID:   userID,
+		Type:     recType,
+		Page:     page,
+		PageSize: pageSize,
+	}
+
+	result, err := h.recommendationService.GetRecommendations(req)
+	if err != nil {
+		response.ServerError(c, "failed to get recommendations: "+err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{
+		"posts":     h.postsToResponseList(result.Posts, userID),
+		"total":     result.Total,
+		"type":      result.Type,
+		"algorithm": result.Algorithm,
+		"pagination": gin.H{
+			"page":      page,
+			"page_size": pageSize,
+			"total":     result.Total,
+		},
+	})
+}
+
+// GetUserInterestProfile gets user's interest profile (tags and topics)
+func (h *CommunityHandler) GetUserInterestProfile(c *gin.Context) {
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Unauthorized(c, "please login first")
+		return
+	}
+
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+
+	tags, err := h.recommendationService.GetUserInterestTags(userID, limit)
+	if err != nil {
+		response.ServerError(c, "failed to get interest tags")
+		return
+	}
+
+	topics, err := h.recommendationService.GetUserInterestTopics(userID, limit)
+	if err != nil {
+		response.ServerError(c, "failed to get interest topics")
+		return
+	}
+
+	tagResult := make([]gin.H, len(tags))
+	for i, tag := range tags {
+		tagResult[i] = gin.H{
+			"id":   tag.ID,
+			"name": tag.Name,
+		}
+	}
+
+	topicResult := make([]gin.H, len(topics))
+	for i, topic := range topics {
+		topicResult[i] = gin.H{
+			"id":         topic.ID,
+			"name":       topic.Name,
+			"cover":      topic.Cover,
+			"description": topic.Description,
+			"post_count": topic.PostCount,
+		}
+	}
+
+	response.Success(c, gin.H{
+		"interest_tags":   tagResult,
+		"interest_topics": topicResult,
 	})
 }
