@@ -22,12 +22,13 @@ const (
 	StorageS3    StorageType = "s3" // 通用 S3 兼容存储（含 Cloudflare R2、阿里 OSS、MinIO 等）
 )
 
-// UploadType 区分封面图和付费照片，决定存储路径
+// UploadType 区分封面图、付费照片和视频，决定存储路径
 type UploadType string
 
 const (
 	UploadTypeCover UploadType = "cover" // 封面图 → /covers/ 免费访问
 	UploadTypePhoto UploadType = "photo" // 付费照片 → /photos/ 需要签名
+	UploadTypeVideo UploadType = "video" // 视频 → /videos/ 免费访问
 )
 
 type Storage interface {
@@ -98,6 +99,8 @@ func (s *S3Storage) UploadWithType(file multipart.File, header *multipart.FileHe
 	subDir := "photos"
 	if ut == UploadTypeCover {
 		subDir = "covers"
+	} else if ut == UploadTypeVideo {
+		subDir = "videos"
 	}
 
 	ext := strings.ToLower(filepath.Ext(header.Filename))
@@ -153,6 +156,18 @@ func mimeType(ext string) string {
 		return "image/webp"
 	case ".gif":
 		return "image/gif"
+	case ".avif":
+		return "image/avif"
+	case ".mp4":
+		return "video/mp4"
+	case ".mov":
+		return "video/quicktime"
+	case ".avi":
+		return "video/x-msvideo"
+	case ".webm":
+		return "video/webm"
+	case ".mkv":
+		return "video/x-matroska"
 	default:
 		return "application/octet-stream"
 	}

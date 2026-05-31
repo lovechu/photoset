@@ -39,6 +39,15 @@ var allowedMIMETypes = map[string]bool{
 	"image/avif": true,
 }
 
+// allowedVideoMIMETypes 允许的视频 MIME 类型
+var allowedVideoMIMETypes = map[string]bool{
+	"video/mp4":  true,
+	"video/quicktime": true, // .mov
+	"video/x-msvideo": true, // .avi
+	"video/webm": true,
+	"video/x-matroska": true, // .mkv
+}
+
 // bytesFile 将 []byte 包装为 multipart.File 接口
 type bytesFile struct {
 	*bytes.Reader
@@ -147,5 +156,71 @@ func (h *UploadHandler) UploadImage(c *gin.Context) {
 
 	fmt.Printf("[UPLOAD-DEBUG] Step9 OK: 上传成功! URL=%s\n", url)
 	fmt.Printf("[UPLOAD-DEBUG] ====== 上传完成 ======\n")
+	response.Success(c, gin.H{"url": url})
+}
+
+// UploadVideo handles video file uploads
+func (h *UploadHandler) UploadVideo(c *gin.Context) {
+	fmt.Printf("[UPLOAD-VIDEO] ====== 开始上传视频 ======\n")
+
+	// Step 1: 获取文件
+	file, header, err := c.Request.FormFile("video")
+	if err != nil {
+		fmt.Printf("[UPLOAD-VIDEO] Step1 失败: 获取文件出错: %v\n", err)
+		response.Error(c, http.StatusBadRequest, "请选择要上传的视频")
+		return
+	}
+	defer file.Close()
+	fmt.Printf("[UPLOAD-VIDEO] Step1 OK: 文件名=%s, 大小=%d bytes\n", header.Filename, header.Size)
+
+	// Step 2: 大小校验（最大500MB）
+	if header.Size > 500*1024*1024 {
+		response.Error(c, http.StatusBadRequest, "视频大小不能超过500MB")
+		return
+	}
+
+	// Step 3: 扩展名校验
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	allowedExts := map[string]bool{".mp4": true, ".mov": true, ".avi": true, ".webm": true, ".mkv": true}
+	if !allowedExts[ext] {
+		response.Error(c, http.StatusBadRequest, "仅支持 MP4、MOV、AVI、WebM、MKV 格式")
+		return
+	}
+	fmt.Printf("[UPLOAD-VIDEO] Step3 OK: 扩展名=%s\n", ext)
+
+	// Step 4: 读取文件内容并验证 MIME 类型
+	buf, err := io.ReadAll(file)
+	if err != nil {
+		fmt.Printf("[UPLOAD-VIDEO] Step4 失败: 读取文件出错: %v\n", err)
+		response.Error(c, http.StatusInternalServerError, "读取文件失败")
+		return
+	}
+	mtype := mimetype.Detect(buf)
+	fmt.Printf("[UPLOAD-VIDEO] Step4 OK: 原始MIME=%s, 缓冲区大小=%d bytes\n", mtype.String(), len(buf))
+	if !allowedVideoMIMETypes[mtype.String()] {
+		fmt.Printf("[UPLOAD-VIDEO] Step4 失败: MIME类型不允许: %s\n", mtype.String())
+		response.Error(c, http.StatusBadRequest, "文件类型不合法，仅支持真实视频文件")
+		return
+	}
+
+	// Step 5: 包装文件并设置 header
+	wrappedFile := bytesFile{bytes.NewReader(buf)}
+	header.Header = make(textproto.MIMEHeader)
+	header.Header.Set("Content-Type", mtype.String())
+	header.Header.Set("Content-Disposition",
+		`form-data; name="video"; filename="`+header.Filename+`"`)
+	fmt.Printf("[UPLOAD-VIDEO] Step5 OK: 文件已包装, Content-Type=%s\n", mtype.String())
+
+	// Step 6: 上传到存储
+	fmt.Printf("[UPLOAD-VIDEO] Step6: 开始上传到存储...\n")
+	url, err := h.storage.UploadWithType(wrappedFile, header, storage.UploadTypeVideo, 0)
+	if err != nil {
+		fmt.Printf("[UPLOAD-VIDEO] Step6 失败: 存储上传出错: %v\n", err)
+		response.Error(c, http.StatusInternalServerError, "上传失败: "+err.Error())
+		return
+	}
+
+	fmt.Printf("[UPLOAD-VIDEO] Step6 OK: 上传成功! URL=%s\n", url)
+	fmt.Printf("[UPLOAD-VIDEO] ====== 上传完成 ======\n")
 	response.Success(c, gin.H{"url": url})
 }

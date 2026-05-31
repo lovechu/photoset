@@ -217,6 +217,14 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 			upload.POST("/image", uploadHandler.UploadImage)
 		}
 
+		// 社区上传路由（所有登录用户可用）
+		communityUpload := api.Group("/community/upload")
+		{
+			communityUpload.Use(middleware.Auth())
+			communityUpload.POST("/image", uploadHandler.UploadImage)
+			communityUpload.POST("/video", uploadHandler.UploadVideo)
+		}
+
 		// 用户路由
 		api.GET("/users/profile", middleware.Auth(), authHandler.Me)
 
