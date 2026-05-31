@@ -128,3 +128,5 @@ manage-services.sh
 manage-services.ps1
 main
 ai/  
+.codebuddy/
+backups/
