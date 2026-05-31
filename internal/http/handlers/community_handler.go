@@ -1239,7 +1239,16 @@ func (h *CommunityHandler) GetPostsByTopicName(c *gin.Context) {
 	posts, total, err := h.communityService.GetPostsByTopicName(topicName, page, pageSize)
 	if err != nil {
 		if err == domain.ErrTopicNotFound {
-			response.NotFound(c, "topic not found")
+			// Topic doesn't exist yet, return empty posts instead of 404
+			// The topic will be created when a post is associated with it
+			response.Success(c, gin.H{
+				"posts":     []interface{}{},
+				"total":     0,
+				"page":      page,
+				"page_size": pageSize,
+				"topic":     topicName,
+			})
+			return
 		} else {
 			response.ServerError(c, "failed to get posts by topic")
 		}

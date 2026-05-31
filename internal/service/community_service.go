@@ -2,7 +2,9 @@ package service
 
 import (
 	"errors"
+	"regexp"
 	"slices"
+	"strings"
 
 	"photoset/internal/domain"
 	"photoset/internal/repository"
@@ -132,20 +134,79 @@ func (s *CommunityService) CreatePost(userID uint, req *CreatePostRequest) (*dom
 		}
 	}
 
-	// Handle topics
+	// Handle topics with validation and filtering
 	if len(req.Topics) > 0 {
-		topics, err := s.topicRepo.FindOrCreateBatch(req.Topics)
-		if err != nil {
-			// Log error but don't fail post creation
-			_ = err
-		} else {
-			if err := s.postTopicRepo.AddTopicsToPost(post.ID, topics); err != nil {
+		// 限制话题数量（最多3个）
+		topicsToProcess := req.Topics
+		if len(topicsToProcess) > 3 {
+			topicsToProcess = topicsToProcess[:3]
+		}
+		
+		// 过滤和验证话题名称
+		var validTopics []string
+		seenTopics := make(map[string]bool)
+		
+		for _, topicName := range topicsToProcess {
+			// 去除首尾空格和#
+			cleanName := topicName
+			for len(cleanName) > 0 && cleanName[0] == '#' {
+				cleanName = cleanName[1:]
+			}
+			for len(cleanName) > 0 && cleanName[len(cleanName)-1] == '#' {
+				cleanName = cleanName[:len(cleanName)-1]
+			}
+			cleanName = strings.TrimSpace(cleanName)
+			
+			// 跳过空话题
+			if cleanName == "" {
+				continue
+			}
+			
+			// 长度验证：2-100个字符
+			if len([]rune(cleanName)) < 2 || len([]rune(cleanName)) > 100 {
+				continue
+			}
+			
+			// 格式验证：只允许中文、字母、数字、下划线
+			validPattern := regexp.MustCompile(`^[\p{Han}a-zA-Z0-9_]+$`)
+			if !validPattern.MatchString(cleanName) {
+				continue
+			}
+			
+			// 不能以数字开头
+			if len(cleanName) > 0 && cleanName[0] >= '0' && cleanName[0] <= '9' {
+				continue
+			}
+			
+			// 敏感词过滤
+			filteredName, _ := s.filterService.FilterTextAdvanced(cleanName)
+			if filteredName != cleanName {
+				// 包含敏感词，跳过
+				continue
+			}
+			
+			// 去重
+			if !seenTopics[cleanName] {
+				seenTopics[cleanName] = true
+				validTopics = append(validTopics, cleanName)
+			}
+		}
+		
+		// 处理有效的话题
+		if len(validTopics) > 0 {
+			topics, err := s.topicRepo.FindOrCreateBatch(validTopics)
+			if err != nil {
 				// Log error but don't fail post creation
 				_ = err
-			}
-			// Increment post count for each topic
-			for _, topic := range topics {
-				go s.topicRepo.IncrementPostCount(topic.ID)
+			} else {
+				if err := s.postTopicRepo.AddTopicsToPost(post.ID, topics); err != nil {
+					// Log error but don't fail post creation
+					_ = err
+				}
+				// Increment post count for each topic
+				for _, topic := range topics {
+					go s.topicRepo.IncrementPostCount(topic.ID)
+				}
 			}
 		}
 	}
