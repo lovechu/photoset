@@ -936,7 +936,14 @@ func (h *AdminHandler) CreateApiKey(c *gin.Context) {
 	h.recordLog(c, "create_api_key", "API密钥", "创建: "+req.Name)
 	response.Success(c, gin.H{
 		"message": "API 密钥创建成功，请妥善保存以下信息（仅显示一次）：",
-		"key":     apiKey,
+		"key": gin.H{
+			"id":        apiKey.ID,
+			"name":      apiKey.Name,
+			"key":       apiKey.Key,
+			"secret":    apiKey.Secret,
+			"status":    apiKey.Status,
+			"created_at": apiKey.CreatedAt,
+		},
 	})
 }
 

@@ -68,6 +68,10 @@ func main() {
 		&domain.UserPointsExchange{},
 		// User block/mute
 		&domain.UserBlock{},
+		// OAuth2 third-party authorization
+		&domain.OAuthClient{},
+		&domain.OAuthAuthorization{},
+		&domain.OAuthToken{},
 	); err != nil {
 		// 忽略多对多关联表的重复主键错误（表已存在时 GORM 会尝试重复添加主键）
 		if !isMultiplePrimaryKeyError(err) {

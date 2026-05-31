@@ -278,3 +278,25 @@ export function downloadBackup(filename) {
 export function deleteBackup(filename) {
   return request.delete(`/admin/backups/${filename}`)
 }
+
+// ============ OAuth2 应用管理 ============
+
+export function getOAuthClients() {
+  return request.get('/admin/oauth/clients')
+}
+
+export function createOAuthClient(data) {
+  return request.post('/admin/oauth/clients', data)
+}
+
+export function updateOAuthClient(id, data) {
+  return request.put(`/admin/oauth/clients/${id}`, data)
+}
+
+export function deleteOAuthClient(id) {
+  return request.delete(`/admin/oauth/clients/${id}`)
+}
+
+export function getOAuthClient(id) {
+  return request.get(`/admin/oauth/clients/${id}`)
+}

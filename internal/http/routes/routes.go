@@ -157,6 +157,14 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	blockService := service.NewUserBlockService(blockRepo)
 	blockHandler := handlers.NewUserBlockHandler(blockService)
 
+	// OAuth2 第三方登录授权系统
+	oauthClientRepo := repository.NewOAuthClientRepository()
+	oauthAuthorizationRepo := repository.NewOAuthAuthorizationRepository()
+	oauthTokenRepo := repository.NewOAuthTokenRepository()
+	oauthService := service.NewOAuthService(oauthClientRepo, oauthAuthorizationRepo, oauthTokenRepo, userRepo)
+	oauthHandler := handlers.NewOAuthHandler(oauthService)
+	adminOAuthHandler := admin.NewAdminOAuthHandler(oauthService)
+
 	api := r.Group("/api")
 	{
 		auth := api.Group("/auth")
@@ -326,6 +334,13 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 		admin.GET("/dev/api-docs", adminHandler.GetApiDocs)
 		admin.GET("/dev/sign-url-docs", adminHandler.GetSignUrlDocs)
 
+		// OAuth2 应用管理
+		admin.GET("/oauth/clients", adminOAuthHandler.GetClients)
+		admin.POST("/oauth/clients", adminOAuthHandler.CreateClient)
+		admin.GET("/oauth/clients/:id", adminOAuthHandler.GetClient)
+		admin.PUT("/oauth/clients/:id", adminOAuthHandler.UpdateClient)
+		admin.DELETE("/oauth/clients/:id", adminOAuthHandler.DeleteClient)
+
 		// 系统监控
 		admin.GET("/system/status", systemHandler.GetSystemStatus)
 		admin.GET("/system/health", systemHandler.HealthCheck)
@@ -346,6 +361,16 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 		// 公开页面路由
 		api.GET("/pages/:slug", pageHandler.GetBySlug)
 		api.GET("/pages", pageHandler.ListPublished)
+
+		// OAuth2 公开端点（第三方应用调用）
+		oauth := api.Group("/oauth")
+		{
+			oauth.GET("/authorize", middleware.OptionalAuth(), oauthHandler.Authorize)
+			oauth.POST("/authorize", middleware.OptionalAuth(), oauthHandler.AuthorizeConfirm)
+			oauth.POST("/token", oauthHandler.Token)
+			oauth.POST("/revoke", oauthHandler.Revoke)
+			oauth.GET("/userinfo", oauthHandler.UserInfo)
+		}
 	}
 
 	// === 注册社区路由 ===

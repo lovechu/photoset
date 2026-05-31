@@ -74,6 +74,12 @@ const routes = [
         meta: { title: '开发者中心', icon: 'Code' }
       },
       {
+        path: 'oauth',
+        name: 'OAuthManage',
+        component: () => import('@/views/OAuthManage.vue'),
+        meta: { title: 'OAuth应用管理', icon: 'Connection' }
+      },
+      {
         path: 'photoset/:id/edit',
         name: 'AdminEditPhotoset',
         component: () => import('@/views/EditPhotoset.vue')

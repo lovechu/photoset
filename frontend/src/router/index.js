@@ -90,6 +90,12 @@ const routes = [
     meta: { title: '页面详情' }
   },
   {
+    path: '/oauth/authorize',
+    name: 'OAuthAuthorize',
+    component: () => import('@/views/OAuthAuthorize.vue'),
+    meta: { title: '授权确认' }
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'NotFound',
     component: () => import('@/views/NotFound.vue'),

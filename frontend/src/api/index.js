@@ -257,3 +257,21 @@ export function resetPasswordByToken(data) {
 export function checkEmailConfig() {
   return request.get('/auth/email-config')
 }
+
+// ============ OAuth2 模块 ============
+
+/**
+ * 获取授权页面信息
+ * @param {Object} params { client_id, redirect_uri, scope, state, response_type }
+ */
+export function getOAuthAuthorize(params) {
+  return request.get('/oauth/authorize', { params })
+}
+
+/**
+ * 用户确认授权
+ * @param {Object} data { client_id, redirect_uri, scope, state, approved }
+ */
+export function confirmOAuthAuthorize(data) {
+  return request.post('/oauth/authorize', data)
+}

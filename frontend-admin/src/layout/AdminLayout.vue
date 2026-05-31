@@ -48,6 +48,10 @@
           <el-icon><Connection /></el-icon>
           <span>开发者中心</span>
         </el-menu-item>
+        <el-menu-item index="/oauth">
+          <el-icon><Key /></el-icon>
+          <span>OAuth应用管理</span>
+        </el-menu-item>
         <el-menu-item index="/logs">
           <el-icon><Notebook /></el-icon>
           <span>操作日志</span>
@@ -147,7 +151,7 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAdminStore } from '@/stores/admin'
-import { Connection, FolderOpened, ChatDotRound, Monitor } from '@element-plus/icons-vue'
+import { Connection, FolderOpened, ChatDotRound, Monitor, Key } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
 
