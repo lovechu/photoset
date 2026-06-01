@@ -328,16 +328,13 @@ const handleTestDownload = (url) => {
 
 // 测试IP查询
 const handleTestIP = async () => {
-  if (!testIp.value) {
-    ElMessage.warning('请输入IP地址')
-    return
-  }
-
   testing.value = true
   try {
-    const res = await request.get('/admin/ip-geo/test', {
-      params: { ip: testIp.value }
-    })
+    const params = {}
+    if (testIp.value) {
+      params.ip = testIp.value
+    }
+    const res = await request.get('/admin/ip-geo/test', { params })
     testResult.value = res.data
   } catch (error) {
     ElMessage.error('查询失败: ' + error.message)
