@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"photoset/internal/pkg/response"
 	"photoset/internal/service"
@@ -101,12 +102,35 @@ func (h *AdminIPGeoHandler) GetDatabaseInfo(c *gin.Context) {
 	response.Success(c, info)
 }
 
+// getRealIP 获取用户真实IP（支持Cloudflare/CDN场景）
+func getRealIP(c *gin.Context) string {
+	// Cloudflare 真实IP
+	if cfIP := c.GetHeader("CF-Connecting-IP"); cfIP != "" {
+		return cfIP
+	}
+	// Cloudflare 备选header
+	if cfIP := c.GetHeader("CF-IPCountry"); cfIP != "" {
+		// 这个header是国家代码，不是IP，跳过
+	}
+	// 通用转发头（取第一个，即原始客户端IP）
+	if xff := c.GetHeader("X-Forwarded-For"); xff != "" {
+		// X-Forwarded-For 格式: "真实IP, 代理1, 代理2"
+		parts := strings.Split(xff, ",")
+		return strings.TrimSpace(parts[0])
+	}
+	if xri := c.GetHeader("X-Real-IP"); xri != "" {
+		return xri
+	}
+	// 回退到Gin默认逻辑
+	return c.ClientIP()
+}
+
 // TestIP 查询测试IP
 func (h *AdminIPGeoHandler) TestIP(c *gin.Context) {
 	ip := c.Query("ip")
 	if ip == "" {
-		response.Error(c, http.StatusBadRequest, "请提供IP地址")
-		return
+		// 未提供IP参数，使用当前用户真实IP
+		ip = getRealIP(c)
 	}
 
 	// 查询IP地理位置
