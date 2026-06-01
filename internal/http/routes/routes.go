@@ -350,7 +350,28 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 		admin.GET("/backups", backupHandler.ListBackups)
 		admin.GET("/backups/:filename/download", backupHandler.DownloadBackup)
 		admin.DELETE("/backups/:filename", backupHandler.DeleteBackup)
+
+		// IP地理位置管理
+		adminIPGeoHandler := handlers.NewAdminIPGeoHandler()
+		admin.GET("/ip-geo/config", adminIPGeoHandler.GetConfig)
+		admin.PUT("/ip-geo/config", adminIPGeoHandler.UpdateConfig)
+		admin.POST("/ip-geo/update", adminIPGeoHandler.UpdateDatabase)
+		admin.GET("/ip-geo/test", adminIPGeoHandler.TestIP)
+		admin.GET("/ip-geo/logs", adminIPGeoHandler.GetUpdateLogs)
+		admin.GET("/ip-geo/status", adminIPGeoHandler.GetStatus)
+		admin.GET("/ip-geo/info", adminIPGeoHandler.GetDatabaseInfo)
 	}
+
+	// 公开路由 - IP地理位置查询
+	ipGeoService := service.NewIPGeoService()
+	api.GET("/ip-geo/lookup", func(c *gin.Context) {
+		clientIP := c.ClientIP()
+		location := ipGeoService.GetFullLocation(clientIP)
+		c.JSON(200, gin.H{
+			"ip":       clientIP,
+			"location": location,
+		})
+	})
 
 	// 公开路由 - 健康检查
 	api.GET("/system/health", systemHandler.HealthCheck)

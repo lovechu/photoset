@@ -19,6 +19,7 @@ type AuthHandler struct {
 	userService         service.UserService
 	captchaService      service.CaptchaService
 	siteSettingRepo     *repository.SiteSettingRepository
+	ipGeoService        *service.IPGeoService
 }
 
 func NewAuthHandler(userService service.UserService, captchaService service.CaptchaService, siteSettingRepo *repository.SiteSettingRepository) *AuthHandler {
@@ -26,6 +27,7 @@ func NewAuthHandler(userService service.UserService, captchaService service.Capt
 		userService:     userService,
 		captchaService:  captchaService,
 		siteSettingRepo: siteSettingRepo,
+		ipGeoService:    service.NewIPGeoService(),
 	}
 }
 
@@ -56,6 +58,15 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		response.Error(c, -1, err.Error())
 		return
 	}
+
+	// 根据IP自动获取用户地理位置
+	if clientIP := c.ClientIP(); clientIP != "" {
+		if ipLocation := h.ipGeoService.GetLocation(clientIP); ipLocation != "" {
+			h.userService.UpdateProfile(user.ID, "", "", "", ipLocation)
+			user.IPLocation = ipLocation
+		}
+	}
+
 	logger.Info("User registered successfully", "user_id", user.ID, "email", req.Email)
 
 	response.Success(c, gin.H{
@@ -90,6 +101,14 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	// 根据IP更新用户地理位置（每次登录时更新）
+	if clientIP := c.ClientIP(); clientIP != "" {
+		if ipLocation := h.ipGeoService.GetLocation(clientIP); ipLocation != "" {
+			h.userService.UpdateProfile(user.ID, "", "", "", ipLocation)
+			user.IPLocation = ipLocation
+		}
+	}
+
 	token, err := jwt.GenerateToken(user.ID, string(user.Role))
 	if err != nil {
 		logger.Error("Failed to generate JWT token", "user_id", user.ID, "error", err)
@@ -101,12 +120,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	response.Success(c, gin.H{
 		"token": token,
 		"user": gin.H{
-			"id":         user.ID,
-			"nickname":   user.Nickname,
-			"email":      user.Email,
-			"role":       user.Role,
-			"status":     user.Status,
-			"created_at": user.CreatedAt,
+			"id":          user.ID,
+			"nickname":    user.Nickname,
+			"email":       user.Email,
+			"role":        user.Role,
+			"status":      user.Status,
+			"created_at":  user.CreatedAt,
+			"ip_location": user.IPLocation,
 		},
 	})
 }

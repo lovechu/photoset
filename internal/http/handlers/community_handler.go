@@ -508,9 +508,11 @@ func (h *CommunityHandler) GetReplies(c *gin.Context) {
 func (h *CommunityHandler) postToResponse(post domain.Post, userID uint) gin.H {
 	authorName := ""
 	authorAvatar := ""
+	authorIPLocation := ""
 	if post.User.ID != 0 {
 		authorName = post.User.Nickname
 		authorAvatar = post.User.Avatar
+		authorIPLocation = post.User.IPLocation
 	}
 
 	// Check if current user liked this post
@@ -546,26 +548,27 @@ func (h *CommunityHandler) postToResponse(post domain.Post, userID uint) gin.H {
 	}
 
 	return gin.H{
-		"id":           post.ID,
-		"title":        post.Title,
-		"content":      post.Content,
-		"category":     post.Category,
-		"post_type":    post.PostType,
-		"author_id":    post.UserID,
-		"author_name":  authorName,
-		"author_avatar": authorAvatar,
-		"reply_count":  post.ReplyCount,
-		"like_count":   post.LikeCount,
-		"share_count":  post.ShareCount,
-		"view_count":   post.ViewCount,
-		"is_pinned":    post.IsPinned,
-		"is_essence":   post.IsEssence,
-		"is_liked":     isLiked,
-		"is_following": isFollowing,
-		"status":       post.Status,
-		"created_at":   post.CreatedAt,
-		"tags":         tags,
-		"topics":       topics,
+		"id":                post.ID,
+		"title":             post.Title,
+		"content":           post.Content,
+		"category":          post.Category,
+		"post_type":         post.PostType,
+		"author_id":         post.UserID,
+		"author_name":       authorName,
+		"author_avatar":     authorAvatar,
+		"author_ip_location": authorIPLocation,
+		"reply_count":       post.ReplyCount,
+		"like_count":        post.LikeCount,
+		"share_count":       post.ShareCount,
+		"view_count":        post.ViewCount,
+		"is_pinned":         post.IsPinned,
+		"is_essence":        post.IsEssence,
+		"is_liked":          isLiked,
+		"is_following":      isFollowing,
+		"status":            post.Status,
+		"created_at":        post.CreatedAt,
+		"tags":              tags,
+		"topics":            topics,
 	}
 }
 

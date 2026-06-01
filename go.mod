@@ -5,12 +5,12 @@ go 1.22
 require (
 	github.com/disintegration/imaging v1.6.2
 	github.com/gin-gonic/gin v1.10.0
-	github.com/go-gormigrate/gormigrate/v2 v2.1.5
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/joho/godotenv v1.5.1
+	github.com/lionsoul2014/ip2region/binding/golang v0.0.0-20260530042244-d638015592ac
 	github.com/mojocn/base64Captcha v1.3.8
 	github.com/redis/go-redis/v9 v9.7.0
 	golang.org/x/crypto v0.25.0

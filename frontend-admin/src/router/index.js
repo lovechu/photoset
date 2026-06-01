@@ -161,6 +161,12 @@ const routes = [
         name: 'DataBackup',
         component: () => import('@/views/DataBackup.vue'),
         meta: { title: '数据备份', icon: 'FolderChecked' }
+      },
+      {
+        path: 'system/ip-geo',
+        name: 'IPGeoManage',
+        component: () => import('@/views/IPGeoManage.vue'),
+        meta: { title: 'IP地理位置', icon: 'Location' }
       }
     ]
   },
