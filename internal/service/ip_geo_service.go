@@ -340,7 +340,13 @@ func (s *IPGeoService) downloadFile(url, filePath string) error {
 	client := &http.Client{
 		Timeout: 120 * time.Second,
 	}
-	resp, err := client.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		os.Remove(tmpFile)
+		return err
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+	resp, err := client.Do(req)
 	if err != nil {
 		os.Remove(tmpFile)
 		return err
