@@ -102,6 +102,11 @@ func (s *IPGeoService) loadConfig() IPGeoConfig {
 	}
 	if v, ok := settings["ip_geo_mirror"]; ok && v != "" {
 		config.Mirror = v
+		// 根据 mirror 更新默认下载地址
+		if urls, ok := mirrorURLs[v]; ok {
+			config.DownloadURLV4 = urls[0]
+			config.DownloadURLV6 = urls[1]
+		}
 	}
 	if v, ok := settings["ip_geo_download_url_v4"]; ok && v != "" {
 		config.DownloadURLV4 = v
