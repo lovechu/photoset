@@ -66,7 +66,11 @@ func NewIPGeoService() *IPGeoService {
 	// 加载数据库
 	if config.Enabled {
 		if err := service.loadDatabase(); err != nil {
-			log.Printf("[IPGeo] 加载数据库失败: %v", err)
+			log.Printf("[IPGeo] 加载数据库失败: %v, 尝试自动下载...", err)
+			// 数据库文件不存在时，自动下载
+			if err := service.UpdateDatabase(); err != nil {
+				log.Printf("[IPGeo] 自动下载数据库失败: %v", err)
+			}
 		} else {
 			log.Printf("[IPGeo] 数据库加载成功")
 		}

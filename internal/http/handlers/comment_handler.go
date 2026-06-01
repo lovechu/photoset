@@ -125,8 +125,10 @@ func (h *CommentHandler) List(c *gin.Context) {
 				"is_liked":   replyIsLiked,
 				"created_at": reply.CreatedAt.Format("2006-01-02T15:04:05Z"),
 				"user": gin.H{
-					"id":       reply.User.ID,
-					"nickname": reply.User.Nickname,
+					"id":          reply.User.ID,
+					"nickname":    reply.User.Nickname,
+					"avatar":      reply.User.Avatar,
+					"ip_location": reply.User.IPLocation,
 				},
 				"parent_id": comment.ID,
 			})
@@ -141,8 +143,10 @@ func (h *CommentHandler) List(c *gin.Context) {
 			"reply_count": int(replyTotal),
 			"created_at":  comment.CreatedAt.Format("2006-01-02T15:04:05Z"),
 			"user": gin.H{
-				"id":       comment.User.ID,
-				"nickname": comment.User.Nickname,
+				"id":          comment.User.ID,
+				"nickname":    comment.User.Nickname,
+				"avatar":      comment.User.Avatar,
+				"ip_location": comment.User.IPLocation,
 			},
 			"replies": replyList,
 		})
@@ -208,8 +212,10 @@ func (h *CommentHandler) GetReplies(c *gin.Context) {
 			"is_liked":   isLiked,
 			"created_at": reply.CreatedAt.Format("2006-01-02T15:04:05Z"),
 			"user": gin.H{
-				"id":       reply.User.ID,
-				"nickname": reply.User.Nickname,
+				"id":          reply.User.ID,
+				"nickname":    reply.User.Nickname,
+				"avatar":      reply.User.Avatar,
+				"ip_location": reply.User.IPLocation,
 			},
 			"parent_id": commentID,
 		})
@@ -279,8 +285,10 @@ func (h *CommentHandler) Create(c *gin.Context) {
 		"is_liked":   false,
 		"created_at": created.CreatedAt.Format("2006-01-02T15:04:05Z"),
 		"user": gin.H{
-			"id":       created.User.ID,
-			"nickname": created.User.Nickname,
+			"id":          created.User.ID,
+			"nickname":    created.User.Nickname,
+			"avatar":      created.User.Avatar,
+			"ip_location": created.User.IPLocation,
 		},
 		"parent_id": req.ParentID,
 	})
