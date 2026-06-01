@@ -363,12 +363,16 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	}
 
 	// 公开路由 - IP地理位置查询
+	// 可选参数: ?ip=1.2.3.4 查询指定IP，不传则查询访问者自身IP
 	ipGeoService := service.NewIPGeoService()
 	api.GET("/ip-geo/lookup", func(c *gin.Context) {
-		clientIP := c.ClientIP()
-		location := ipGeoService.GetFullLocation(clientIP)
+		ip := c.Query("ip")
+		if ip == "" {
+			ip = c.ClientIP()
+		}
+		location := ipGeoService.GetFullLocation(ip)
 		c.JSON(200, gin.H{
-			"ip":       clientIP,
+			"ip":       ip,
 			"location": location,
 		})
 	})
