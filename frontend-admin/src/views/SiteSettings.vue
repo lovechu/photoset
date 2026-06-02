@@ -209,7 +209,7 @@
             <el-divider />
 
             <el-alert
-              title="修改存储配置后需重启后端服务才能生效"
+              title="修改存储配置后需通过外部进程管理器重启服务才能生效"
               type="warning"
               :closable="false"
               show-icon
@@ -283,14 +283,7 @@
                 >
                   测试连接
                 </el-button>
-                <el-button
-                  type="warning"
-                  :loading="restarting"
-                  @click="restartBackend"
-                  style="margin-left: 12px;"
-                >
-                  重启后端
-                </el-button>
+  
               </el-form-item>
             </el-form>
           </div>
@@ -345,6 +338,86 @@ class ApiConfig {
             </el-card>
           </div>
         </el-tab-pane>
+
+        <!-- 支付配置 -->
+        <el-tab-pane label="支付配置" name="payment">
+          <div style="max-width: 680px; margin-top: 16px;">
+            <el-alert
+              title="配置支付参数后需点击「保存」生效，支付宝和微信支付相互独立，可分别配置"
+              type="info"
+              :closable="false"
+              show-icon
+              style="margin-bottom: 20px;"
+            />
+
+            <!-- 支付宝配置 -->
+            <h4 style="margin: 0 0 16px 0; color: #303133; display: flex; align-items: center; gap: 8px;">
+              <span style="display: inline-block; width: 4px; height: 16px; background: #1677ff; border-radius: 2px;"></span>
+              支付宝配置
+            </h4>
+            <el-form :model="form" label-width="140px">
+              <el-form-item label="应用 AppID">
+                <el-input v-model="form.alipay_app_id" placeholder="支付宝开放平台应用ID" />
+              </el-form-item>
+              <el-form-item label="应用私钥">
+                <el-input v-model="form.alipay_private_key" type="textarea" :rows="4" placeholder="支付宝应用私钥（RSA2）" />
+                <div class="form-tip">支付宝开放平台 → 应用详情 → 接口加签方式 → 应用私钥</div>
+              </el-form-item>
+              <el-form-item label="支付宝公钥">
+                <el-input v-model="form.alipay_public_key" type="textarea" :rows="4" placeholder="支付宝公钥（注意不是应用公钥）" />
+                <div class="form-tip">支付宝开放平台 → 应用详情 → 接口加签方式 → 支付宝公钥</div>
+              </el-form-item>
+              <el-form-item label="异步通知地址">
+                <el-input v-model="form.alipay_notify_url" placeholder="例：https://api.example.com/api/payment/alipay/notify" />
+                <div class="form-tip">支付成功后支付宝服务器回调此地址，必须公网可达</div>
+              </el-form-item>
+              <el-form-item label="同步跳转地址">
+                <el-input v-model="form.alipay_return_url" placeholder="例：https://example.com/pay/success" />
+                <div class="form-tip">支付完成后浏览器跳转的页面地址</div>
+              </el-form-item>
+              <el-form-item label="沙箱模式">
+                <el-switch v-model="form.alipay_sandbox" active-value="true" inactive-value="false" />
+                <div class="form-tip">开启后使用支付宝沙箱环境，仅用于开发测试</div>
+              </el-form-item>
+              <el-form-item>
+                <el-button type="primary" :loading="saving" @click="save('payment')">保存配置</el-button>
+                <el-button :loading="testingAlipay" @click="testAlipay" style="margin-left: 12px;">测试支付宝</el-button>
+              </el-form-item>
+            </el-form>
+
+            <el-divider />
+
+            <!-- 微信支付配置 -->
+            <h4 style="margin: 0 0 16px 0; color: #303133; display: flex; align-items: center; gap: 8px;">
+              <span style="display: inline-block; width: 4px; height: 16px; background: #07c160; border-radius: 2px;"></span>
+              微信支付配置
+            </h4>
+            <el-form :model="form" label-width="140px">
+              <el-form-item label="商户号 (MchID)">
+                <el-input v-model="form.wechat_mch_id" placeholder="微信支付商户号" />
+              </el-form-item>
+              <el-form-item label="AppID">
+                <el-input v-model="form.wechat_app_id" placeholder="关联的微信开放平台 AppID" />
+              </el-form-item>
+              <el-form-item label="API 密钥">
+                <el-input v-model="form.wechat_api_key" type="password" show-password placeholder="微信支付 API 密钥 (APIv2)" />
+                <div class="form-tip">微信商户平台 → 账户中心 → API安全 → API密钥</div>
+              </el-form-item>
+              <el-form-item label="证书路径">
+                <el-input v-model="form.wechat_cert_path" placeholder="例：/app/certs/wechat/apiclient_cert.pem" />
+                <div class="form-tip">微信支付 API 证书文件路径（apiclient_cert.pem 和 apiclient_key.pem）</div>
+              </el-form-item>
+              <el-form-item label="异步通知地址">
+                <el-input v-model="form.wechat_notify_url" placeholder="例：https://api.example.com/api/payment/wechat/notify" />
+                <div class="form-tip">支付成功后微信服务器回调此地址</div>
+              </el-form-item>
+              <el-form-item>
+                <el-button type="primary" :loading="saving" @click="save('payment')">保存配置</el-button>
+                <el-button :loading="testingWechat" @click="testWechat" style="margin-left: 12px;">测试微信支付</el-button>
+              </el-form-item>
+            </el-form>
+          </div>
+        </el-tab-pane>
       </el-tabs>
     </el-card>
   </div>
@@ -353,7 +426,7 @@ class ApiConfig {
 <script setup>
 import { ref, onMounted, computed, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getSettings, updateSettings, getStorageStatus, testStorageConnection, testMailConnection, sendMailTest, getCategoryList } from '@/api/index'
+import { getSettings, updateSettings, getStorageStatus, testStorageConnection, testMailConnection, sendMailTest, getCategoryList, testAlipayConnection, testWechatPayConnection } from '@/api/index'
 import { Rank, Delete, Plus } from '@element-plus/icons-vue'
 
 const activeTab = ref('general')
@@ -361,7 +434,9 @@ const saving = ref(false)
 const testingMail = ref(false)
 const testingConnection = ref(false)
 const testingStorage = ref(false)
-const restarting = ref(false)
+const testingAlipay = ref(false)
+const testingWechat = ref(false)
+
 const loaded = ref(false)
 const storageStatus = ref(null)
 const testMailTo = ref('')
@@ -400,6 +475,19 @@ const form = ref({
   favicon_url: '',
   // 导航菜单
   nav_menu: '[]',
+  // 支付宝配置
+  alipay_app_id: '',
+  alipay_private_key: '',
+  alipay_public_key: '',
+  alipay_notify_url: '',
+  alipay_return_url: '',
+  alipay_sandbox: 'false',
+  // 微信支付配置
+  wechat_app_id: '',
+  wechat_mch_id: '',
+  wechat_api_key: '',
+  wechat_cert_path: '',
+  wechat_notify_url: '',
 })
 
 // 导航菜单相关
@@ -499,6 +587,7 @@ async function save(group) {
       storage: ['storage_type', 's3_endpoint', 's3_region', 's3_access_key', 's3_secret_key', 's3_bucket', 'r2_account_id', 'cdn_domain'],
       domain: ['site_url', 'api_url', 'dev_api_url'],
       navigation: ['nav_menu'],
+      payment: ['alipay_app_id', 'alipay_private_key', 'alipay_public_key', 'alipay_notify_url', 'alipay_return_url', 'alipay_sandbox', 'wechat_app_id', 'wechat_mch_id', 'wechat_api_key', 'wechat_cert_path', 'wechat_notify_url'],
 }
     const keys = groupKeys[group] || Object.keys(form.value)
     const payload = {}
@@ -562,19 +651,41 @@ async function testStorage() {
   }
 }
 
-async function restartBackend() {
-  if (!confirm('确定要重启后端服务吗？重启期间网站将短暂不可用。')) return
-  restarting.value = true
+async function testAlipay() {
+  testingAlipay.value = true
   try {
-    await request.post('/admin/system/restart')
-    ElMessage.success('后端正在重启，预计 5-10 秒后恢复...')
-    setTimeout(() => location.reload(), 6000)
+    await testAlipayConnection({
+      alipay_app_id: form.value.alipay_app_id,
+      alipay_private_key: form.value.alipay_private_key,
+      alipay_public_key: form.value.alipay_public_key,
+      alipay_sandbox: form.value.alipay_sandbox,
+    })
+    ElMessage.success('支付宝配置验证通过！')
   } catch {
-    ElMessage.error('重启请求失败')
+    // 拦截器已处理
   } finally {
-    restarting.value = false
+    testingAlipay.value = false
   }
 }
+
+async function testWechat() {
+  testingWechat.value = true
+  try {
+    await testWechatPayConnection({
+      wechat_mch_id: form.value.wechat_mch_id,
+      wechat_app_id: form.value.wechat_app_id,
+      wechat_api_key: form.value.wechat_api_key,
+      wechat_cert_path: form.value.wechat_cert_path,
+    })
+    ElMessage.success('微信支付配置验证通过！')
+  } catch {
+    // 拦截器已处理
+  } finally {
+    testingWechat.value = false
+  }
+}
+
+
 </script>
 
 <style scoped>

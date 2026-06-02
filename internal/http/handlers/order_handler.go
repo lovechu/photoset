@@ -12,11 +12,15 @@ import (
 )
 
 type OrderHandler struct {
-	service *service.OrderService
+	service      *service.OrderService
+	alipayService *service.AlipayService
 }
 
-func NewOrderHandler(service *service.OrderService) *OrderHandler {
-	return &OrderHandler{service: service}
+func NewOrderHandler(service *service.OrderService, alipayService *service.AlipayService) *OrderHandler {
+	return &OrderHandler{
+		service:      service,
+		alipayService: alipayService,
+	}
 }
 
 // CreateOrderRequest 创建订单请求
@@ -24,6 +28,11 @@ type CreateOrderRequest struct {
 	Type         string `json:"type" binding:"required,oneof=membership single"`
 	MembershipID *uint  `json:"membership_id"`
 	PhotoSetID   *uint  `json:"photoset_id"`
+}
+
+// PayRequest 支付请求
+type PayRequest struct {
+	PaymentMethod string `json:"payment_method" binding:"required,oneof=alipay mock"`
 }
 
 // Create 创建订单
@@ -46,7 +55,7 @@ func (h *OrderHandler) Create(c *gin.Context) {
 	response.Success(c, order)
 }
 
-// Pay 模拟支付
+// Pay 支付订单
 func (h *OrderHandler) Pay(c *gin.Context) {
 	idStr := c.Param("id")
 	orderID, err := strconv.ParseUint(idStr, 10, 32)
@@ -55,19 +64,53 @@ func (h *OrderHandler) Pay(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("user_id")
-
-	token, err := h.service.MockPay(userID.(uint), uint(orderID))
-	if err != nil {
-		logger.Warn("Payment failed", "order_id", orderID, "user_id", userID, "error", err)
-		response.Error(c, http.StatusBadRequest, err.Error())
+	var req PayRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "参数错误: "+err.Error())
 		return
 	}
-	logger.Info("Payment successful", "order_id", orderID, "user_id", userID)
-	response.Success(c, gin.H{
-		"message": "支付成功",
-		"token":   token,
-	})
+
+	userID, _ := c.Get("user_id")
+
+	switch req.PaymentMethod {
+	case "alipay":
+		// 支付宝支付
+		if h.alipayService == nil {
+			response.Error(c, http.StatusServiceUnavailable, "支付宝支付未配置")
+			return
+		}
+
+		payURL, err := h.service.CreateAlipayOrder(userID.(uint), uint(orderID), h.alipayService)
+		if err != nil {
+			logger.Warn("支付宝支付创建失败", "order_id", orderID, "user_id", userID, "error", err)
+			response.Error(c, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		logger.Info("支付宝支付订单创建成功", "order_id", orderID, "user_id", userID)
+		response.Success(c, gin.H{
+			"payment_method": "alipay",
+			"pay_url":        payURL,
+		})
+
+	case "mock":
+		// 模拟支付（开发测试用）
+		token, err := h.service.MockPay(userID.(uint), uint(orderID))
+		if err != nil {
+			logger.Warn("模拟支付失败", "order_id", orderID, "user_id", userID, "error", err)
+			response.Error(c, http.StatusBadRequest, err.Error())
+			return
+		}
+		logger.Info("模拟支付成功", "order_id", orderID, "user_id", userID)
+		response.Success(c, gin.H{
+			"message":        "支付成功",
+			"payment_method": "mock",
+			"token":          token,
+		})
+
+	default:
+		response.Error(c, http.StatusBadRequest, "不支持的支付方式")
+	}
 }
 
 // List 我的订单列表
@@ -120,4 +163,28 @@ func (h *OrderHandler) Refund(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"message": "退款成功"})
+}
+
+// AlipayNotify 支付宝异步回调
+func (h *OrderHandler) AlipayNotify(c *gin.Context) {
+	if h.alipayService == nil {
+		logger.Error("支付宝回调: 服务未配置")
+		c.String(http.StatusOK, "fail")
+		return
+	}
+
+	notification, err := h.alipayService.VerifyNotification(c.Request)
+	if err != nil {
+		logger.Error("支付宝回调验证失败", "error", err)
+		c.String(http.StatusOK, "fail")
+		return
+	}
+
+	if err := h.alipayService.HandlePaymentSuccess(notification); err != nil {
+		logger.Error("支付宝回调处理失败", "error", err)
+		c.String(http.StatusOK, "fail")
+		return
+	}
+
+	c.String(http.StatusOK, "success")
 }

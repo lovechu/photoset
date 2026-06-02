@@ -289,6 +289,72 @@ func (h *PhotoSetHandler) Delete(c *gin.Context) {
 	response.Success(c, gin.H{"message": "删除成功"})
 }
 
+// GetTrash 获取回收站列表
+func (h *PhotoSetHandler) GetTrash(c *gin.Context) {
+	userID, _ := c.Get("user_id")
+	uid, ok := userID.(uint)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "请先登录")
+		return
+	}
+
+	trash, err := h.service.GetTrashList(uid)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "获取回收站失败")
+		return
+	}
+
+	response.Success(c, trash)
+}
+
+// Restore 恢复已删除的套图
+func (h *PhotoSetHandler) Restore(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "无效的套图ID")
+		return
+	}
+
+	userID, _ := c.Get("user_id")
+	uid, ok := userID.(uint)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "请先登录")
+		return
+	}
+
+	if err := h.service.RestorePhotoSet(uint(id), uid); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{"message": "恢复成功"})
+}
+
+// PermanentDelete 永久删除套图
+func (h *PhotoSetHandler) PermanentDelete(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "无效的套图ID")
+		return
+	}
+
+	userID, _ := c.Get("user_id")
+	uid, ok := userID.(uint)
+	if !ok {
+		response.Error(c, http.StatusUnauthorized, "请先登录")
+		return
+	}
+
+	if err := h.service.PermanentDeletePhotoSet(uint(id), uid); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{"message": "永久删除成功"})
+}
+
 func toPhotos(ps []Photo, photosetID uint) []domain.Photo {
 	var result []domain.Photo
 	for _, p := range ps {

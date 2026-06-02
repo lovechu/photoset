@@ -105,6 +105,7 @@ func (s *OrderService) MockPay(userID, orderID uint) (string, error) {
 	now := time.Now()
 	order.Status = "paid"
 	order.PaidAt = &now
+	order.PaymentMethod = "mock"
 	if err := s.orderRepo.Update(order); err != nil {
 		return "", errors.New("支付失败")
 	}
@@ -153,6 +154,32 @@ func (s *OrderService) MockPay(userID, orderID uint) (string, error) {
 	}
 
 	return token, nil
+}
+
+// CreateAlipayOrder 创建支付宝支付订单
+func (s *OrderService) CreateAlipayOrder(userID, orderID uint, alipayService *AlipayService) (string, error) {
+	order, err := s.orderRepo.FindByID(orderID)
+	if err != nil {
+		return "", errors.New("订单不存在")
+	}
+
+	// 校验：订单属于当前用户
+	if order.UserID != userID {
+		return "", errors.New("无权操作此订单")
+	}
+
+	// 校验：订单状态为待支付
+	if order.Status != "pending" {
+		return "", errors.New("订单状态异常，无法支付")
+	}
+
+	// 创建支付宝支付
+	payURL, err := alipayService.CreatePayment(order)
+	if err != nil {
+		return "", errors.New("创建支付订单失败: " + err.Error())
+	}
+
+	return payURL, nil
 }
 
 // GetOrderList 获取用户订单列表

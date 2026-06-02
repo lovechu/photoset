@@ -30,6 +30,16 @@ func (r *OrderRepository) FindByID(id uint) (*domain.Order, error) {
 	return &order, nil
 }
 
+// FindByOrderNo 根据订单号查询订单
+func (r *OrderRepository) FindByOrderNo(orderNo string) (*domain.Order, error) {
+	var order domain.Order
+	err := r.db.Preload("Membership").Preload("PhotoSet").Where("order_no = ?", orderNo).First(&order).Error
+	if err != nil {
+		return nil, err
+	}
+	return &order, nil
+}
+
 // Update 更新订单
 func (r *OrderRepository) Update(order *domain.Order) error {
 	return r.db.Save(order).Error

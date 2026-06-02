@@ -19,63 +19,77 @@ type PhotoSetService struct {
 	cfg          *config.Config
 }
 
-func NewPhotoSetService(repo *repository.PhotoSetRepository, orderRepo *repository.OrderRepository) *PhotoSetService {
+func NewPhotoSetService(repo *repository.PhotoSetRepository, orderRepo *repository.OrderRepository, cfg *config.Config) *PhotoSetService {
 	return &PhotoSetService{
 		repo:         repo,
 		orderRepo:    orderRepo,
 		cacheService: NewCacheService(),
-		cfg:          config.Load(),
+		cfg:          cfg,
 	}
 }
 
-// CreatePhotoSet 创建套图
+// CreatePhotoSet 创建套图（事务保护）
 func (s *PhotoSetService) CreatePhotoSet(photoset *domain.PhotoSet, tagNames []string, photos []domain.Photo) error {
 	// 处理价格
 	if photoset.IsFree == 1 {
 		photoset.Price = 0
 	}
 
-	// 创建套图
-	if err := s.repo.Create(photoset); err != nil {
-		return err
-	}
+	// 使用事务确保数据一致性
+	err := s.repo.Transaction(func(tx *gorm.DB) error {
+		// 创建套图
+		if err := tx.Create(photoset).Error; err != nil {
+			return err
+		}
 
-	// 处理标签
-	var tagIDs []uint
-	for _, tagName := range tagNames {
-		tag, err := s.repo.FindTagByName(tagName)
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				// 标签不存在，创建新标签
-				newTag := &domain.Tag{Name: tagName}
-				if err := s.repo.CreateTag(newTag); err != nil {
+		// 处理标签
+		var tagIDs []uint
+		for _, tagName := range tagNames {
+			var tag domain.Tag
+			if err := tx.Where("name = ?", tagName).First(&tag).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					// 标签不存在，创建新标签
+					newTag := &domain.Tag{Name: tagName}
+					if err := tx.Create(newTag).Error; err != nil {
+						return err
+					}
+					tagIDs = append(tagIDs, newTag.ID)
+				} else {
 					return err
 				}
-				tagIDs = append(tagIDs, newTag.ID)
 			} else {
+				tagIDs = append(tagIDs, tag.ID)
+			}
+		}
+
+		// 创建套图标签关联
+		if len(tagIDs) > 0 {
+			for _, tagID := range tagIDs {
+				photosetTag := map[string]interface{}{
+					"photoset_id": photoset.ID,
+					"tag_id":      tagID,
+				}
+				if err := tx.Table("photoset_tags").Create(&photosetTag).Error; err != nil {
+					return err
+				}
+			}
+		}
+
+		// 创建图片
+		if len(photos) > 0 {
+			for i := range photos {
+				photos[i].PhotoSetID = photoset.ID
+			}
+			if err := tx.Create(&photos).Error; err != nil {
 				return err
 			}
-		} else {
-			tagIDs = append(tagIDs, tag.ID)
 		}
-	}
 
-	// 创建套图标签关联
-	if len(tagIDs) > 0 {
-		if err := s.repo.CreatePhotoSetTags(photoset.ID, tagIDs); err != nil {
-			return err
-		}
-	}
+		return nil
+	})
 
-	// 创建图片
-	if len(photos) > 0 {
-		// 设置 photoset_id
-		for i := range photos {
-			photos[i].PhotoSetID = photoset.ID
-		}
-		if err := s.repo.CreatePhotos(photos); err != nil {
-			return err
-		}
+	if err != nil {
+		return err
 	}
 
 	s.InvalidateAllPhotosetListCache()
@@ -383,4 +397,50 @@ func (s *PhotoSetService) DeleteCategory(id uint) error {
 func (s *PhotoSetService) InvalidateCategoriesCache() {
 	ctx := context.Background()
 	s.cacheService.Delete(ctx, "categories:all")
+}
+
+// ============ 回收站功能 ============
+
+// GetTrashList 获取回收站列表
+func (s *PhotoSetService) GetTrashList(userID uint) ([]domain.PhotoSet, error) {
+	return s.repo.GetTrash(userID)
+}
+
+// RestorePhotoSet 恢复已删除的套图
+func (s *PhotoSetService) RestorePhotoSet(id uint, userID uint) error {
+	// 验证所有权
+	photoset, err := s.repo.FindByIDWithoutPhotos(id)
+	if err != nil {
+		return errors.New("套图不存在")
+	}
+	if photoset.UserID != userID {
+		return errors.New("无权恢复此套图")
+	}
+
+	if err := s.repo.Restore(id); err != nil {
+		return err
+	}
+
+	s.InvalidateAllPhotosetListCache()
+	return nil
+}
+
+// PermanentDeletePhotoSet 永久删除套图
+func (s *PhotoSetService) PermanentDeletePhotoSet(id uint, userID uint) error {
+	// 验证所有权
+	photoset, err := s.repo.FindByIDWithoutPhotos(id)
+	if err != nil {
+		return errors.New("套图不存在")
+	}
+	if photoset.UserID != userID {
+		return errors.New("无权删除此套图")
+	}
+
+	if err := s.repo.PermanentDelete(id); err != nil {
+		return err
+	}
+
+	s.InvalidatePhotosetCache(id)
+	s.InvalidateAllPhotosetListCache()
+	return nil
 }

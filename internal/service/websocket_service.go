@@ -18,6 +18,7 @@ const (
 	WSTypeTyping       = "typing"       // Typing indicator
 	WSTypePing         = "ping"         // Heartbeat ping
 	WSTypePong         = "pong"         // Heartbeat pong
+	WSTypeAuth         = "auth"         // Authentication message
 )
 
 // WSMessage represents a WebSocket message
@@ -172,6 +173,19 @@ func (h *Hub) NewClient(conn *websocket.Conn, userID uint) *WSClient {
 	}
 }
 
+// SendJSON 直接发送 JSON 消息到连接（用于认证成功等即时响应）
+func (c *WSClient) SendJSON(msg WSMessage) {
+	data, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("[WebSocket] Failed to marshal message: %v", err)
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	c.conn.WriteMessage(websocket.TextMessage, data)
+}
+
 // Register registers a client with the hub
 func (h *Hub) Register(client *WSClient) {
 	h.register <- client
@@ -272,5 +286,12 @@ func (c *WSClient) handleMessage(msg WSMessage) {
 				})
 			}
 		}
+	case WSTypeAuth:
+		// 已在连接建立时处理过认证，忽略重复的 auth 消息
+		// 回复 auth_ok 确认
+		c.SendJSON(WSMessage{
+			Type:    "auth_ok",
+			Payload: map[string]interface{}{"user_id": c.userID},
+		})
 	}
 }

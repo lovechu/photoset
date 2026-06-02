@@ -6,23 +6,34 @@
         <el-radio-button value="pending">待审核</el-radio-button>
         <el-radio-button value="published">已通过</el-radio-button>
         <el-radio-button value="draft">已拒绝</el-radio-button>
+        <el-radio-button value="trash">回收站</el-radio-button>
       </el-radio-group>
 
-      <el-button type="primary" plain @click="handleExport" :loading="exportLoading">
+      <el-button v-if="!isTrashMode" type="primary" plain @click="handleExport" :loading="exportLoading">
         导出 CSV
       </el-button>
 
       <div class="batch-actions" v-if="selectedIds.length > 0">
         <el-text type="primary" size="small">已选择 {{ selectedIds.length }} 条</el-text>
-        <el-button type="success" size="small" @click="handleBatchApprove" :loading="batchProcessing">
-          批量通过
-        </el-button>
-        <el-button type="danger" size="small" @click="openBatchRejectDialog" :loading="batchProcessing">
-          批量拒绝
-        </el-button>
-        <el-button type="danger" size="small" plain @click="handleBatchDelete" :loading="batchProcessing">
-          批量删除
-        </el-button>
+        <template v-if="isTrashMode">
+          <el-button type="success" size="small" @click="handleBatchRestore" :loading="batchProcessing">
+            批量恢复
+          </el-button>
+          <el-button type="danger" size="small" @click="handleBatchPermanentDelete" :loading="batchProcessing">
+            批量永久删除
+          </el-button>
+        </template>
+        <template v-else>
+          <el-button type="success" size="small" @click="handleBatchApprove" :loading="batchProcessing">
+            批量通过
+          </el-button>
+          <el-button type="danger" size="small" @click="openBatchRejectDialog" :loading="batchProcessing">
+            批量拒绝
+          </el-button>
+          <el-button type="danger" size="small" plain @click="handleBatchDelete" :loading="batchProcessing">
+            批量删除
+          </el-button>
+        </template>
         <el-button type="info" size="small" plain @click="clearSelection">
           取消选择
         </el-button>
@@ -42,28 +53,38 @@
                 <el-tag :type="statusTagType(item.status)" size="small">{{ statusLabel(item.status) }}</el-tag>
               </div>
               <div class="review-card__time">{{ formatTime(item.created_at) }}</div>
-              <div class="review-card__actions" v-if="item.status === 'pending'">
-                <el-button type="success" size="small" @click="handleApprove(item.id)">通过</el-button>
-                <el-button type="danger" size="small" @click="openRejectDialog(item.id)">拒绝</el-button>
-              </div>
-              <div class="review-card__actions">
-                <el-button
-                  size="small"
-                  plain
-                  @click="$router.push(`/photoset/${item.id}/edit`)"
-                >
-                  编辑
-                </el-button>
-                <el-button
-                  size="small"
-                  type="danger"
-                  plain
-                  @click="handleDelete(item.id)"
-                  :loading="deletingId === item.id"
-                >
-                  删除
-                </el-button>
-              </div>
+              <template v-if="isTrashMode">
+                <div class="review-card__actions">
+                  <el-button type="success" size="small" @click="handleRestore(item.id)">恢复</el-button>
+                  <el-button type="danger" size="small" plain @click="handlePermanentDelete(item.id)" :loading="deletingId === item.id">
+                    永久删除
+                  </el-button>
+                </div>
+              </template>
+              <template v-else>
+                <div class="review-card__actions" v-if="item.status === 'pending'">
+                  <el-button type="success" size="small" @click="handleApprove(item.id)">通过</el-button>
+                  <el-button type="danger" size="small" @click="openRejectDialog(item.id)">拒绝</el-button>
+                </div>
+                <div class="review-card__actions">
+                  <el-button
+                    size="small"
+                    plain
+                    @click="$router.push(`/photoset/${item.id}/edit`)"
+                  >
+                    编辑
+                  </el-button>
+                  <el-button
+                    size="small"
+                    type="danger"
+                    plain
+                    @click="handleDelete(item.id)"
+                    :loading="deletingId === item.id"
+                  >
+                    删除
+                  </el-button>
+                </div>
+              </template>
             </div>
           </el-card>
         </el-col>
@@ -107,8 +128,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { getPhotoSetsByStatus, approvePhotoSet, rejectPhotoSet, deletePhotoset, batchApprovePhotoSets, batchRejectPhotoSets, batchDeletePhotoSets, exportPhotosets } from '@/api'
+import { ref, onMounted, computed } from 'vue'
+import { getPhotoSetsByStatus, approvePhotoSet, rejectPhotoSet, deletePhotoset, batchApprovePhotoSets, batchRejectPhotoSets, batchDeletePhotoSets, exportPhotosets, getTrashList, restorePhotoset, permanentDeletePhotoset } from '@/api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const loading = ref(false)
@@ -129,6 +150,8 @@ const selectedIds = ref([])
 const batchProcessing = ref(false)
 const batchRejectDialogVisible = ref(false)
 const batchRejectReason = ref('')
+
+const isTrashMode = computed(() => currentStatus.value === 'trash')
 
 const statusMap = {
   pending: '待审核',
@@ -157,11 +180,17 @@ function formatTime(t) {
 
 async function fetchList() {
   loading.value = true
+  clearSelection()
   try {
-    const params = {}
-    if (currentStatus.value) params.status = currentStatus.value
-    const res = await getPhotoSetsByStatus(params)
-    list.value = res.data?.list || res.data || []
+    if (isTrashMode.value) {
+      const res = await getTrashList()
+      list.value = res.data?.list || res.data || []
+    } else {
+      const params = {}
+      if (currentStatus.value) params.status = currentStatus.value
+      const res = await getPhotoSetsByStatus(params)
+      list.value = res.data?.list || res.data || []
+    }
   } catch {
     // handled by interceptor
   } finally {
@@ -321,6 +350,95 @@ async function handleBatchDelete() {
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error('批量删除失败')
+    }
+  } finally {
+    batchProcessing.value = false
+  }
+}
+
+// 恢复套图
+async function handleRestore(id) {
+  try {
+    await restorePhotoset(id)
+    ElMessage.success('恢复成功')
+    fetchList()
+  } catch {
+    // handled by interceptor
+  }
+}
+
+// 永久删除套图
+async function handlePermanentDelete(id) {
+  try {
+    await ElMessageBox.confirm(
+      '永久删除后将无法恢复，确定继续？',
+      '永久删除警告',
+      {
+        confirmButtonText: '确定永久删除',
+        cancelButtonText: '取消',
+        type: 'error',
+      }
+    )
+    deletingId.value = id
+    await permanentDeletePhotoset(id)
+    ElMessage.success('已永久删除')
+    fetchList()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('永久删除失败')
+    }
+  } finally {
+    deletingId.value = null
+  }
+}
+
+// 批量恢复
+async function handleBatchRestore() {
+  if (selectedIds.value.length === 0) {
+    ElMessage.warning('请先选择套图')
+    return
+  }
+  batchProcessing.value = true
+  try {
+    for (const id of selectedIds.value) {
+      await restorePhotoset(id)
+    }
+    ElMessage.success(`成功恢复 ${selectedIds.value.length} 个套图`)
+    clearSelection()
+    fetchList()
+  } catch {
+    ElMessage.error('批量恢复失败')
+  } finally {
+    batchProcessing.value = false
+  }
+}
+
+// 批量永久删除
+async function handleBatchPermanentDelete() {
+  if (selectedIds.value.length === 0) {
+    ElMessage.warning('请先选择套图')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确定要永久删除选中的 ${selectedIds.value.length} 个套图吗？永久删除后将无法恢复！`,
+      '批量永久删除警告',
+      {
+        confirmButtonText: '确定永久删除',
+        cancelButtonText: '取消',
+        type: 'error',
+      }
+    )
+    batchProcessing.value = true
+    for (const id of selectedIds.value) {
+      await permanentDeletePhotoset(id)
+    }
+    ElMessage.success(`成功永久删除 ${selectedIds.value.length} 个套图`)
+    clearSelection()
+    fetchList()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('批量永久删除失败')
     }
   } finally {
     batchProcessing.value = false

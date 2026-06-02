@@ -10,7 +10,7 @@ import (
 
 // RegisterCommunityRoutes registers community module routes
 func RegisterCommunityRoutes(
-	r *gin.Engine,
+	apiGroup *gin.RouterGroup,
 	communityHandler *handlers.CommunityHandler,
 	followHandler *handlers.FollowHandler,
 	adminHandler *admin.AdminCommunityHandler,
@@ -22,7 +22,7 @@ func RegisterCommunityRoutes(
 	blockHandler *handlers.UserBlockHandler,
 ) {
 	// Public routes (with optional auth)
-	public := r.Group("/api/community")
+	public := apiGroup.Group("/community")
 	{
 		// Posts
 		public.GET("/posts", communityHandler.GetPosts)
@@ -61,7 +61,7 @@ func RegisterCommunityRoutes(
 	}
 
 	// Protected routes (require login)
-	protected := r.Group("/api/community")
+	protected := apiGroup.Group("/community")
 	protected.Use(middleware.Auth())
 	{
 		// Posts
@@ -147,13 +147,13 @@ func RegisterCommunityRoutes(
 		// Points Leaderboard
 		protected.GET("/points/leaderboard", userLevelHandler.GetPointsLeaderboard)
 
-		// WebSocket
-		protected.GET("/ws", wsHandler.HandleConnection)
-		protected.GET("/ws/online", wsHandler.GetOnlineStatus)
+		// WebSocket（认证在 handler 内部处理，支持 query token 和 auth 消息两种方式）
+		public.GET("/ws", wsHandler.HandleConnection)
+		public.GET("/ws/online", wsHandler.GetOnlineStatus)
 	}
 
 	// Admin routes
-	adminGroup := r.Group("/api/admin/community")
+	adminGroup := apiGroup.Group("/admin/community")
 	adminGroup.Use(middleware.Auth(), middleware.AdminOnly())
 	{
 		// Post management

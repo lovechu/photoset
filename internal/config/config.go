@@ -9,12 +9,14 @@ import (
 )
 
 type Config struct {
-	Server  ServerConfig
-	DB      DBConfig
-	Redis   RedisConfig
-	JWT     JWTConfig
-	Storage StorageConfig
-	Log     LogConfig
+	Server     ServerConfig
+	DB         DBConfig
+	Redis      RedisConfig
+	JWT        JWTConfig
+	Storage    StorageConfig
+	Log        LogConfig
+	Alipay     AlipayConfig
+	WechatPay  WechatPayConfig
 }
 
 type LogConfig struct {
@@ -62,6 +64,23 @@ type StorageConfig struct {
 	SignExpire  int    // 签名过期时间（秒），默认 7200（2小时）
 }
 
+type AlipayConfig struct {
+	AppID      string // 支付宝应用ID
+	PrivateKey string // 应用私钥
+	PublicKey  string // 支付宝公钥
+	NotifyURL  string // 异步通知地址
+	ReturnURL  string // 同步跳转地址
+	IsSandbox  bool   // 是否沙箱环境
+}
+
+type WechatPayConfig struct {
+	AppID    string // 微信开放平台 AppID
+	MchID    string // 微信支付商户号
+	APIKey   string // API 密钥 (APIv2)
+	CertPath string // 证书路径
+	NotifyURL string // 异步通知地址
+}
+
 func Load() *Config {
 	if err := godotenv.Load(); err != nil {
 		log.Println("Warning: .env file not found, using environment variables")
@@ -106,6 +125,21 @@ func Load() *Config {
 		Log: LogConfig{
 			Level:  getEnv("LOG_LEVEL", "info"),
 			Format: getEnv("LOG_FORMAT", "text"),
+		},
+		Alipay: AlipayConfig{
+			AppID:      getEnv("ALIPAY_APP_ID", ""),
+			PrivateKey: getEnv("ALIPAY_PRIVATE_KEY", ""),
+			PublicKey:  getEnv("ALIPAY_PUBLIC_KEY", ""),
+			NotifyURL:  getEnv("ALIPAY_NOTIFY_URL", ""),
+			ReturnURL:  getEnv("ALIPAY_RETURN_URL", ""),
+			IsSandbox:  getEnv("ALIPAY_SANDBOX", "false") == "true",
+		},
+		WechatPay: WechatPayConfig{
+			AppID:     getEnv("WECHAT_APP_ID", ""),
+			MchID:     getEnv("WECHAT_MCH_ID", ""),
+			APIKey:    getEnv("WECHAT_API_KEY", ""),
+			CertPath:  getEnv("WECHAT_CERT_PATH", ""),
+			NotifyURL: getEnv("WECHAT_NOTIFY_URL", ""),
 		},
 	}
 

@@ -16,6 +16,8 @@ type Order struct {
 	MembershipID  *uint      `json:"membership_id"`                                                           // 会员套餐 ID（type=membership 时有值）
 	PhotoSetID    *uint      `json:"photoset_id"`                                                             // 套图 ID（type=single 时有值）
 	PaidAt        *time.Time `json:"paid_at"`                                                                 // 支付时间
+	PaymentMethod string     `gorm:"size:20" json:"payment_method"`                                         // 支付方式: alipay/wechat/mock
+	PaymentNo     string     `gorm:"size:100" json:"payment_no"`                                            // 支付流水号
 	ExpireSeconds int        `gorm:"default:1800;comment:支付过期秒数" json:"-"`                                // 订单过期时间（默认30分钟）
 
 	// 关联

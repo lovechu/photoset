@@ -211,6 +211,16 @@ export function getWatermarkInfo() {
   return request.get('/admin/watermark/info')
 }
 
+// ============ 支付配置 ============
+
+export function testAlipayConnection(data) {
+  return request.post('/admin/payment/alipay/test', data)
+}
+
+export function testWechatPayConnection(data) {
+  return request.post('/admin/payment/wechat/test', data)
+}
+
 // ============ 会员套餐管理 APIs ============
 
 export function getMembershipList(params) {
@@ -299,4 +309,27 @@ export function deleteOAuthClient(id) {
 
 export function getOAuthClient(id) {
   return request.get(`/admin/oauth/clients/${id}`)
+}
+
+// ============ 回收站（软删除管理） ============
+
+/**
+ * 获取回收站（软删除）套图列表
+ */
+export function getTrashList(params) {
+  return request.get('/photosets/trash', { params })
+}
+
+/**
+ * 恢复软删除的套图
+ */
+export function restorePhotoset(id) {
+  return request.post(`/photosets/${id}/restore`)
+}
+
+/**
+ * 永久删除套图
+ */
+export function permanentDeletePhotoset(id) {
+  return request.delete(`/photosets/${id}/permanent`)
 }

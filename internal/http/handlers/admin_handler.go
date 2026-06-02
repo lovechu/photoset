@@ -4,15 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"photoset/internal/config"
 	"photoset/internal/domain"
+	"photoset/internal/logger"
 	"photoset/internal/pkg/response"
 	"photoset/internal/repository"
 	"photoset/internal/service"
@@ -22,26 +21,32 @@ import (
 )
 
 type AdminHandler struct {
-	photosetRepo *repository.PhotoSetRepository
-	orderRepo    *repository.OrderRepository
-	orderService *service.OrderService
-	settingRepo  *repository.SiteSettingRepository
-	logRepo      *repository.AdminLogRepository
-	userRepo     repository.UserRepository
-	userService  service.UserService
-	mailService  *service.MailService
+	photosetRepo    *repository.PhotoSetRepository
+	orderRepo       *repository.OrderRepository
+	orderService    *service.OrderService
+	settingRepo     *repository.SiteSettingRepository
+	logRepo         *repository.AdminLogRepository
+	userRepo        repository.UserRepository
+	userService     service.UserService
+	mailService     *service.MailService
+	cfg             *config.Config
+	alipayService   *service.AlipayService
+	wechatPayService *service.WechatPayService
 }
 
-func NewAdminHandler(photosetRepo *repository.PhotoSetRepository, orderRepo *repository.OrderRepository, orderService *service.OrderService) *AdminHandler {
+func NewAdminHandler(photosetRepo *repository.PhotoSetRepository, orderRepo *repository.OrderRepository, orderService *service.OrderService, cfg *config.Config, alipayService *service.AlipayService, wechatPayService *service.WechatPayService) *AdminHandler {
 	userRepo := repository.NewUserRepository()
 	return &AdminHandler{
-		photosetRepo: photosetRepo,
-		orderRepo:    orderRepo,
-		orderService: orderService,
-		settingRepo:  repository.NewSiteSettingRepository(),
-		logRepo:      repository.NewAdminLogRepository(),
-		userRepo:     userRepo,
-		userService:  service.NewUserService(userRepo),
+		photosetRepo:     photosetRepo,
+		orderRepo:        orderRepo,
+		orderService:     orderService,
+		settingRepo:      repository.NewSiteSettingRepository(),
+		logRepo:          repository.NewAdminLogRepository(),
+		userRepo:         userRepo,
+		userService:      service.NewUserService(userRepo),
+		cfg:              cfg,
+		alipayService:    alipayService,
+		wechatPayService: wechatPayService,
 	}
 }
 
@@ -242,22 +247,19 @@ func (h *AdminHandler) BanUser(c *gin.Context) {
 		Status int `json:"status"`
 	}
 	bodyBytes, _ := io.ReadAll(c.Request.Body)
-	log.Printf("[BanUser] userID=%d, rawBody=%s, contentLength=%d", id, string(bodyBytes), c.Request.ContentLength)
 	if len(bodyBytes) > 0 {
 		if err := json.Unmarshal(bodyBytes, &body); err != nil {
-			log.Printf("[BanUser] JSON parse error: %v", err)
+			logger.Warn("BanUser: JSON parse error", "userID", id, "error", err)
 			response.Error(c, http.StatusBadRequest, "参数格式错误")
 			return
 		}
 	}
 
 	if body.Status != 0 && body.Status != 1 {
-		log.Printf("[BanUser] Invalid status: %d", body.Status)
+		logger.Warn("BanUser: invalid status", "userID", id, "status", body.Status)
 		response.Error(c, http.StatusBadRequest, "参数错误，status 只能为 0 或 1")
 		return
 	}
-
-	log.Printf("[BanUser] Request received: userID=%d, status=%d", id, body.Status)
 
 	if err := h.userRepo.UpdateStatus(uint(id), body.Status); err != nil {
 		response.Error(c, http.StatusInternalServerError, "操作失败")
@@ -673,15 +675,9 @@ func escapeCSV(s string) string {
 	return s
 }
 
-// RestartServer 重启后端服务（依赖外部进程管理器，如 Docker restart policy 或 supervisord）
+// RestartServer 已禁用 — 存在 RCE/DoS 风险，进程重启应由外部进程管理器（Docker/systemd/supervisord）管理
 func (h *AdminHandler) RestartServer(c *gin.Context) {
-	response.Success(c, gin.H{"message": "正在重启后端服务"})
-	// 在另一个 goroutine 中退出进程，确保响应先发送给客户端
-	go func() {
-		// 给响应一点时间发送出去
-		time.Sleep(500 * time.Millisecond)
-		os.Exit(0)
-	}()
+	response.Forbidden(c, "此接口已禁用，请通过外部进程管理器重启服务")
 }
 
 // TestStorageConnection 测试存储连接
@@ -732,38 +728,37 @@ func (h *AdminHandler) TestStorageConnection(c *gin.Context) {
 
 // GetStorageStatus 获取当前存储状态
 func (h *AdminHandler) GetStorageStatus(c *gin.Context) {
-	cfg := config.Load()
-	stor, err := storage.NewStorage(&cfg.Storage)
+	stor, err := storage.NewStorage(&h.cfg.Storage)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "存储初始化失败")
 		return
 	}
 
 	status := gin.H{
-		"type":       cfg.Storage.Type,
+		"type":       h.cfg.Storage.Type,
 		"configurable": true,
 	}
 
 	switch stor.Type() {
 	case storage.StorageLocal:
 		status["label"] = "本地存储"
-		status["path"] = cfg.Storage.LocalPath
+		status["path"] = h.cfg.Storage.LocalPath
 	case storage.StorageS3:
 		status["label"] = "云存储 (S3 兼容)"
-		if cfg.Storage.R2PublicURL != "" {
-			status["cdn_domain"] = cfg.Storage.R2PublicURL
+		if h.cfg.Storage.R2PublicURL != "" {
+			status["cdn_domain"] = h.cfg.Storage.R2PublicURL
 		}
-		if cfg.Storage.R2AccountID != "" {
+		if h.cfg.Storage.R2AccountID != "" {
 			status["provider"] = "Cloudflare R2"
-		} else if cfg.Storage.S3Endpoint != "" {
-			status["provider"] = cfg.Storage.S3Endpoint
+		} else if h.cfg.Storage.S3Endpoint != "" {
+			status["provider"] = h.cfg.Storage.S3Endpoint
 		}
 	}
 
 	// 隐藏敏感信息
-	status["s3_access_key_set"] = cfg.Storage.S3AccessKey != ""
-	status["s3_secret_key_set"] = cfg.Storage.S3SecretKey != ""
-	status["s3_bucket_set"] = cfg.Storage.S3Bucket != ""
+	status["s3_access_key_set"] = h.cfg.Storage.S3AccessKey != ""
+	status["s3_secret_key_set"] = h.cfg.Storage.S3SecretKey != ""
+	status["s3_bucket_set"] = h.cfg.Storage.S3Bucket != ""
 
 	response.Success(c, status)
 }
@@ -823,7 +818,48 @@ func (h *AdminHandler) UpdateSettings(c *gin.Context) {
 		return
 	}
 
+	// 检查是否包含支付配置，自动重载
+	hasPaymentConfig := false
+	paymentKeys := []string{
+		"alipay_app_id", "alipay_private_key", "alipay_public_key",
+		"alipay_notify_url", "alipay_return_url", "alipay_sandbox",
+		"wechat_app_id", "wechat_mch_id", "wechat_api_key",
+		"wechat_cert_path", "wechat_notify_url",
+	}
+	for _, key := range paymentKeys {
+		if _, ok := data[key]; ok {
+			hasPaymentConfig = true
+			break
+		}
+	}
+
+	if hasPaymentConfig {
+		go h.reloadPaymentServices()
+	}
+
 	response.Success(c, gin.H{"message": "保存成功"})
+}
+
+// reloadPaymentServices 从数据库重新加载支付配置
+func (h *AdminHandler) reloadPaymentServices() {
+	settings, err := h.settingRepo.GetAll()
+	if err != nil {
+		logger.Warn("重载支付配置失败：获取设置失败", "error", err)
+		return
+	}
+
+	// 转换为 string map
+	strSettings := make(map[string]string)
+	for k, v := range settings {
+		strSettings[k] = v
+	}
+
+	if h.alipayService != nil {
+		h.alipayService.ReloadFromSettings(strSettings)
+	}
+	if h.wechatPayService != nil {
+		h.wechatPayService.ReloadFromSettings(strSettings)
+	}
 }
 
 // TestMailConnection 测试邮件 SMTP 连接
@@ -1104,4 +1140,79 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 		},
 	})
 	h.recordLog(c, "create_user", "用户#"+strconv.Itoa(int(user.ID)), "创建用户 "+req.Email+" 角色: "+req.Role)
+}
+
+// TestAlipayConfig 测试支付宝配置
+func (h *AdminHandler) TestAlipayConfig(c *gin.Context) {
+	var req struct {
+		AppID      string `json:"alipay_app_id" binding:"required"`
+		PrivateKey string `json:"alipay_private_key" binding:"required"`
+		PublicKey  string `json:"alipay_public_key" binding:"required"`
+		IsSandbox  string `json:"alipay_sandbox"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "参数错误：AppID、私钥、公钥为必填项")
+		return
+	}
+
+	// 尝试初始化支付宝客户端验证配置
+	cfg := &config.AlipayConfig{
+		AppID:      req.AppID,
+		PrivateKey: req.PrivateKey,
+		PublicKey:  req.PublicKey,
+		IsSandbox:  req.IsSandbox == "true",
+	}
+
+	tempService, err := service.NewAlipayService(cfg, nil)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "配置验证失败: "+err.Error())
+		return
+	}
+
+	// 成功初始化即表示配置可用
+	response.Success(c, gin.H{
+		"message": "支付宝配置验证通过",
+		"config":  tempService.GetConfig(),
+	})
+}
+
+// TestWechatPayConfig 测试微信支付配置
+func (h *AdminHandler) TestWechatPayConfig(c *gin.Context) {
+	var req struct {
+		MchID    string `json:"wechat_mch_id" binding:"required"`
+		AppID    string `json:"wechat_app_id"`
+		APIKey   string `json:"wechat_api_key" binding:"required"`
+		CertPath string `json:"wechat_cert_path"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "参数错误：商户号和API密钥为必填项")
+		return
+	}
+
+	// 验证配置格式
+	cfg := &config.WechatPayConfig{
+		AppID:    req.AppID,
+		MchID:    req.MchID,
+		APIKey:   req.APIKey,
+		CertPath: req.CertPath,
+	}
+
+	tempService := service.NewWechatPayService(cfg, nil)
+	if err := tempService.ValidateConfig(); err != nil {
+		response.Error(c, http.StatusBadRequest, "配置验证失败: "+err.Error())
+		return
+	}
+
+	// 验证证书文件（如果配置了路径）
+	if req.CertPath != "" {
+		// 这里可以添加证书文件存在性检查
+		// 但因为是远程服务器的路径，暂不检查
+	}
+
+	response.Success(c, gin.H{
+		"message": "微信支付配置验证通过",
+		"config":  tempService.GetConfig(),
+	})
 }

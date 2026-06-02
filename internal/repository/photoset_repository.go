@@ -15,6 +15,11 @@ func NewPhotoSetRepository(db *gorm.DB) *PhotoSetRepository {
 	return &PhotoSetRepository{db: db}
 }
 
+// Transaction 执行数据库事务
+func (r *PhotoSetRepository) Transaction(fn func(tx *gorm.DB) error) error {
+	return r.db.Transaction(fn)
+}
+
 // Create 创建套图
 func (r *PhotoSetRepository) Create(photoset *domain.PhotoSet) error {
 	return r.db.Create(photoset).Error
@@ -383,6 +388,40 @@ func (r *PhotoSetRepository) Delete(id uint) error {
 		}
 		// 软删除套图本身
 		return tx.Delete(&domain.PhotoSet{}, id).Error
+	})
+}
+
+// GetTrash 获取回收站列表（已软删除的套图）
+func (r *PhotoSetRepository) GetTrash(userID uint) ([]domain.PhotoSet, error) {
+	var photosets []domain.PhotoSet
+	err := r.db.Unscoped().
+		Where("deleted_at IS NOT NULL AND user_id = ?", userID).
+		Order("deleted_at DESC").
+		Find(&photosets).Error
+	return photosets, err
+}
+
+// Restore 恢复已软删除的套图
+func (r *PhotoSetRepository) Restore(id uint) error {
+	return r.db.Unscoped().
+		Model(&domain.PhotoSet{}).
+		Where("id = ?", id).
+		Update("deleted_at", nil).Error
+}
+
+// PermanentDelete 永久删除套图（包括关联数据）
+func (r *PhotoSetRepository) PermanentDelete(id uint) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// 永久删除关联的 photos
+		if err := tx.Unscoped().Where("photoset_id = ?", id).Delete(&domain.Photo{}).Error; err != nil {
+			return err
+		}
+		// 永久删除关联的 photoset_tags
+		if err := tx.Exec("DELETE FROM photoset_tags WHERE photoset_id = ?", id).Error; err != nil {
+			return err
+		}
+		// 永久删除套图本身
+		return tx.Unscoped().Delete(&domain.PhotoSet{}, id).Error
 	})
 }
 
