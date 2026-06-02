@@ -383,7 +383,7 @@ func (h *CommunityHandler) GetMyPosts(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 
-	posts, total, err := h.postRepo.FindByUserID(userID, page, pageSize)
+	posts, total, err := h.postRepo.FindByUserID(userID, page, pageSize, "latest")
 	if err != nil {
 		response.ServerError(c, "failed to get your posts")
 		return
@@ -409,11 +409,12 @@ func (h *CommunityHandler) GetUserPosts(c *gin.Context) {
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	sort := c.DefaultQuery("sort", "latest")
 
 	// Get current user (optional) for is_liked check
 	currentUserID, _ := middleware.GetUserID(c)
 
-	posts, total, err := h.postRepo.FindByUserID(uint(targetUserID), page, pageSize)
+	posts, total, err := h.postRepo.FindByUserID(uint(targetUserID), page, pageSize, sort)
 	if err != nil {
 		response.ServerError(c, "failed to get user posts")
 		return

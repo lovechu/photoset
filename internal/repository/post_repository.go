@@ -229,8 +229,8 @@ func (r *PostRepository) DecrementLikeCount(id uint) error {
 		Update("like_count", gorm.Expr("CASE WHEN like_count > 0 THEN like_count - 1 ELSE 0 END")).Error
 }
 
-// FindByUserID finds posts by user ID
-func (r *PostRepository) FindByUserID(userID uint, page, pageSize int) ([]domain.Post, int64, error) {
+// FindByUserID finds posts by user ID with sort support
+func (r *PostRepository) FindByUserID(userID uint, page, pageSize int, sort string) ([]domain.Post, int64, error) {
 	var posts []domain.Post
 	var total int64
 
@@ -240,8 +240,15 @@ func (r *PostRepository) FindByUserID(userID uint, page, pageSize int) ([]domain
 		return nil, 0, err
 	}
 
+	// 根据 sort 参数选择排序方式
+	orderClause := "created_at DESC"
+	switch sort {
+	case "hot":
+		orderClause = "like_count DESC, created_at DESC"
+	}
+
 	offset := (page - 1) * pageSize
-	err := query.Preload("User").Order("created_at DESC").Offset(offset).Limit(pageSize).Find(&posts).Error
+	err := query.Preload("User").Order(orderClause).Offset(offset).Limit(pageSize).Find(&posts).Error
 	if err != nil {
 		return nil, 0, err
 	}
