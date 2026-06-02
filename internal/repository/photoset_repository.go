@@ -482,6 +482,15 @@ func (r *PhotoSetRepository) CountCategoryPhotoSets(categorySlug string) (int64,
 	return count, err
 }
 
+// GetCommentImageURLs 获取套图下所有评论的图片 URL（用于文件清理）
+func (r *PhotoSetRepository) GetCommentImageURLs(photosetID uint) []string {
+	var urls []string
+	r.db.Model(&domain.Comment{}).
+		Where("photoset_id = ? AND image_url != ''", photosetID).
+		Pluck("image_url", &urls)
+	return urls
+}
+
 // ============ Admin APIs ============
 
 // ListByStatus 按状态查询套图列表（管理员用）

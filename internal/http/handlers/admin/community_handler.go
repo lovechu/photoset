@@ -7,9 +7,11 @@ import (
 
 	"photoset/internal/domain"
 	"photoset/internal/http/middleware"
+	"photoset/internal/logger"
 	"photoset/internal/pkg/response"
 	"photoset/internal/repository"
 	"photoset/internal/service"
+	"photoset/internal/storage"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -28,10 +30,11 @@ type AdminCommunityHandler struct {
 	notificationRepo *repository.NotificationRepository
 	pointService    *service.PointService
 	filterService   *service.SensitiveFilterService
+	storage         storage.Storage
 }
 
 // NewAdminCommunityHandler creates a new AdminCommunityHandler
-func NewAdminCommunityHandler(db *gorm.DB) *AdminCommunityHandler {
+func NewAdminCommunityHandler(db *gorm.DB, stor storage.Storage) *AdminCommunityHandler {
 	return &AdminCommunityHandler{
 		postRepo:        repository.NewPostRepository(db),
 		replyRepo:       repository.NewPostReplyRepository(db),
@@ -44,6 +47,7 @@ func NewAdminCommunityHandler(db *gorm.DB) *AdminCommunityHandler {
 		notificationRepo: repository.NewNotificationRepository(db),
 		pointService:    service.NewPointService(repository.NewUserPointRepository(db)),
 		filterService:   service.NewSensitiveFilterService(repository.NewSensitiveWordRepository(db)),
+		storage:         stor,
 	}
 }
 
@@ -124,6 +128,11 @@ func (h *AdminCommunityHandler) DeletePost(c *gin.Context) {
 	if err == nil {
 		// Deduct points from author
 		h.pointService.DeductPointsForDelete(post.UserID)
+
+		// 异步清理帖子内容中引用的上传文件
+		if h.storage != nil && post.Content != "" {
+			go h.cleanupPostFiles(post.Content)
+		}
 	}
 
 	// Delete post (cascade will delete related records)
@@ -133,6 +142,23 @@ func (h *AdminCommunityHandler) DeletePost(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"message": "post deleted successfully"})
+}
+
+// cleanupPostFiles 从帖子内容中提取上传文件 URL 并删除
+func (h *AdminCommunityHandler) cleanupPostFiles(content string) {
+	re := regexp.MustCompile(`(?:https?://[^\s"'()\[\]]+)?/uploads/(?:photos|covers|videos)/[^\s"'()\[\]]+\.\w+`)
+	matches := re.FindAllString(content, -1)
+
+	seen := make(map[string]bool)
+	for _, url := range matches {
+		if seen[url] {
+			continue
+		}
+		seen[url] = true
+		if err := h.storage.Delete(url); err != nil {
+			logger.Warn("清理帖子文件失败", "url", url, "error", err)
+		}
+	}
 }
 
 // ============ Reply Management ============

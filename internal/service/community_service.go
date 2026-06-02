@@ -7,7 +7,9 @@ import (
 	"strings"
 
 	"photoset/internal/domain"
+	"photoset/internal/logger"
 	"photoset/internal/repository"
+	"photoset/internal/storage"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -31,6 +33,7 @@ type CommunityService struct {
 	pointService  *PointService
 	filterService *SensitiveFilterService
 	mentionService *MentionService
+	storage       storage.Storage
 }
 
 // NewCommunityService creates a new CommunityService
@@ -51,6 +54,7 @@ func NewCommunityService(
 	pointService *PointService,
 	filterService *SensitiveFilterService,
 	mentionService *MentionService,
+	stor storage.Storage,
 ) *CommunityService {
 	return &CommunityService{
 		postRepo:      postRepo,
@@ -69,6 +73,7 @@ func NewCommunityService(
 		pointService:  pointService,
 		filterService: filterService,
 		mentionService: mentionService,
+		storage:       stor,
 	}
 }
 
@@ -627,7 +632,48 @@ func (s *CommunityService) DeletePost(userID, postID uint) error {
 		return domain.ErrPermissionDenied
 	}
 
+	// 异步清理帖子内容中引用的上传文件
+	go s.cleanupPostFiles(post.Content)
+
 	return s.postRepo.Delete(postID)
+}
+
+// AdminDeletePost 管理员删除帖子（无需验证所有权）
+func (s *CommunityService) AdminDeletePost(postID uint) error {
+	post, err := s.postRepo.FindByID(postID)
+	if err != nil {
+		return domain.ErrPostNotFound
+	}
+
+	// 异步清理帖子内容中引用的上传文件
+	go s.cleanupPostFiles(post.Content)
+
+	return s.postRepo.Delete(postID)
+}
+
+// cleanupPostFiles 从帖子内容中提取上传文件 URL 并删除
+// 仅删除匹配本系统上传路径的文件，忽略外部 URL
+func (s *CommunityService) cleanupPostFiles(content string) {
+	if s.storage == nil || content == "" {
+		return
+	}
+
+	// 匹配 /uploads/ 开头的本地上传路径
+	// 也匹配包含 uploads/ 的完整 CDN URL
+	re := regexp.MustCompile(`(?:https?://[^\s"'()\[\]]+)?/uploads/(?:photos|covers|videos)/[^\s"'()\[\]]+\.\w+`)
+	matches := re.FindAllString(content, -1)
+
+	// 去重
+	seen := make(map[string]bool)
+	for _, url := range matches {
+		if seen[url] {
+			continue
+		}
+		seen[url] = true
+		if err := s.storage.Delete(url); err != nil {
+			logger.Warn("清理帖子文件失败", "url", url, "error", err)
+		}
+	}
 }
 
 // UpdateReply updates a reply (only by the owner)

@@ -50,7 +50,7 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 
 	photosetRepo := repository.NewPhotoSetRepository(database.GetMySQL())
 	orderRepo := repository.NewOrderRepository(database.GetMySQL())
-	photosetService := service.NewPhotoSetService(photosetRepo, orderRepo, cfg)
+	photosetService := service.NewPhotoSetService(photosetRepo, orderRepo, cfg, stor)
 	photosetHandler := handlers.NewPhotoSetHandler(photosetService)
 	tagHandler := handlers.NewTagHandler(photosetService)
 	categoryHandler := handlers.NewCategoryHandler(photosetService)
@@ -99,6 +99,7 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 		pointService,
 		filterService,
 		mentionService,
+		stor,
 	)
 	hotPostsService := service.NewHotPostsService(postRepo)
 	recommendationService := service.NewRecommendationService(
@@ -125,7 +126,7 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 		recommendationService,
 		ipGeoService,
 	)
-	adminCommunityHandler := admin.NewAdminCommunityHandler(database.GetMySQL())
+	adminCommunityHandler := admin.NewAdminCommunityHandler(database.GetMySQL(), stor)
 
 	// WebSocket 实时消息（必须在通知和私信功能之前初始化）
 	wsHub := service.NewHub()

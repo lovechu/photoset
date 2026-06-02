@@ -5,8 +5,10 @@ import (
 	"errors"
 	"photoset/internal/config"
 	"photoset/internal/domain"
+	"photoset/internal/logger"
 	"photoset/internal/pkg/signurl"
 	"photoset/internal/repository"
+	"photoset/internal/storage"
 	"time"
 
 	"gorm.io/gorm"
@@ -17,14 +19,16 @@ type PhotoSetService struct {
 	orderRepo    *repository.OrderRepository
 	cacheService *CacheService
 	cfg          *config.Config
+	storage      storage.Storage
 }
 
-func NewPhotoSetService(repo *repository.PhotoSetRepository, orderRepo *repository.OrderRepository, cfg *config.Config) *PhotoSetService {
+func NewPhotoSetService(repo *repository.PhotoSetRepository, orderRepo *repository.OrderRepository, cfg *config.Config, stor storage.Storage) *PhotoSetService {
 	return &PhotoSetService{
 		repo:         repo,
 		orderRepo:    orderRepo,
 		cacheService: NewCacheService(),
 		cfg:          cfg,
+		storage:      stor,
 	}
 }
 
@@ -425,7 +429,7 @@ func (s *PhotoSetService) RestorePhotoSet(id uint, userID uint) error {
 	return nil
 }
 
-// PermanentDeletePhotoSet 永久删除套图
+// PermanentDeletePhotoSet 永久删除套图（含物理文件清理）
 func (s *PhotoSetService) PermanentDeletePhotoSet(id uint, userID uint) error {
 	// 验证所有权
 	photoset, err := s.repo.FindByIDWithoutPhotos(id)
@@ -436,11 +440,68 @@ func (s *PhotoSetService) PermanentDeletePhotoSet(id uint, userID uint) error {
 		return errors.New("无权删除此套图")
 	}
 
+	// 先查询完整套图信息（含图片列表），用于收集文件 URL
+	fullPhotoset, _ := s.repo.FindByID(id)
+
+	// 永久删除数据库记录
 	if err := s.repo.PermanentDelete(id); err != nil {
 		return err
+	}
+
+	// 异步清理物理文件（不阻塞主流程，失败仅记录日志）
+	if fullPhotoset != nil {
+		go s.cleanupPhotosetFiles(fullPhotoset)
 	}
 
 	s.InvalidatePhotosetCache(id)
 	s.InvalidateAllPhotosetListCache()
 	return nil
+}
+
+// AdminPermanentDeletePhotoSet 管理员永久删除套图（含物理文件清理，无需验证所有权）
+func (s *PhotoSetService) AdminPermanentDeletePhotoSet(id uint) error {
+	// 先查询完整套图信息（含图片列表），用于收集文件 URL
+	fullPhotoset, _ := s.repo.FindByID(id)
+
+	// 永久删除数据库记录
+	if err := s.repo.PermanentDelete(id); err != nil {
+		return err
+	}
+
+	// 异步清理物理文件
+	if fullPhotoset != nil {
+		go s.cleanupPhotosetFiles(fullPhotoset)
+	}
+
+	s.InvalidatePhotosetCache(id)
+	s.InvalidateAllPhotosetListCache()
+	return nil
+}
+
+// cleanupPhotosetFiles 清理套图关联的所有物理文件
+func (s *PhotoSetService) cleanupPhotosetFiles(photoset *domain.PhotoSet) {
+	if s.storage == nil {
+		return
+	}
+
+	var urls []string
+	// 封面图
+	if photoset.Cover != "" {
+		urls = append(urls, photoset.Cover)
+	}
+	// 所有图片
+	for _, photo := range photoset.Photos {
+		if photo.URL != "" {
+			urls = append(urls, photo.URL)
+		}
+	}
+	// 评论中的图片
+	commentImageURLs := s.repo.GetCommentImageURLs(photoset.ID)
+	urls = append(urls, commentImageURLs...)
+
+	for _, url := range urls {
+		if err := s.storage.Delete(url); err != nil {
+			logger.Warn("清理套图文件失败", "url", url, "error", err)
+		}
+	}
 }

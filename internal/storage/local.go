@@ -82,6 +82,34 @@ func (s *LocalStorage) UploadWithType(file multipart.File, header *multipart.Fil
 	return urlPath, nil
 }
 
+// Delete 根据存储 URL 删除本地物理文件
+// url 格式：/uploads/photos/123/uuid.jpg → 转换为本地路径
+func (s *LocalStorage) Delete(url string) error {
+	if url == "" {
+		return nil
+	}
+	// 去掉 URL 中的 /uploads/ 前缀，拼接为本地路径
+	relPath := url
+	relPath = strings.TrimPrefix(relPath, "/uploads/")
+	relPath = strings.TrimPrefix(relPath, "/uploads")
+	fullPath := filepath.Join(s.UploadDir, relPath)
+
+	// 安全检查：确保路径在 UploadDir 内
+	absUploadDir, _ := filepath.Abs(s.UploadDir)
+	absFullPath, _ := filepath.Abs(fullPath)
+	if !strings.HasPrefix(absFullPath, absUploadDir) {
+		return fmt.Errorf("路径越界: %s", url)
+	}
+
+	if err := os.Remove(absFullPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil // 文件已不存在，视为成功
+		}
+		return fmt.Errorf("删除文件失败 [%s]: %w", absFullPath, err)
+	}
+	return nil
+}
+
 func (s *LocalStorage) TestConnection() error {
 	// 测试本地存储目录是否可写
 	testFile := filepath.Join(s.UploadDir, ".connection_test")

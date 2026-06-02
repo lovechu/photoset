@@ -37,6 +37,10 @@ type Storage interface {
 	// photo 路径：/uploads/photos/{photosetID}/{uuid}.ext
 	// cover 路径：/uploads/covers/{photosetID}/{uuid}.ext（photosetID=0 时用时间戳）
 	UploadWithType(file multipart.File, header *multipart.FileHeader, ut UploadType, photosetID uint) (string, error)
+	// Delete 根据存储 URL 删除物理文件
+	// 本地存储：URL 为 /uploads/photos/... 形式
+	// S3 存储：URL 为完整域名 URL，自动提取 key
+	Delete(url string) error
 	TestConnection() error
 	Type() StorageType
 }
@@ -138,6 +142,32 @@ func (s *S3Storage) TestConnection() error {
 	})
 	if err != nil {
 		return fmt.Errorf("连接测试失败: %w", err)
+	}
+	return nil
+}
+
+// Delete 根据存储 URL 删除 S3 对象
+// url 格式：https://assets.example.com/photos/123/uuid.jpg → 提取 key: photos/123/uuid.jpg
+func (s *S3Storage) Delete(url string) error {
+	if url == "" {
+		return nil
+	}
+	// 从完整 URL 中提取 key
+	key := url
+	publicURL := strings.TrimRight(s.publicURL, "/")
+	if publicURL != "" && strings.HasPrefix(url, publicURL) {
+		key = strings.TrimPrefix(url, publicURL)
+		key = strings.TrimPrefix(key, "/")
+	}
+	if key == "" {
+		return nil
+	}
+	_, err := s.client.DeleteObject(context.TODO(), &s3.DeleteObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return fmt.Errorf("S3 删除对象失败 [%s]: %w", key, err)
 	}
 	return nil
 }
