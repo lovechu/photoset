@@ -148,6 +148,14 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		return
 	}
 
+	// 每次访问个人页时，实时检查当前IP是否变化，若有变化则更新
+	if clientIP := c.ClientIP(); clientIP != "" {
+		if newLocation := h.ipGeoService.GetLocation(clientIP); newLocation != "" && newLocation != user.IPLocation {
+			h.userService.UpdateProfile(user.ID, "", "", "", newLocation)
+			user.IPLocation = newLocation
+		}
+	}
+
 	response.Success(c, gin.H{
 		"user": gin.H{
 			"id":         user.ID,

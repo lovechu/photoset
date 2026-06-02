@@ -73,17 +73,18 @@ func NewCommunityService(
 }
 
 // CreatePost creates a new post with sensitive word filtering
-func (s *CommunityService) CreatePost(userID uint, req *CreatePostRequest) (*domain.Post, error) {
+func (s *CommunityService) CreatePost(userID uint, req *CreatePostRequest, authorIPLocation string) (*domain.Post, error) {
 	// Validate request
 	post := &domain.Post{
-		UserID:     userID,
-		Title:      req.Title,
-		Content:    req.Content,
-		PhotosetID: req.PhotosetID,
-		Category:   req.Category,
-		PostType:   req.PostType,
-		Visibility: req.Visibility,
-		Status:     string(domain.PostStatusApproved), // Auto-approve on creation
+		UserID:            userID,
+		Title:             req.Title,
+		Content:           req.Content,
+		PhotosetID:        req.PhotosetID,
+		Category:          req.Category,
+		PostType:          req.PostType,
+		Visibility:        req.Visibility,
+		AuthorIPLocation:  authorIPLocation,
+		Status:            string(domain.PostStatusApproved), // Auto-approve on creation
 	}
 
 	if err := post.Validate(); err != nil {
@@ -226,7 +227,7 @@ func (s *CommunityService) CreatePost(userID uint, req *CreatePostRequest) (*dom
 }
 
 // CreateReply creates a new reply with sensitive word filtering
-func (s *CommunityService) CreateReply(userID, postID uint, req *CreateReplyRequest) (*domain.PostReply, error) {
+func (s *CommunityService) CreateReply(userID, postID uint, req *CreateReplyRequest, authorIPLocation string) (*domain.PostReply, error) {
 	// Check if post exists
 	_, err := s.postRepo.FindByID(postID)
 	if err != nil {
@@ -235,10 +236,11 @@ func (s *CommunityService) CreateReply(userID, postID uint, req *CreateReplyRequ
 
 	// Validate request
 	reply := &domain.PostReply{
-		PostID:        postID,
-		UserID:        userID,
-		Content:       req.Content,
-		ParentReplyID: req.ParentReplyID,
+		PostID:            postID,
+		UserID:            userID,
+		Content:           req.Content,
+		ParentReplyID:     req.ParentReplyID,
+		AuthorIPLocation:  authorIPLocation,
 	}
 
 	if err := reply.Validate(); err != nil {

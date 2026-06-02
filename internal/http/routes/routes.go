@@ -112,12 +112,16 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 		hotPostsService,
 	)
 
+	// IP地理位置服务（用于社区发帖/回帖时实时解析IP）
+	ipGeoService := service.NewIPGeoService()
+
 	communityHandler := handlers.NewCommunityHandler(
 		database.GetMySQL(),
 		communityService,
 		pointService,
 		hotPostsService,
 		recommendationService,
+		ipGeoService,
 	)
 	adminCommunityHandler := admin.NewAdminCommunityHandler(database.GetMySQL())
 
@@ -364,7 +368,6 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 
 	// 公开路由 - IP地理位置查询
 	// 可选参数: ?ip=1.2.3.4 查询指定IP，不传则查询访问者自身IP
-	ipGeoService := service.NewIPGeoService()
 	api.GET("/ip-geo/lookup", func(c *gin.Context) {
 		ip := c.Query("ip")
 		if ip == "" {

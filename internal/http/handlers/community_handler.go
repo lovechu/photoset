@@ -32,6 +32,7 @@ type CommunityHandler struct {
 	postFavoriteRepo      *repository.PostFavoriteRepository
 	draftRepo             *repository.DraftRepository
 	userRepo              repository.UserRepository
+	ipGeoService          *service.IPGeoService
 }
 
 // NewCommunityHandler creates a new CommunityHandler
@@ -41,12 +42,14 @@ func NewCommunityHandler(
 	pointService *service.PointService,
 	hotPostsService *service.HotPostsService,
 	recommendationService *service.RecommendationService,
+	ipGeoService *service.IPGeoService,
 ) *CommunityHandler {
 	return &CommunityHandler{
 		communityService:      communityService,
 		pointService:          pointService,
 		hotPostsService:       hotPostsService,
 		recommendationService: recommendationService,
+		ipGeoService:          ipGeoService,
 		postRepo:              repository.NewPostRepository(db),
 		replyRepo:             repository.NewPostReplyRepository(db),
 		likeRepo:              repository.NewPostLikeRepository(db),
@@ -145,7 +148,7 @@ func (h *CommunityHandler) CreatePost(c *gin.Context) {
 		return
 	}
 
-	post, err := h.communityService.CreatePost(userID, &req)
+	post, err := h.communityService.CreatePost(userID, &req, h.ipGeoService.GetLocation(c.ClientIP()))
 	if err != nil {
 		logger.Warn("Post creation failed", "user_id", userID, "error", err)
 		if err == domain.ErrTitleRequired {
@@ -185,7 +188,7 @@ func (h *CommunityHandler) CreateReply(c *gin.Context) {
 		return
 	}
 
-	reply, err := h.communityService.CreateReply(userID, uint(postID), &req)
+	reply, err := h.communityService.CreateReply(userID, uint(postID), &req, h.ipGeoService.GetLocation(c.ClientIP()))
 	if err != nil {
 		logger.Warn("Reply creation failed", "user_id", userID, "post_id", postID, "error", err)
 		if err == domain.ErrPostNotFound {
@@ -508,8 +511,8 @@ func (h *CommunityHandler) GetReplies(c *gin.Context) {
 func (h *CommunityHandler) postToResponse(post domain.Post, userID uint) gin.H {
 	authorName := ""
 	authorAvatar := ""
-	authorIPLocation := ""
-	if post.User.ID != 0 {
+	authorIPLocation := post.AuthorIPLocation
+	if authorIPLocation == "" && post.User.ID != 0 {
 		authorName = post.User.Nickname
 		authorAvatar = post.User.Avatar
 		authorIPLocation = post.User.IPLocation

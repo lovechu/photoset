@@ -15,6 +15,7 @@ type PostReply struct {
 	Content        string     `gorm:"type:text;not null" json:"content"`
 	ParentReplyID  *uint      `gorm:"index" json:"parent_reply_id"` // nil means direct reply to post
 	LikeCount      int        `gorm:"not null;default:0" json:"like_count"`
+	AuthorIPLocation string `gorm:"type:varchar(100);default:''" json:"author_ip_location"`
 
 	// Associations
 	User           User          `gorm:"foreignKey:UserID" json:"user,omitempty"`

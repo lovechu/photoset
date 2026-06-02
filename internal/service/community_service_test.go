@@ -107,7 +107,7 @@ func TestCommunityService_CreatePost(t *testing.T) {
 		Visibility: "public",
 	}
 
-	post, err := svc.CreatePost(user.ID, req)
+	post, err := svc.CreatePost(user.ID, req, "")
 	if err != nil {
 		t.Errorf("Failed to create post: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestCommunityService_CreatePostWithFiltering(t *testing.T) {
 		Visibility: "public",
 	}
 
-	post, err := svc.CreatePost(user.ID, req)
+	post, err := svc.CreatePost(user.ID, req, "")
 	if err != nil {
 		t.Errorf("Failed to create post: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestCommunityService_CreatePostValidation(t *testing.T) {
 		Visibility: "public",
 	}
 
-	_, err := svc.CreatePost(user.ID, req)
+	_, err := svc.CreatePost(user.ID, req, "")
 	if err == nil {
 		t.Error("Expected error for empty title, got nil")
 	}
@@ -203,7 +203,7 @@ func TestCommunityService_CreateReply(t *testing.T) {
 		ParentReplyID: nil,
 	}
 
-	reply, err := svc.CreateReply(user.ID, post.ID, req)
+	reply, err := svc.CreateReply(user.ID, post.ID, req, "")
 	if err != nil {
 		t.Errorf("Failed to create reply: %v", err)
 	}
@@ -409,7 +409,7 @@ func TestCommunityService_DailyLimitForPosts(t *testing.T) {
 			Category:   "discussion",
 			Visibility: "public",
 		}
-		_, err := svc.CreatePost(user.ID, req)
+		_, err := svc.CreatePost(user.ID, req, "")
 		if err != nil {
 			t.Fatalf("Failed to create post %d: %v", i, err)
 		}
@@ -422,7 +422,7 @@ func TestCommunityService_DailyLimitForPosts(t *testing.T) {
 		Category:   "discussion",
 		Visibility: "public",
 	}
-	_, err := svc.CreatePost(user.ID, req)
+	_, err := svc.CreatePost(user.ID, req, "")
 	if err == nil {
 		t.Error("Expected daily limit error, got nil")
 	}

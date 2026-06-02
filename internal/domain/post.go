@@ -67,6 +67,7 @@ type Post struct {
 	LikeCount   int           `gorm:"not null;default:0" json:"like_count"`
 	ShareCount  int           `gorm:"not null;default:0" json:"share_count"`
 	Status      string        `gorm:"type:varchar(20);not null;default:'approved'" json:"status"`
+	AuthorIPLocation string `gorm:"type:varchar(100);default:''" json:"author_ip_location"`
 
 	// Associations
 	User      User       `gorm:"foreignKey:UserID" json:"user,omitempty"`
