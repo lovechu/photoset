@@ -629,6 +629,16 @@ func (h *CommunityHandler) GetUserProfile(c *gin.Context) {
 		return
 	}
 
+	// 实时刷新用户IP归属地（仅当查看自己的主页时）
+	if viewerID, exists := middleware.GetUserID(c); exists && uint(viewerID) == uint(userID) {
+		if clientIP := c.ClientIP(); clientIP != "" {
+			if newLocation := h.ipGeoService.GetLocation(clientIP); newLocation != "" && newLocation != user.IPLocation {
+				h.userRepo.UpdateField(user.ID, "ip_location", newLocation)
+				user.IPLocation = newLocation
+			}
+		}
+	}
+
 	// Count user's posts
 	var postCount int64
 	h.postRepo.DB.Model(&domain.Post{}).Where("user_id = ?", userID).Count(&postCount)
