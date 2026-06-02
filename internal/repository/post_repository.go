@@ -159,20 +159,40 @@ func (r *PostRepository) TogglePin(id uint) error {
 // Delete deletes a post and its related records (hard delete, with cascade)
 func (r *PostRepository) Delete(id uint) error {
 	return r.DB.Transaction(func(tx *gorm.DB) error {
-		// Delete reply likes for all replies of this post (subquery: reply_id IN post_replies WHERE post_id = ?)
+		// Delete reply likes for all replies of this post
 		if err := tx.Unscoped().Where("reply_id IN (SELECT id FROM post_replies WHERE post_id = ?)", id).Delete(&domain.PostReplyLike{}).Error; err != nil {
 			return err
 		}
+		// Disable FK checks to safely delete nested replies
+		tx.Exec("SET FOREIGN_KEY_CHECKS = 0")
 		// Delete all replies (including nested) for this post
 		if err := tx.Unscoped().Where("post_id = ?", id).Delete(&domain.PostReply{}).Error; err != nil {
+			tx.Exec("SET FOREIGN_KEY_CHECKS = 1")
 			return err
 		}
+		tx.Exec("SET FOREIGN_KEY_CHECKS = 1")
 		// Delete post likes
 		if err := tx.Unscoped().Where("post_id = ?", id).Delete(&domain.PostLike{}).Error; err != nil {
 			return err
 		}
 		// Delete reports for this post
 		if err := tx.Unscoped().Where("post_id = ?", id).Delete(&domain.PostReport{}).Error; err != nil {
+			return err
+		}
+		// Delete post shares
+		if err := tx.Unscoped().Where("post_id = ?", id).Delete(&domain.PostShare{}).Error; err != nil {
+			return err
+		}
+		// Delete post favorites
+		if err := tx.Unscoped().Where("post_id = ?", id).Delete(&domain.PostFavorite{}).Error; err != nil {
+			return err
+		}
+		// Delete post tags (many2many join table)
+		if err := tx.Exec("DELETE FROM post_tags WHERE post_id = ?", id).Error; err != nil {
+			return err
+		}
+		// Delete post topics (many2many join table)
+		if err := tx.Exec("DELETE FROM post_topics WHERE post_id = ?", id).Error; err != nil {
 			return err
 		}
 		// Delete the post itself
