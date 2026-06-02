@@ -329,6 +329,22 @@ var knownNonProvinceCities = map[string]string{
 	"克孜勒苏": "新疆", "巴音郭楞": "新疆", "博尔塔拉": "新疆",
 }
 
+// normalizeRegionName 去掉行政区划后缀（省/市/自治区/特别行政区）
+// 用于统一映射表 key 的匹配
+func normalizeRegionName(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" || name == "0" {
+		return name
+	}
+	// 按优先级去掉后缀（长后缀先匹配）
+	for _, suffix := range []string{"特别行政区", "自治区", "省", "市"} {
+		if strings.HasSuffix(name, suffix) {
+			return strings.TrimSuffix(name, suffix)
+		}
+	}
+	return name
+}
+
 // GetLocation 获取IP地理位置（省份级别）
 // 对国外IP返回国家名，国内IP返回省份名（确保不出现城市级）
 func (s *IPGeoService) GetLocation(ip string) string {
@@ -346,7 +362,7 @@ func (s *IPGeoService) GetLocation(ip string) string {
 		return ""
 	}
 
-	// 解析结果：国家-区域|省份|城市|ISP
+	// 解析结果：国家|区域|省份|城市|ISP
 	parts := strings.Split(region, "|")
 	if len(parts) < 3 {
 		return ""
@@ -367,31 +383,47 @@ func (s *IPGeoService) GetLocation(ip string) string {
 	}
 
 	// 国内IP：确保只返回省级
-	// 情况1：省份字段在白名单中 -> 直接返回
+	// 先规范化（去掉省/市/自治区等后缀）
+	provNorm := normalizeRegionName(province)
+	cityNorm := normalizeRegionName(city)
+
+	// 情况1：省份字段在白名单中 -> 直接返回（保持原始格式）
 	if chinaProvinces[province] {
 		return province
 	}
 
-	// 情况2：省份字段是地级市名 -> 查映射表得到省份
+	// 情况2：规范化后的省份字段在白名单中 -> 返回规范化后的省份名
+	if chinaProvinces[provNorm] {
+		return provNorm
+	}
+
+	// 情况3：省份字段是地级市名 -> 查映射表得到省份
+	if mappedProvince, ok := knownNonProvinceCities[provNorm]; ok {
+		return mappedProvince
+	}
+	// 再试一次原始省份名（兼容映射表里直接写了带后缀的情况）
 	if mappedProvince, ok := knownNonProvinceCities[province]; ok {
 		return mappedProvince
 	}
 
-	// 情况3：省份字段为空但有城市名 -> 通过城市名反查省份
+	// 情况4：省份为空但有城市名 -> 通过城市名反查省份
 	if (province == "0" || province == "") && city != "0" && city != "" {
+		if mappedProvince, ok := knownNonProvinceCities[cityNorm]; ok {
+			return mappedProvince
+		}
 		if mappedProvince, ok := knownNonProvinceCities[city]; ok {
 			return mappedProvince
 		}
 	}
 
-	// 情况4：省份为空但有国家名（海外兜底）
+	// 情况5：省份为空但有国家名（海外兜底）
 	if (province == "0" || province == "") && country != "0" && country != "" {
 		return country
 	}
 
-	// 兜底：返回原值
-	if province != "0" && province != "" {
-		return province
+	// 兜底：返回规范化后的省份名
+	if provNorm != "" && provNorm != "0" {
+		return provNorm
 	}
 	return ""
 }
