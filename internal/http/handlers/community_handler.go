@@ -511,10 +511,12 @@ func (h *CommunityHandler) GetReplies(c *gin.Context) {
 func (h *CommunityHandler) postToResponse(post domain.Post, userID uint) gin.H {
 	authorName := ""
 	authorAvatar := ""
-	authorIPLocation := post.AuthorIPLocation
-	if authorIPLocation == "" && post.User.ID != 0 {
+	if post.User.ID != 0 {
 		authorName = post.User.Nickname
 		authorAvatar = post.User.Avatar
+	}
+	authorIPLocation := post.AuthorIPLocation
+	if authorIPLocation == "" && post.User.ID != 0 {
 		authorIPLocation = post.User.IPLocation
 	}
 
