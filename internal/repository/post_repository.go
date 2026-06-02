@@ -175,6 +175,22 @@ func (r *PostRepository) Delete(id uint) error {
 		if err := tx.Unscoped().Where("post_id = ?", id).Delete(&domain.PostReport{}).Error; err != nil {
 			return err
 		}
+		// Delete post shares
+		if err := tx.Unscoped().Where("post_id = ?", id).Delete(&domain.PostShare{}).Error; err != nil {
+			return err
+		}
+		// Delete post favorites
+		if err := tx.Unscoped().Where("post_id = ?", id).Delete(&domain.PostFavorite{}).Error; err != nil {
+			return err
+		}
+		// Delete post tags (many2many join table)
+		if err := tx.Exec("DELETE FROM post_tags WHERE post_id = ?", id).Error; err != nil {
+			return err
+		}
+		// Delete post topics (many2many join table)
+		if err := tx.Exec("DELETE FROM post_topics WHERE post_id = ?", id).Error; err != nil {
+			return err
+		}
 		// Delete the post itself
 		if err := tx.Unscoped().Delete(&domain.Post{}, id).Error; err != nil {
 			return err
