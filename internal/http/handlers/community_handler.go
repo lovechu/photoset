@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"photoset/internal/domain"
 	"photoset/internal/http/middleware"
@@ -631,7 +632,23 @@ func (h *CommunityHandler) GetUserProfile(c *gin.Context) {
 
 	// 实时刷新用户IP归属地（仅当查看自己的主页时）
 	if viewerID, exists := middleware.GetUserID(c); exists && uint(viewerID) == uint(userID) {
-		if clientIP := c.ClientIP(); clientIP != "" {
+		// 优先从请求头获取真实IP（兼容代理场景）
+		clientIP := c.GetHeader("X-Forwarded-For")
+		if clientIP == "" {
+			clientIP = c.GetHeader("X-Real-IP")
+		}
+		if clientIP == "" {
+			clientIP = c.ClientIP()
+		}
+		// 处理 X-Forwarded-For 可能有多个IP的情况（取第一个）
+		if idx := strings.Index(clientIP, ","); idx != -1 {
+			clientIP = strings.TrimSpace(clientIP[:idx])
+		}
+		// 标准化 IPv4-mapped IPv6 地址（如 ::ffff:1.2.3.4 → 1.2.3.4）
+		if strings.HasPrefix(clientIP, "::ffff:") {
+			clientIP = clientIP[7:]
+		}
+		if clientIP != "" {
 			if newLocation := h.ipGeoService.GetLocation(clientIP); newLocation != "" && newLocation != user.IPLocation {
 				h.userRepo.UpdateField(user.ID, "ip_location", newLocation)
 				user.IPLocation = newLocation
