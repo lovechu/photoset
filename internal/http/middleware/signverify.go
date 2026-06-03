@@ -16,6 +16,7 @@ import (
 // 路径规则：
 //   - /uploads/covers/              → 封面图，免费公开访问
 //   - /uploads/videos/              → 视频，免费公开访问
+//   - /uploads/avatars/             → 头像，免费公开访问
 //   - /uploads/photos/{id}/...      → 根据套图 is_free 决定是否验签
 //   - /uploads/images/...            → 旧路径兼容，无 sign 则放行
 func SignVerify(cfg *config.Config) gin.HandlerFunc {
@@ -36,6 +37,12 @@ func SignVerify(cfg *config.Config) gin.HandlerFunc {
 
 		// 视频路径：免费公开访问
 		if strings.HasPrefix(path, "/uploads/videos/") {
+			c.Next()
+			return
+		}
+
+		// 头像路径：免费公开访问
+		if strings.HasPrefix(path, "/uploads/avatars/") {
 			c.Next()
 			return
 		}

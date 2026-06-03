@@ -38,6 +38,8 @@ func (s *LocalStorage) UploadWithType(file multipart.File, header *multipart.Fil
 		subDir = "covers"
 	} else if ut == UploadTypeVideo {
 		subDir = "videos"
+	} else if ut == UploadTypeAvatar {
+		subDir = "avatars"
 	}
 
 	ext := strings.ToLower(filepath.Ext(header.Filename))

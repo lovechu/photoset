@@ -26,9 +26,10 @@ const (
 type UploadType string
 
 const (
-	UploadTypeCover UploadType = "cover" // 封面图 → /covers/ 免费访问
-	UploadTypePhoto UploadType = "photo" // 付费照片 → /photos/ 需要签名
-	UploadTypeVideo UploadType = "video" // 视频 → /videos/ 免费访问
+	UploadTypeCover  UploadType = "cover"  // 封面图 → /covers/ 免费访问
+	UploadTypePhoto  UploadType = "photo"  // 付费照片 → /photos/ 需要签名
+	UploadTypeVideo  UploadType = "video"  // 视频 → /videos/ 免费访问
+	UploadTypeAvatar UploadType = "avatar" // 头像 → /avatars/ 免费访问
 )
 
 type Storage interface {
@@ -105,6 +106,8 @@ func (s *S3Storage) UploadWithType(file multipart.File, header *multipart.FileHe
 		subDir = "covers"
 	} else if ut == UploadTypeVideo {
 		subDir = "videos"
+	} else if ut == UploadTypeAvatar {
+		subDir = "avatars"
 	}
 
 	ext := strings.ToLower(filepath.Ext(header.Filename))
