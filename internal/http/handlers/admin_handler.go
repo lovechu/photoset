@@ -18,6 +18,7 @@ import (
 	"photoset/internal/storage"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type AdminHandler struct {
@@ -32,9 +33,12 @@ type AdminHandler struct {
 	cfg             *config.Config
 	alipayService   *service.AlipayService
 	wechatPayService *service.WechatPayService
+	loginHistoryService *service.LoginHistoryService
+	userDeviceService   *service.UserDeviceService
+	userPrivacyService  *service.UserPrivacyService
 }
 
-func NewAdminHandler(photosetRepo *repository.PhotoSetRepository, orderRepo *repository.OrderRepository, orderService *service.OrderService, cfg *config.Config, alipayService *service.AlipayService, wechatPayService *service.WechatPayService) *AdminHandler {
+func NewAdminHandler(photosetRepo *repository.PhotoSetRepository, orderRepo *repository.OrderRepository, orderService *service.OrderService, cfg *config.Config, alipayService *service.AlipayService, wechatPayService *service.WechatPayService, db *gorm.DB) *AdminHandler {
 	userRepo := repository.NewUserRepository()
 	return &AdminHandler{
 		photosetRepo:     photosetRepo,
@@ -47,6 +51,9 @@ func NewAdminHandler(photosetRepo *repository.PhotoSetRepository, orderRepo *rep
 		cfg:              cfg,
 		alipayService:    alipayService,
 		wechatPayService: wechatPayService,
+		loginHistoryService: service.NewLoginHistoryService(repository.NewLoginHistoryRepository(db)),
+		userDeviceService:   service.NewUserDeviceService(repository.NewUserDeviceRepository(db)),
+		userPrivacyService:  service.NewUserPrivacyService(repository.NewUserPrivacyRepository(db)),
 	}
 }
 
@@ -1215,4 +1222,126 @@ func (h *AdminHandler) TestWechatPayConfig(c *gin.Context) {
 		"message": "微信支付配置验证通过",
 		"config":  tempService.GetConfig(),
 	})
+}
+
+// GetUserLoginHistory 管理员获取用户登录历史
+func (h *AdminHandler) GetUserLoginHistory(c *gin.Context) {
+	idStr := c.Param("id")
+	userID, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "无效的用户ID")
+		return
+	}
+
+	var req struct {
+		Page     int `form:"page"`
+		PageSize int `form:"page_size"`
+	}
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "参数错误")
+		return
+	}
+	if req.Page == 0 {
+		req.Page = 1
+	}
+	if req.PageSize == 0 {
+		req.PageSize = 20
+	}
+
+	history, total, err := h.loginHistoryService.GetLoginHistory(uint(userID), req.Page, req.PageSize)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "获取登录历史失败")
+		return
+	}
+
+	response.Success(c, gin.H{
+		"list":      history,
+		"total":     total,
+		"page":      req.Page,
+		"page_size": req.PageSize,
+	})
+}
+
+// GetUserDevices 管理员获取用户设备列表
+func (h *AdminHandler) GetUserDevices(c *gin.Context) {
+	idStr := c.Param("id")
+	userID, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "无效的用户ID")
+		return
+	}
+
+	devices, err := h.userDeviceService.GetUserDevices(uint(userID))
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "获取设备列表失败")
+		return
+	}
+
+	response.Success(c, devices)
+}
+
+// DeactivateUserDevice 管理员停用用户设备
+func (h *AdminHandler) DeactivateUserDevice(c *gin.Context) {
+	idStr := c.Param("id")
+	userID, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "无效的用户ID")
+		return
+	}
+
+	deviceID := c.Param("deviceId")
+	if deviceID == "" {
+		response.Error(c, http.StatusBadRequest, "设备ID不能为空")
+		return
+	}
+
+	if err := h.userDeviceService.DeactivateDevice(uint(userID), deviceID); err != nil {
+		response.Error(c, http.StatusInternalServerError, "停用设备失败")
+		return
+	}
+
+	response.Success(c, gin.H{"message": "设备已停用"})
+	h.recordLog(c, "deactivate_device", "用户#"+idStr, "停用设备: "+deviceID)
+}
+
+// GetUserPrivacySettings 管理员获取用户隐私设置
+func (h *AdminHandler) GetUserPrivacySettings(c *gin.Context) {
+	idStr := c.Param("id")
+	userID, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "无效的用户ID")
+		return
+	}
+
+	settings, err := h.userPrivacyService.GetPrivacySettings(uint(userID))
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "获取隐私设置失败")
+		return
+	}
+
+	response.Success(c, settings)
+}
+
+// UpdateUserPrivacySettings 管理员更新用户隐私设置
+func (h *AdminHandler) UpdateUserPrivacySettings(c *gin.Context) {
+	idStr := c.Param("id")
+	userID, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "无效的用户ID")
+		return
+	}
+
+	var settings domain.UserPrivacySetting
+	if err := c.ShouldBindJSON(&settings); err != nil {
+		response.Error(c, http.StatusBadRequest, "参数错误")
+		return
+	}
+
+	if err := h.userPrivacyService.UpdatePrivacySettings(uint(userID), &settings); err != nil {
+		response.Error(c, http.StatusInternalServerError, "更新隐私设置失败")
+		return
+	}
+
+	response.Success(c, gin.H{"message": "隐私设置已更新"})
+	h.recordLog(c, "update_privacy", "用户#"+idStr, "更新隐私设置")
 }

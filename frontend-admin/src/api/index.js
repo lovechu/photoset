@@ -333,3 +333,48 @@ export function restorePhotoset(id) {
 export function permanentDeletePhotoset(id) {
   return request.delete(`/photosets/${id}/permanent`)
 }
+
+// ============ 用户管理增强 APIs ============
+
+/**
+ * 获取用户登录历史（管理员）
+ * @param {number} userId 用户ID
+ * @param {object} params { page, page_size }
+ */
+export function getUserLoginHistory(userId, params) {
+  return request.get(`/admin/users/${userId}/login-history`, { params })
+}
+
+/**
+ * 获取用户设备列表（管理员）
+ * @param {number} userId 用户ID
+ */
+export function getUserDevices(userId) {
+  return request.get(`/admin/users/${userId}/devices`)
+}
+
+/**
+ * 停用用户设备（管理员）
+ * @param {number} userId 用户ID
+ * @param {string} deviceId 设备ID
+ */
+export function deactivateUserDevice(userId, deviceId) {
+  return request.delete(`/admin/users/${userId}/devices/${deviceId}`)
+}
+
+/**
+ * 获取用户隐私设置（管理员）
+ * @param {number} userId 用户ID
+ */
+export function getUserPrivacySettings(userId) {
+  return request.get(`/admin/users/${userId}/privacy-settings`)
+}
+
+/**
+ * 更新用户隐私设置（管理员）
+ * @param {number} userId 用户ID
+ * @param {object} data 隐私设置数据
+ */
+export function updateUserPrivacySettings(userId, data) {
+  return request.put(`/admin/users/${userId}/privacy-settings`, data)
+}

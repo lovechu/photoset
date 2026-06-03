@@ -159,12 +159,27 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	// 加载敏感词到内存
 	service.InitSensitiveWords(wordRepo)
 
-	// 用户拉黑/屏蔽功能
-	blockRepo := repository.NewUserBlockRepository(database.GetMySQL())
-	blockService := service.NewUserBlockService(blockRepo)
-	blockHandler := handlers.NewUserBlockHandler(blockService)
+// 用户拉黑/屏蔽功能
+blockRepo := repository.NewUserBlockRepository(database.GetMySQL())
+blockService := service.NewUserBlockService(blockRepo)
+blockHandler := handlers.NewUserBlockHandler(blockService)
 
-	// OAuth2 第三方登录授权系统
+// 用户隐私设置功能
+privacyRepo := repository.NewUserPrivacyRepository(database.GetMySQL())
+privacyService := service.NewUserPrivacyService(privacyRepo)
+privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
+
+// 登录历史功能
+loginHistoryRepo := repository.NewLoginHistoryRepository(database.GetMySQL())
+loginHistoryService := service.NewLoginHistoryService(loginHistoryRepo)
+loginHistoryHandler := handlers.NewLoginHistoryHandler(loginHistoryService)
+
+// 用户设备管理功能
+userDeviceRepo := repository.NewUserDeviceRepository(database.GetMySQL())
+userDeviceService := service.NewUserDeviceService(userDeviceRepo)
+userDeviceHandler := handlers.NewUserDeviceHandler(userDeviceService)
+
+// OAuth2 第三方登录授权系统
 	oauthClientRepo := repository.NewOAuthClientRepository()
 	oauthAuthorizationRepo := repository.NewOAuthAuthorizationRepository()
 	oauthTokenRepo := repository.NewOAuthTokenRepository()
@@ -212,7 +227,7 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	orderHandler := handlers.NewOrderHandler(orderService, alipayService)
 
 	// 管理后台路由（需要在 api 和 v1 中使用）
-	adminHandler := handlers.NewAdminHandler(photosetRepo, orderRepo, orderService, cfg, alipayService, wechatPayService)
+	adminHandler := handlers.NewAdminHandler(photosetRepo, orderRepo, orderService, cfg, alipayService, wechatPayService, database.GetMySQL())
 	systemHandler := admin.NewSystemHandler()
 	backupService := service.NewBackupService(cfg)
 	backupHandler := admin.NewBackupHandler(backupService)
@@ -289,6 +304,18 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 
 		// 用户路由
 		api.GET("/users/profile", middleware.Auth(), authHandler.Me)
+
+		// 用户隐私设置路由
+		api.GET("/user/privacy-settings", middleware.Auth(), privacyHandler.GetPrivacySettings)
+		api.PUT("/user/privacy-settings", middleware.Auth(), privacyHandler.UpdatePrivacySettings)
+
+		// 登录历史路由
+		api.GET("/user/login-history", middleware.Auth(), loginHistoryHandler.GetLoginHistory)
+
+		// 用户设备管理路由
+		api.GET("/user/devices", middleware.Auth(), userDeviceHandler.GetUserDevices)
+		api.DELETE("/user/devices/:deviceId", middleware.Auth(), userDeviceHandler.DeactivateDevice)
+		api.DELETE("/user/devices", middleware.Auth(), userDeviceHandler.DeactivateOtherDevices)
 
 		// 会员套餐路由（公开接口）
 		api.GET("/memberships", membershipHandler.List)
@@ -402,6 +429,15 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 			admin.GET("/backups", backupHandler.ListBackups)
 			admin.GET("/backups/:filename/download", backupHandler.DownloadBackup)
 			admin.DELETE("/backups/:filename", backupHandler.DeleteBackup)
+
+			// 用户登录历史管理
+			admin.GET("/users/:id/login-history", adminHandler.GetUserLoginHistory)
+			// 用户设备管理
+			admin.GET("/users/:id/devices", adminHandler.GetUserDevices)
+			admin.DELETE("/users/:id/devices/:deviceId", adminHandler.DeactivateUserDevice)
+			// 用户隐私设置管理
+			admin.GET("/users/:id/privacy-settings", adminHandler.GetUserPrivacySettings)
+			admin.PUT("/users/:id/privacy-settings", adminHandler.UpdateUserPrivacySettings)
 
 			// IP地理位置管理
 			adminIPGeoHandler := handlers.NewAdminIPGeoHandler()
@@ -523,6 +559,18 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 
 		// 用户路由
 		v1.GET("/users/profile", middleware.Auth(), authHandler.Me)
+
+		// 用户隐私设置路由
+		v1.GET("/user/privacy-settings", middleware.Auth(), privacyHandler.GetPrivacySettings)
+		v1.PUT("/user/privacy-settings", middleware.Auth(), privacyHandler.UpdatePrivacySettings)
+
+		// 登录历史路由
+		v1.GET("/user/login-history", middleware.Auth(), loginHistoryHandler.GetLoginHistory)
+
+		// 用户设备管理路由
+		v1.GET("/user/devices", middleware.Auth(), userDeviceHandler.GetUserDevices)
+		v1.DELETE("/user/devices/:deviceId", middleware.Auth(), userDeviceHandler.DeactivateDevice)
+		v1.DELETE("/user/devices", middleware.Auth(), userDeviceHandler.DeactivateOtherDevices)
 
 		// 会员套餐路由
 		v1.GET("/memberships", membershipHandler.List)

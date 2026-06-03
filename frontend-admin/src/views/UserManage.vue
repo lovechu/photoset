@@ -107,7 +107,7 @@
     </div>
 
     <!-- 用户详情抽屉 -->
-    <el-drawer v-model="detailVisible" title="用户详情" size="420px" destroy-on-close>
+    <el-drawer v-model="detailVisible" title="用户详情" size="700px" destroy-on-close>
       <div v-loading="detailLoading" class="user-detail" v-if="detail">
         <div class="detail-header">
           <el-avatar :size="64">
@@ -122,32 +122,143 @@
           </div>
         </div>
 
-        <el-descriptions :column="1" border size="small" class="detail-desc">
-          <el-descriptions-item label="用户ID">{{ detail.user?.id }}</el-descriptions-item>
-          <el-descriptions-item label="邮箱">{{ detail.user?.email || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="角色">{{ roleLabel(detail.user?.role) }}</el-descriptions-item>
-          <el-descriptions-item label="注册时间">{{ formatTime(detail.user?.created_at) }}</el-descriptions-item>
-          <el-descriptions-item label="最后登录">{{ formatTime(detail.user?.last_login_at) || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="会员状态">
-            {{ detail.user?.membership_expires ? formatTime(detail.user?.membership_expires) : '非会员' }}
-          </el-descriptions-item>
-        </el-descriptions>
+        <el-tabs v-model="activeTab" @tab-change="handleTabChange">
+          <!-- 基本信息标签页 -->
+          <el-tab-pane label="基本信息" name="basic">
+            <el-descriptions :column="1" border size="small" class="detail-desc">
+              <el-descriptions-item label="用户ID">{{ detail.user?.id }}</el-descriptions-item>
+              <el-descriptions-item label="邮箱">{{ detail.user?.email || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="角色">{{ roleLabel(detail.user?.role) }}</el-descriptions-item>
+              <el-descriptions-item label="注册时间">{{ formatTime(detail.user?.created_at) }}</el-descriptions-item>
+              <el-descriptions-item label="最后登录">{{ formatTime(detail.user?.last_login_at) || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="会员状态">
+                {{ detail.user?.membership_expires ? formatTime(detail.user?.membership_expires) : '非会员' }}
+              </el-descriptions-item>
+            </el-descriptions>
 
-        <el-divider content-position="left">数据统计</el-divider>
-        <el-row :gutter="16">
-          <el-col :span="6">
-            <el-statistic title="发布套图" :value="detail.photoset_count" />
-          </el-col>
-          <el-col :span="6">
-            <el-statistic title="收藏数" :value="detail.favorite_count" />
-          </el-col>
-          <el-col :span="6">
-            <el-statistic title="订单数" :value="detail.order_count" />
-          </el-col>
-          <el-col :span="6">
-            <el-statistic title="消费总额" :value="detail.total_spent" :precision="2" prefix="¥" />
-          </el-col>
-        </el-row>
+            <el-divider content-position="left">数据统计</el-divider>
+            <el-row :gutter="16">
+              <el-col :span="6">
+                <el-statistic title="发布套图" :value="detail.photoset_count" />
+              </el-col>
+              <el-col :span="6">
+                <el-statistic title="收藏数" :value="detail.favorite_count" />
+              </el-col>
+              <el-col :span="6">
+                <el-statistic title="订单数" :value="detail.order_count" />
+              </el-col>
+              <el-col :span="6">
+                <el-statistic title="消费总额" :value="detail.total_spent" :precision="2" prefix="¥" />
+              </el-col>
+            </el-row>
+          </el-tab-pane>
+
+          <!-- 登录历史标签页 -->
+          <el-tab-pane label="登录历史" name="loginHistory">
+            <el-table :data="loginHistory" v-loading="loginHistoryLoading" stripe style="width: 100%">
+              <el-table-column prop="ip" label="IP地址" width="140" />
+              <el-table-column prop="ip_location" label="位置" min-width="120" show-overflow-tooltip />
+              <el-table-column prop="device" label="设备" width="100" />
+              <el-table-column prop="browser" label="浏览器" width="100" />
+              <el-table-column prop="os" label="系统" width="100" />
+              <el-table-column label="登录时间" width="165">
+                <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
+              </el-table-column>
+              <el-table-column label="状态" width="80" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="row.success ? 'success' : 'danger'" size="small">
+                    {{ row.success ? '成功' : '失败' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
+            <el-pagination
+              v-if="loginHistoryTotal > 10"
+              v-model:current-page="loginHistoryPage"
+              :total="loginHistoryTotal"
+              :page-size="10"
+              layout="total, prev, pager, next"
+              @current-change="handleLoginHistoryPageChange"
+              style="margin-top: 16px; justify-content: flex-end;"
+            />
+          </el-tab-pane>
+
+          <!-- 设备管理标签页 -->
+          <el-tab-pane label="设备管理" name="devices">
+            <el-table :data="userDevices" v-loading="devicesLoading" stripe style="width: 100%">
+              <el-table-column prop="device_name" label="设备名称" min-width="150" show-overflow-tooltip />
+              <el-table-column prop="device_type" label="设备类型" width="100" />
+              <el-table-column prop="os" label="操作系统" width="120" />
+              <el-table-column prop="browser" label="浏览器" width="100" />
+              <el-table-column prop="ip" label="IP地址" width="140" />
+              <el-table-column label="最后活跃" width="165">
+                <template #default="{ row }">{{ formatTime(row.last_active_at) }}</template>
+              </el-table-column>
+              <el-table-column label="状态" width="80" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="row.is_active ? 'success' : 'info'" size="small">
+                    {{ row.is_active ? '活跃' : '已停用' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="100" align="center">
+                <template #default="{ row }">
+                  <el-button
+                    v-if="row.is_active"
+                    size="small"
+                    type="danger"
+                    @click="handleDeactivateDevice(row.device_id)"
+                  >
+                    停用
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-tab-pane>
+
+          <!-- 隐私设置标签页 -->
+          <el-tab-pane label="隐私设置" name="privacy">
+            <div v-loading="privacyLoading" v-if="userPrivacySettings">
+              <el-form label-width="140px">
+                <el-form-item label="公开个人资料">
+                  <el-switch
+                    :model-value="userPrivacySettings.show_profile"
+                    @change="(val) => handleUpdatePrivacy('show_profile', val)"
+                  />
+                  <span class="setting-desc">允许其他用户查看你的个人资料</span>
+                </el-form-item>
+                <el-form-item label="公开发布内容">
+                  <el-switch
+                    :model-value="userPrivacySettings.show_posts"
+                    @change="(val) => handleUpdatePrivacy('show_posts', val)"
+                  />
+                  <span class="setting-desc">允许其他用户查看你发布的套图</span>
+                </el-form-item>
+                <el-form-item label="公开收藏列表">
+                  <el-switch
+                    :model-value="userPrivacySettings.show_favorites"
+                    @change="(val) => handleUpdatePrivacy('show_favorites', val)"
+                  />
+                  <span class="setting-desc">允许其他用户查看你的收藏</span>
+                </el-form-item>
+                <el-form-item label="允许被搜索">
+                  <el-switch
+                    :model-value="userPrivacySettings.allow_search"
+                    @change="(val) => handleUpdatePrivacy('allow_search', val)"
+                  />
+                  <span class="setting-desc">允许其他用户通过搜索找到你</span>
+                </el-form-item>
+                <el-form-item label="允许私信">
+                  <el-switch
+                    :model-value="userPrivacySettings.allow_message"
+                    @change="(val) => handleUpdatePrivacy('allow_message', val)"
+                  />
+                  <span class="setting-desc">允许其他用户给你发送私信</span>
+                </el-form-item>
+              </el-form>
+            </div>
+          </el-tab-pane>
+        </el-tabs>
       </div>
     </el-drawer>
 
@@ -220,7 +331,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { getUserList, banUser, updateUserRole, getUserDetail, resetUserPassword, exportUsers, createUser } from '@/api'
+import { getUserList, banUser, updateUserRole, getUserDetail, resetUserPassword, exportUsers, createUser, getUserLoginHistory, getUserDevices, deactivateUserDevice, getUserPrivacySettings, updateUserPrivacySettings } from '@/api'
 import { ElMessage } from 'element-plus'
 import { Search, Plus } from '@element-plus/icons-vue'
 
@@ -273,6 +384,19 @@ const createRules = {
     { required: true, message: '请选择角色', trigger: 'change' },
   ],
 }
+
+// 用户详情标签页
+const activeTab = ref('basic')
+const loginHistory = ref([])
+const loginHistoryLoading = ref(false)
+const loginHistoryPage = ref(1)
+const loginHistoryTotal = ref(0)
+
+const userDevices = ref([])
+const devicesLoading = ref(false)
+
+const userPrivacySettings = ref(null)
+const privacyLoading = ref(false)
 
 const roleMap = {
   guest: '访客', user: '普通用户', member: '会员', creator: '创作者', admin: '管理员'
@@ -329,11 +453,96 @@ async function openDetail(id) {
   detailVisible.value = true
   detailLoading.value = true
   detail.value = null
+  // 重置标签页状态
+  activeTab.value = 'basic'
+  loginHistory.value = []
+  loginHistoryPage.value = 1
+  loginHistoryTotal.value = 0
+  userDevices.value = []
+  userPrivacySettings.value = null
   try {
     const res = await getUserDetail(id)
     detail.value = res.data
   } catch { /* handled */ }
   finally { detailLoading.value = false }
+}
+
+// 标签页切换处理
+async function handleTabChange(tab) {
+  if (!detail.value) return
+  const userId = detail.value.user?.id
+  if (!userId) return
+
+  if (tab === 'loginHistory' && loginHistory.value.length === 0) {
+    await fetchLoginHistory(userId)
+  } else if (tab === 'devices' && userDevices.value.length === 0) {
+    await fetchUserDevices(userId)
+  } else if (tab === 'privacy' && !userPrivacySettings.value) {
+    await fetchUserPrivacySettings(userId)
+  }
+}
+
+// 获取登录历史
+async function fetchLoginHistory(userId) {
+  loginHistoryLoading.value = true
+  try {
+    const res = await getUserLoginHistory(userId, {
+      page: loginHistoryPage.value,
+      page_size: 10
+    })
+    loginHistory.value = res.data?.list || []
+    loginHistoryTotal.value = res.data?.total || 0
+  } catch { /* handled */ }
+  finally { loginHistoryLoading.value = false }
+}
+
+// 登录历史分页变化
+function handleLoginHistoryPageChange(page) {
+  loginHistoryPage.value = page
+  if (detail.value?.user?.id) {
+    fetchLoginHistory(detail.value.user.id)
+  }
+}
+
+// 获取用户设备
+async function fetchUserDevices(userId) {
+  devicesLoading.value = true
+  try {
+    const res = await getUserDevices(userId)
+    userDevices.value = res.data || []
+  } catch { /* handled */ }
+  finally { devicesLoading.value = false }
+}
+
+// 停用设备
+async function handleDeactivateDevice(deviceId) {
+  if (!detail.value?.user?.id) return
+  try {
+    await deactivateUserDevice(detail.value.user.id, deviceId)
+    ElMessage.success('设备已停用')
+    await fetchUserDevices(detail.value.user.id)
+  } catch { /* handled */ }
+}
+
+// 获取隐私设置
+async function fetchUserPrivacySettings(userId) {
+  privacyLoading.value = true
+  try {
+    const res = await getUserPrivacySettings(userId)
+    userPrivacySettings.value = res.data
+  } catch { /* handled */ }
+  finally { privacyLoading.value = false }
+}
+
+// 更新隐私设置
+async function handleUpdatePrivacy(field, value) {
+  if (!detail.value?.user?.id || !userPrivacySettings.value) return
+  const updated = { ...userPrivacySettings.value, [field]: value }
+  try {
+    await updateUserPrivacySettings(detail.value.user.id, updated)
+    userPrivacySettings.value = updated
+    ElMessage.success('隐私设置已更新')
+  } catch { /* handled */ }
 }
 
 function openRoleDialog(row) {
@@ -476,4 +685,9 @@ onMounted(fetchUsers)
 .detail-desc { margin-top: 16px; }
 .text-muted { color: #999; }
 .member-expire { font-size: 12px; color: #67c23a; }
+.setting-desc {
+  margin-left: 12px;
+  color: #909399;
+  font-size: 12px;
+}
 </style>
