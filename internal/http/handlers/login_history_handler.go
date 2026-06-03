@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"photoset/internal/http/middleware"
 	"photoset/internal/service"
 	"strconv"
 
@@ -20,7 +21,7 @@ func NewLoginHistoryHandler(historyService *service.LoginHistoryService) *LoginH
 
 // GetLoginHistory handles getting user login history
 func (h *LoginHistoryHandler) GetLoginHistory(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录"})
 		return
@@ -29,7 +30,7 @@ func (h *LoginHistoryHandler) GetLoginHistory(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 
-	histories, total, err := h.historyService.GetLoginHistory(userID.(uint), page, pageSize)
+	histories, total, err := h.historyService.GetLoginHistory(userID, page, pageSize)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取登录历史失败"})
 		return

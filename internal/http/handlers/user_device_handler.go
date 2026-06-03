@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"photoset/internal/http/middleware"
 	"photoset/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -19,13 +20,13 @@ func NewUserDeviceHandler(deviceService *service.UserDeviceService) *UserDeviceH
 
 // GetUserDevices handles getting user's active devices
 func (h *UserDeviceHandler) GetUserDevices(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录"})
 		return
 	}
 
-	devices, err := h.deviceService.GetUserDevices(userID.(uint))
+	devices, err := h.deviceService.GetUserDevices(userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取设备列表失败"})
 		return
@@ -70,7 +71,7 @@ func (h *UserDeviceHandler) GetUserDevices(c *gin.Context) {
 
 // DeactivateDevice handles deactivating a specific device
 func (h *UserDeviceHandler) DeactivateDevice(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录"})
 		return
@@ -82,7 +83,7 @@ func (h *UserDeviceHandler) DeactivateDevice(c *gin.Context) {
 		return
 	}
 
-	if err := h.deviceService.DeactivateDevice(userID.(uint), deviceID); err != nil {
+	if err := h.deviceService.DeactivateDevice(userID, deviceID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "停用设备失败"})
 		return
 	}
@@ -95,7 +96,7 @@ func (h *UserDeviceHandler) DeactivateDevice(c *gin.Context) {
 
 // DeactivateOtherDevices handles deactivating all devices except current one
 func (h *UserDeviceHandler) DeactivateOtherDevices(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录"})
 		return
@@ -112,7 +113,7 @@ func (h *UserDeviceHandler) DeactivateOtherDevices(c *gin.Context) {
 		return
 	}
 
-	if err := h.deviceService.DeactivateOtherDevices(userID.(uint), currentDeviceID); err != nil {
+	if err := h.deviceService.DeactivateOtherDevices(userID, currentDeviceID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "操作失败"})
 		return
 	}

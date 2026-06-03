@@ -138,12 +138,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	if h.userDeviceService != nil && req.DeviceID != "" {
 		deviceID := req.DeviceID
 		deviceName := req.DeviceName
-		// 如果前端没传设备名，用 UserAgent 解析的结果
-		if deviceName == "" {
-			deviceName = userAgent
-		}
 		if err := h.userDeviceService.RegisterOrUpdateDevice(
-			user.ID, deviceID, deviceName, clientIP, ipLocation,
+			user.ID, deviceID, deviceName, userAgent, clientIP, ipLocation,
 		); err != nil {
 			logger.Warn("Failed to register device", "user_id", user.ID, "error", err)
 		}

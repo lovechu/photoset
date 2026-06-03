@@ -304,6 +304,9 @@ privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
 			communityUpload.POST("/video", uploadHandler.UploadVideo)
 		}
 
+		// 头像上传路由（所有登录用户可用）
+		api.POST("/user/avatar", middleware.Auth(), uploadHandler.UploadImage)
+
 		// 用户路由
 		api.GET("/users/profile", middleware.Auth(), authHandler.Me)
 
@@ -559,6 +562,9 @@ privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
 			v1CommunityUpload.POST("/image", uploadHandler.UploadImage)
 			v1CommunityUpload.POST("/video", uploadHandler.UploadVideo)
 		}
+
+		// 头像上传路由（所有登录用户可用）
+		v1.POST("/user/avatar", middleware.Auth(), uploadHandler.UploadImage)
 
 		// 用户路由
 		v1.GET("/users/profile", middleware.Auth(), authHandler.Me)

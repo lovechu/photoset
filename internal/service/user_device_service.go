@@ -18,9 +18,16 @@ func NewUserDeviceService(deviceRepo *repository.UserDeviceRepository) *UserDevi
 }
 
 // RegisterOrUpdateDevice registers a new device or updates existing one
-func (s *UserDeviceService) RegisterOrUpdateDevice(userID uint, deviceID, userAgent, ip, ipLocation string) error {
+// deviceName is the user-friendly name from the frontend (e.g. "Flutter Mobile")
+// userAgent is the raw User-Agent header used to parse device type, OS, and browser
+func (s *UserDeviceService) RegisterOrUpdateDevice(userID uint, deviceID, deviceName, userAgent, ip, ipLocation string) error {
 	// Parse user agent to extract device info
-	deviceName, deviceType, os, browser := parseDeviceInfo(userAgent)
+	parsedName, deviceType, os, browser := parseDeviceInfo(userAgent)
+
+	// Use frontend-provided device name if available, otherwise use parsed name
+	if deviceName == "" {
+		deviceName = parsedName
+	}
 
 	// Check if device already exists
 	existing, err := s.deviceRepo.FindByDeviceID(userID, deviceID)
@@ -37,11 +44,8 @@ func (s *UserDeviceService) RegisterOrUpdateDevice(userID uint, deviceID, userAg
 		existing.OS = os
 		existing.Browser = browser
 		existing.IsActive = true
-		// Update device name if changed
-		if existing.DeviceName != deviceName {
-			existing.DeviceName = deviceName
-		}
-		return s.deviceRepo.Create(existing) // GORM will update due to primary key
+		existing.DeviceName = deviceName
+		return s.deviceRepo.Save(existing)
 	}
 
 	// Create new device

@@ -23,6 +23,11 @@ func (r *UserDeviceRepository) Create(device *domain.UserDevice) error {
 	return r.db.Create(device).Error
 }
 
+// Save inserts or updates a device record
+func (r *UserDeviceRepository) Save(device *domain.UserDevice) error {
+	return r.db.Save(device).Error
+}
+
 // GetByUserID gets devices for a user
 func (r *UserDeviceRepository) GetByUserID(userID uint) ([]domain.UserDevice, error) {
 	var devices []domain.UserDevice
