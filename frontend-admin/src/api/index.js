@@ -280,9 +280,10 @@ export function restartServer() {
 
 /**
  * 健康检查（公开接口，用于重启后轮询）
+ * baseURL 已是 /api，直接请求 /health 即可
  */
 export function healthCheck() {
-  return request.get('/api/health', { timeout: 5000 })
+  return request.get('/health', { timeout: 5000 })
 }
 
 // ============ 数据备份 ============
