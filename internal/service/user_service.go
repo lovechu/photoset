@@ -112,8 +112,12 @@ func (s *userService) UpdateProfile(userID uint, nickname, bio, avatar, ipLocati
 	if nickname != "" {
 		user.Nickname = nickname
 	}
-	user.Bio = bio
-	user.Avatar = avatar
+	if bio != "" {  // 修复：空值不覆盖已有数据（避免 /auth/me 的 IP 更新调用清空 avatar/bio）
+		user.Bio = bio
+	}
+	if avatar != "" {
+		user.Avatar = avatar
+	}
 	if ipLocation != "" {
 		user.IPLocation = ipLocation
 	}

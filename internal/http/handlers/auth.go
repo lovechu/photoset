@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 
@@ -292,11 +293,18 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		return
 	}
 
+	// DEBUG: 打印收到的参数，确认 avatar 是否传入
+	log.Printf("[UpdateProfile] userID=%d nickname=%q bio=%q avatar=%q ip_location=%q",
+		userID, req.Nickname, req.Bio, req.Avatar, req.IPLocation)
+
 	user, err := h.userService.UpdateProfile(userID, req.Nickname, req.Bio, req.Avatar, req.IPLocation)
 	if err != nil {
+		log.Printf("[UpdateProfile] UpdateProfile error: %v", err)
 		response.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
+
+	log.Printf("[UpdateProfile] SUCCESS user.ID=%d avatar=%q", user.ID, user.Avatar)
 
 	response.Success(c, gin.H{
 		"user": gin.H{
