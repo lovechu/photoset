@@ -17,13 +17,14 @@ func NewLoginHistoryService(historyRepo *repository.LoginHistoryRepository) *Log
 }
 
 // CreateLoginHistory records a login attempt
-func (s *LoginHistoryService) CreateLoginHistory(userID uint, ip, userAgent, loginType string, success bool, failReason string) error {
+func (s *LoginHistoryService) CreateLoginHistory(userID uint, ip, ipLocation, userAgent, loginType string, success bool, failReason string) error {
 	// Parse user agent to extract device info
 	device, browser, os := parseUserAgent(userAgent)
 
 	history := &domain.LoginHistory{
 		UserID:     userID,
 		IP:         ip,
+		IPLocation: ipLocation,
 		UserAgent:  userAgent,
 		Device:     device,
 		Browser:    browser,

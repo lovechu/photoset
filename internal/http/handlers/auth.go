@@ -16,18 +16,28 @@ import (
 )
 
 type AuthHandler struct {
-	userService         service.UserService
-	captchaService      service.CaptchaService
-	siteSettingRepo     *repository.SiteSettingRepository
-	ipGeoService        *service.IPGeoService
+	userService          service.UserService
+	captchaService       service.CaptchaService
+	siteSettingRepo      *repository.SiteSettingRepository
+	ipGeoService         *service.IPGeoService
+	loginHistoryService  *service.LoginHistoryService
+	userDeviceService    *service.UserDeviceService
 }
 
-func NewAuthHandler(userService service.UserService, captchaService service.CaptchaService, siteSettingRepo *repository.SiteSettingRepository) *AuthHandler {
+func NewAuthHandler(
+	userService service.UserService,
+	captchaService service.CaptchaService,
+	siteSettingRepo *repository.SiteSettingRepository,
+	loginHistoryService *service.LoginHistoryService,
+	userDeviceService *service.UserDeviceService,
+) *AuthHandler {
 	return &AuthHandler{
-		userService:     userService,
-		captchaService:  captchaService,
-		siteSettingRepo: siteSettingRepo,
-		ipGeoService:    service.NewIPGeoService(),
+		userService:         userService,
+		captchaService:      captchaService,
+		siteSettingRepo:     siteSettingRepo,
+		ipGeoService:        service.NewIPGeoService(),
+		loginHistoryService: loginHistoryService,
+		userDeviceService:   userDeviceService,
 	}
 }
 
@@ -79,6 +89,8 @@ type LoginRequest struct {
 	Password    string `json:"password" binding:"required"`
 	CaptchaID   string `json:"captcha_id" binding:"required"`
 	CaptchaCode string `json:"captcha_code" binding:"required"`
+	DeviceID    string `json:"device_id"`
+	DeviceName  string `json:"device_name"`
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -102,10 +114,38 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	// 根据IP更新用户地理位置（每次登录时更新）
-	if clientIP := c.ClientIP(); clientIP != "" {
-		if ipLocation := h.ipGeoService.GetLocation(clientIP); ipLocation != "" {
+	clientIP := c.ClientIP()
+	var ipLocation string
+	if clientIP != "" {
+		ipLocation = h.ipGeoService.GetLocation(clientIP)
+		if ipLocation != "" {
 			h.userService.UpdateProfile(user.ID, "", "", "", ipLocation)
 			user.IPLocation = ipLocation
+		}
+	}
+
+	// 记录登录历史
+	userAgent := c.Request.UserAgent()
+	if h.loginHistoryService != nil {
+		if err := h.loginHistoryService.CreateLoginHistory(
+			user.ID, clientIP, ipLocation, userAgent, "password", true, "",
+		); err != nil {
+			logger.Warn("Failed to record login history", "user_id", user.ID, "error", err)
+		}
+	}
+
+	// 注册或更新设备信息
+	if h.userDeviceService != nil && req.DeviceID != "" {
+		deviceID := req.DeviceID
+		deviceName := req.DeviceName
+		// 如果前端没传设备名，用 UserAgent 解析的结果
+		if deviceName == "" {
+			deviceName = userAgent
+		}
+		if err := h.userDeviceService.RegisterOrUpdateDevice(
+			user.ID, deviceID, deviceName, clientIP, ipLocation,
+		); err != nil {
+			logger.Warn("Failed to register device", "user_id", user.ID, "error", err)
 		}
 	}
 

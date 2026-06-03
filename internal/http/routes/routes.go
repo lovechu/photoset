@@ -41,7 +41,18 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	captchaService := service.NewCaptchaService()
 	captchaHandler := handlers.NewCaptchaHandler(captchaService)
 	siteSettingRepo := repository.NewSiteSettingRepository()
-	authHandler := handlers.NewAuthHandler(userService, captchaService, siteSettingRepo)
+
+	// 登录历史服务（需要在 AuthHandler 之前初始化）
+	loginHistoryRepo := repository.NewLoginHistoryRepository(database.GetMySQL())
+	loginHistoryService := service.NewLoginHistoryService(loginHistoryRepo)
+	loginHistoryHandler := handlers.NewLoginHistoryHandler(loginHistoryService)
+
+	// 用户设备管理服务（需要在 AuthHandler 之前初始化）
+	userDeviceRepo := repository.NewUserDeviceRepository(database.GetMySQL())
+	userDeviceService := service.NewUserDeviceService(userDeviceRepo)
+	userDeviceHandler := handlers.NewUserDeviceHandler(userDeviceService)
+
+	authHandler := handlers.NewAuthHandler(userService, captchaService, siteSettingRepo, loginHistoryService, userDeviceService)
 
 	// 页面服务（新模块）
 	pageRepo := repository.NewPageRepository(database.GetMySQL())
@@ -168,16 +179,6 @@ blockHandler := handlers.NewUserBlockHandler(blockService)
 privacyRepo := repository.NewUserPrivacyRepository(database.GetMySQL())
 privacyService := service.NewUserPrivacyService(privacyRepo)
 privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
-
-// 登录历史功能
-loginHistoryRepo := repository.NewLoginHistoryRepository(database.GetMySQL())
-loginHistoryService := service.NewLoginHistoryService(loginHistoryRepo)
-loginHistoryHandler := handlers.NewLoginHistoryHandler(loginHistoryService)
-
-// 用户设备管理功能
-userDeviceRepo := repository.NewUserDeviceRepository(database.GetMySQL())
-userDeviceService := service.NewUserDeviceService(userDeviceRepo)
-userDeviceHandler := handlers.NewUserDeviceHandler(userDeviceService)
 
 // OAuth2 第三方登录授权系统
 	oauthClientRepo := repository.NewOAuthClientRepository()
