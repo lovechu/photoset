@@ -227,6 +227,31 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	})
 }
 
+// Logout 用户登出
+func (h *AuthHandler) Logout(c *gin.Context) {
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Error(c, http.StatusUnauthorized, "请先登录")
+		return
+	}
+
+	var req struct {
+		DeviceID string `json:"device_id"`
+	}
+	// 忽略解析错误，device_id 可选
+	_ = c.ShouldBindJSON(&req)
+
+	// 如果有设备 ID，下线该设备
+	if req.DeviceID != "" && h.userDeviceService != nil {
+		if err := h.userDeviceService.DeactivateDevice(userID, req.DeviceID); err != nil {
+			logger.Warn("Failed to deactivate device on logout", "user_id", userID, "error", err)
+		}
+	}
+
+	logger.Info("User logged out", "user_id", userID)
+	response.Success(c, gin.H{"message": "已登出"})
+}
+
 // ChangePassword 用户修改自己的密码
 func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
