@@ -271,6 +271,20 @@ export function getSystemHealth() {
   return request.get('/admin/system/health')
 }
 
+/**
+ * 重启后端服务（仅管理员）
+ */
+export function restartServer() {
+  return request.post('/admin/system/restart')
+}
+
+/**
+ * 健康检查（公开接口，用于重启后轮询）
+ */
+export function healthCheck() {
+  return request.get('/api/health', { timeout: 5000 })
+}
+
 // ============ 数据备份 ============
 
 export function createBackup() {

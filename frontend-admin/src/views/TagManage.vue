@@ -182,7 +182,7 @@ async function fetchTags() {
     }
 
     const res = await getTagList(params)
-    tagList.value = res.data?.list || []
+    tagList.value = res.data?.list || res.data?.data || []
     total.value = res.data?.total || 0
   } catch (error) {
     console.error('获取标签列表失败:', error)

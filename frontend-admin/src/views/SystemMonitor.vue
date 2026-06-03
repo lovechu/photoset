@@ -13,10 +13,45 @@
           <el-icon><Refresh /></el-icon>
           刷新
         </el-button>
+        <el-button type="danger" @click="handleRestart" :loading="restarting" style="margin-left: 12px">
+          <el-icon><RefreshRight /></el-icon>
+          重启服务
+        </el-button>
       </div>
     </div>
 
     <div v-loading="loading" class="monitor-content">
+      <!-- 健康检查 -->
+      <el-card class="monitor-card" shadow="hover">
+        <template #header>
+          <div class="card-header">
+            <span>健康检查</span>
+            <el-tag :type="healthStatus === 'healthy' ? 'success' : healthStatus === 'unhealthy' ? 'danger' : 'info'" size="small">
+              {{ healthStatus === 'healthy' ? '健康' : healthStatus === 'unhealthy' ? '异常' : '检测中' }}
+            </el-tag>
+          </div>
+        </template>
+        <el-descriptions :column="2" border size="small">
+          <el-descriptions-item label="API 状态">
+            <el-tag :type="healthData?.status === 'ok' ? 'success' : 'danger'" size="small">
+              {{ healthData?.status === 'ok' ? '正常' : '异常' }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="响应时间">{{ healthLatency }}ms</el-descriptions-item>
+          <el-descriptions-item label="数据库">
+            <el-tag :type="healthData?.database === 'ok' ? 'success' : 'danger'" size="small">
+              {{ healthData?.database === 'ok' ? '正常' : healthData?.database === 'error' ? '异常' : '-' }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="Redis">
+            <el-tag :type="healthData?.redis === 'ok' ? 'success' : 'danger'" size="small">
+              {{ healthData?.redis === 'ok' ? '正常' : healthData?.redis === 'error' ? '异常' : '-' }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="最后检查">{{ lastHealthCheck || '-' }}</el-descriptions-item>
+        </el-descriptions>
+      </el-card>
+
       <!-- 服务器信息 -->
       <el-card class="monitor-card" shadow="hover">
         <template #header>
@@ -116,14 +151,22 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { getSystemStatus } from '@/api'
-import { ElMessage } from 'element-plus'
-import { Refresh } from '@element-plus/icons-vue'
+import { getSystemStatus, restartServer, healthCheck } from '@/api'
+import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
+import { Refresh, RefreshRight } from '@element-plus/icons-vue'
 
 const loading = ref(false)
+const restarting = ref(false)
 const status = ref(null)
 const refreshInterval = ref(0)
 let timer = null
+
+// 健康检查相关
+const healthStatus = ref('checking')
+const healthData = ref(null)
+const healthLatency = ref(0)
+const lastHealthCheck = ref('')
+let healthTimer = null
 
 // 内存使用百分比
 const memoryPercentage = computed(() => {
@@ -205,6 +248,91 @@ async function fetchStatus() {
   }
 }
 
+// 健康检查
+async function fetchHealth() {
+  const start = Date.now()
+  try {
+    const res = await healthCheck()
+    healthLatency.value = Date.now() - start
+    healthData.value = res.data
+    healthStatus.value = 'healthy'
+    lastHealthCheck.value = new Date().toLocaleTimeString()
+  } catch {
+    healthLatency.value = Date.now() - start
+    healthStatus.value = 'unhealthy'
+    healthData.value = null
+    lastHealthCheck.value = new Date().toLocaleTimeString()
+  }
+}
+
+// 重启后端
+async function handleRestart() {
+  try {
+    await ElMessageBox.confirm(
+      '确定要重启后端服务吗？<br><br>' +
+      '<strong>注意：</strong><br>' +
+      '- 重启期间服务将暂时不可用（约 20-30 秒）<br>' +
+      '- 所有用户的连接将被中断<br>' +
+      '- 页面将在后端恢复后自动刷新',
+      '重启确认',
+      {
+        type: 'warning',
+        dangerouslyUseHTMLString: true,
+        confirmButtonText: '确定重启',
+        cancelButtonText: '取消',
+      }
+    )
+  } catch {
+    return
+  }
+
+  restarting.value = true
+  try {
+    const res = await restartServer()
+    const delay = res.data?.delay || 5
+
+    ElMessage.info(`后端正在重启，预计 ${delay + 15} 秒后恢复...`)
+
+    // 等待后端开始退出
+    await new Promise(resolve => setTimeout(resolve, (delay + 8) * 1000))
+
+    // 轮询等待恢复
+    const loadingInstance = ElLoading.service({
+      lock: true,
+      text: '正在等待后端恢复...',
+      background: 'rgba(0, 0, 0, 0.7)',
+    })
+
+    let retries = 0
+    const maxRetries = 30
+
+    await new Promise((resolve) => {
+      const poll = setInterval(async () => {
+        retries++
+        try {
+          await healthCheck()
+          clearInterval(poll)
+          loadingInstance.close()
+          ElMessage.success('后端重启成功！页面即将刷新...')
+          setTimeout(() => window.location.reload(), 1500)
+          resolve()
+        } catch {
+          if (retries >= maxRetries) {
+            clearInterval(poll)
+            loadingInstance.close()
+            ElMessage.warning('重启超时，请手动检查服务状态')
+            restarting.value = false
+            resolve()
+          }
+        }
+      }, 2000)
+    })
+  } catch (err) {
+    ElMessage.error(err.response?.data?.message || '重启失败')
+    restarting.value = false
+  }
+}
+
 // 切换刷新间隔
 function handleIntervalChange(interval) {
   if (timer) {
@@ -218,12 +346,14 @@ function handleIntervalChange(interval) {
 
 onMounted(() => {
   fetchStatus()
+  fetchHealth()
+  // 每 30 秒自动健康检查
+  healthTimer = setInterval(fetchHealth, 30000)
 })
 
 onUnmounted(() => {
-  if (timer) {
-    clearInterval(timer)
-  }
+  if (timer) clearInterval(timer)
+  if (healthTimer) clearInterval(healthTimer)
 })
 </script>
 

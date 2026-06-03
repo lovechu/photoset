@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"photoset/internal/config"
@@ -20,6 +22,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
+
+// isRestarting 全局重启状态标记，防止并发重启
+var isRestarting atomic.Bool
 
 type AdminHandler struct {
 	photosetRepo    *repository.PhotoSetRepository
@@ -682,9 +687,35 @@ func escapeCSV(s string) string {
 	return s
 }
 
-// RestartServer 已禁用 — 存在 RCE/DoS 风险，进程重启应由外部进程管理器（Docker/systemd/supervisord）管理
+// RestartServer 安全重启后端服务（延迟退出，由 Docker restart policy 自动重启）
 func (h *AdminHandler) RestartServer(c *gin.Context) {
-	response.Forbidden(c, "此接口已禁用，请通过外部进程管理器重启服务")
+	// 防止并发重启
+	if !isRestarting.CompareAndSwap(false, true) {
+		response.Error(c, http.StatusConflict, "服务正在重启中，请稍后再试")
+		return
+	}
+
+	// 记录操作日志
+	userID, _ := c.Get("user_id")
+	username, _ := c.Get("username")
+	logger.Warn("管理员触发后端重启",
+		"user_id", userID,
+		"username", username,
+		"ip", c.ClientIP(),
+	)
+
+	// 先返回成功响应
+	response.Success(c, gin.H{
+		"message": "后端正在重启，请等待约 20 秒后页面会自动刷新",
+		"delay":   5,
+	})
+
+	// 延迟退出，确保响应已发送给客户端
+	go func() {
+		time.Sleep(5 * time.Second)
+		logger.Info("后端开始退出，Docker 将自动重启容器...")
+		os.Exit(0)
+	}()
 }
 
 // TestStorageConnection 测试存储连接

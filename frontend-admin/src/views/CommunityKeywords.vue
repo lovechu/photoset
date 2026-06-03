@@ -178,8 +178,8 @@ async function fetchKeywords() {
       params.is_active = filterActive.value
     }
     const res = await getKeywords(params)
-    keywordList.value = res.data?.list || []
-    total.value = res.data?.total || 0
+    keywordList.value = res.data?.keywords || res.data?.list || []
+    total.value = res.data?.pagination?.total || res.data?.total || 0
   } catch {
     // 错误已由拦截器处理
   } finally {

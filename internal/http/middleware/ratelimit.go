@@ -57,3 +57,8 @@ func RegisterRateLimit() gin.HandlerFunc {
 func CaptchaRateLimit() gin.HandlerFunc {
 	return RateLimit(30, 1*time.Minute)
 }
+
+// RestartRateLimit 重启接口限流：同一 IP 每 2 分钟最多 1 次
+func RestartRateLimit() gin.HandlerFunc {
+	return RateLimit(1, 2*time.Minute)
+}

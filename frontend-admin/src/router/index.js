@@ -157,6 +157,12 @@ const routes = [
         meta: { title: '系统监控', icon: 'Monitor' }
       },
       {
+        path: 'system/trash',
+        name: 'TrashManage',
+        component: () => import('@/views/TrashManage.vue'),
+        meta: { title: '回收站管理', icon: 'Delete' }
+      },
+      {
         path: 'system/backup',
         name: 'DataBackup',
         component: () => import('@/views/DataBackup.vue'),

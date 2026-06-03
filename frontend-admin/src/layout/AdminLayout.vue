@@ -71,6 +71,9 @@
           <el-menu-item index="/system/backup">
             <span>数据备份</span>
           </el-menu-item>
+          <el-menu-item index="/system/trash">
+            <span>回收站管理</span>
+          </el-menu-item>
           <el-menu-item index="/system/ip-geo">
             <span>IP地理位置</span>
           </el-menu-item>

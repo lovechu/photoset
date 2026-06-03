@@ -166,8 +166,8 @@ async function fetchUsers() {
     const params = { page: page.value, page_size: pageSize.value }
     if (filterLevel.value) params.level = filterLevel.value
     const res = await getCommunityUsers(params)
-    userList.value = res.data?.list || []
-    total.value = res.data?.total || 0
+    userList.value = res.data?.users || res.data?.list || []
+    total.value = res.data?.pagination?.total || res.data?.total || 0
   } catch {
     // 错误已由拦截器处理
   } finally {

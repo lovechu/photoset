@@ -117,8 +117,8 @@ async function fetchReplies() {
     const params = { page: page.value, page_size: pageSize.value }
     if (filterPostId.value) params.post_id = filterPostId.value
     const res = await getCommunityReplies(params)
-    replyList.value = res.data?.list || []
-    total.value = res.data?.total || 0
+    replyList.value = res.data?.replies || res.data?.list || []
+    total.value = res.data?.pagination?.total || res.data?.total || 0
   } catch {
     // 错误已由拦截器处理
   } finally {

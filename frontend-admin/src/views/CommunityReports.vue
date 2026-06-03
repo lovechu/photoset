@@ -207,8 +207,8 @@ async function fetchReports() {
     const params = { page: page.value, page_size: pageSize.value }
     if (filterStatus.value) params.status = filterStatus.value
     const res = await getReports(params)
-    reportList.value = res.data?.list || []
-    total.value = res.data?.total || 0
+    reportList.value = res.data?.reports || res.data?.list || []
+    total.value = res.data?.pagination?.total || res.data?.total || 0
   } catch {
     // 错误已由拦截器处理
   } finally {
