@@ -74,17 +74,28 @@ func NewWebSocketHandler(hub *service.Hub) *WebSocketHandler {
 // 认证方式: URL query 参数 ?token=xxx 或 Authorization header
 // 升级后客户端也可发送 auth 消息进行认证
 func (h *WebSocketHandler) HandleConnection(c *gin.Context) {
+	// 调试日志
+	log.Printf("[WebSocket] HandleConnection called")
+	log.Printf("[WebSocket] Method: %s, URL: %s", c.Request.Method, c.Request.URL)
+	log.Printf("[WebSocket] Headers: %v", c.Request.Header)
+	log.Printf("[WebSocket] Origin: %s", c.Request.Header.Get("Origin"))
+	log.Printf("[WebSocket] Upgrade: %s", c.Request.Header.Get("Upgrade"))
+	log.Printf("[WebSocket] Connection: %s", c.Request.Header.Get("Connection"))
+
 	// 从 query 参数或 Authorization header 提取 token
 	token := extractWSToken(c)
+	log.Printf("[WebSocket] Token extracted: %v", token != "")
 
 	var userID uint
 	if token != "" {
 		claims, err := jwt.ParseToken(token)
 		if err != nil {
+			log.Printf("[WebSocket] Token parse error: %v", err)
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "token 无效或已过期"})
 			return
 		}
 		userID = claims.UserID
+		log.Printf("[WebSocket] Token valid, userID: %d", userID)
 	}
 
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
@@ -92,6 +103,7 @@ func (h *WebSocketHandler) HandleConnection(c *gin.Context) {
 		log.Printf("[WebSocket] Upgrade error: %v", err)
 		return
 	}
+	log.Printf("[WebSocket] Upgrade successful")
 
 	// 如果连接时没有 token，等待客户端发送 auth 消息
 	if userID == 0 {
