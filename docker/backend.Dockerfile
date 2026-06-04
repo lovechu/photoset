@@ -22,6 +22,7 @@ COPY internal/ ./internal/
 COPY cmd/ ./cmd/
 COPY scripts/ ./scripts/
 COPY data/ ./data/
+COPY docs/ ./docs/
 
 # 启用 CGO，设置编译参数
 ENV CGO_ENABLED=0 GOOS=linux GOARCH=amd64
