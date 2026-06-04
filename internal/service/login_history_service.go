@@ -17,9 +17,19 @@ func NewLoginHistoryService(historyRepo *repository.LoginHistoryRepository) *Log
 }
 
 // CreateLoginHistory records a login attempt
-func (s *LoginHistoryService) CreateLoginHistory(userID uint, ip, ipLocation, userAgent, loginType string, success bool, failReason string) error {
+func (s *LoginHistoryService) CreateLoginHistory(userID uint, ip, ipLocation, userAgent, loginType, deviceType, osVersion string, success bool, failReason string) error {
 	// Parse user agent to extract device info
-	device, browser, os := parseUserAgent(userAgent)
+	uaDevice, browser, uaOS := parseUserAgent(userAgent)
+
+	// Prioritize frontend-provided device info over UA parsing
+	device := uaDevice
+	os := uaOS
+	if deviceType != "" {
+		device = deviceType
+	}
+	if osVersion != "" {
+		os = osVersion
+	}
 
 	history := &domain.LoginHistory{
 		UserID:     userID,
@@ -68,6 +78,9 @@ func parseUserAgent(userAgent string) (device, browser, os string) {
 		} else {
 			device = "Mobile"
 		}
+	} else if strings.Contains(ua, "dart") || strings.Contains(ua, "flutter") || strings.Contains(ua, "okhttp") {
+		// Dart/Flutter app HTTP clients — cannot determine exact platform from UA alone
+		device = "移动端"
 	} else {
 		device = "Desktop"
 	}
@@ -85,6 +98,9 @@ func parseUserAgent(userAgent string) (device, browser, os string) {
 		browser = "Safari"
 	} else if strings.Contains(ua, "msie") || strings.Contains(ua, "trident/") {
 		browser = "Internet Explorer"
+	} else if strings.Contains(ua, "dart") || strings.Contains(ua, "flutter") || strings.Contains(ua, "okhttp") {
+		// App client, not a browser
+		browser = "App"
 	} else {
 		browser = "Unknown"
 	}

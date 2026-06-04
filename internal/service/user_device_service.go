@@ -19,10 +19,24 @@ func NewUserDeviceService(deviceRepo *repository.UserDeviceRepository) *UserDevi
 
 // RegisterOrUpdateDevice registers a new device or updates existing one
 // deviceName is the user-friendly name from the frontend (e.g. "Flutter Mobile")
-// userAgent is the raw User-Agent header used to parse device type, OS, and browser
-func (s *UserDeviceService) RegisterOrUpdateDevice(userID uint, deviceID, deviceName, userAgent, ip, ipLocation string) error {
-	// Parse user agent to extract device info
-	parsedName, deviceType, os, browser := parseDeviceInfo(userAgent)
+// userAgent is the raw User-Agent header used as fallback to parse device type, OS, and browser
+// frontendDeviceType is the device type reported by the app (e.g. "android", "ios"), takes priority over UA parsing
+// frontendOsVersion is the OS version reported by the app (e.g. "Android 14", "iOS 17.0"), takes priority over UA parsing
+func (s *UserDeviceService) RegisterOrUpdateDevice(userID uint, deviceID, deviceName, userAgent, frontendDeviceType, frontendOsVersion, ip, ipLocation string) error {
+	// Parse user agent as fallback
+	parsedName, parsedDeviceType, parsedOS, parsedBrowser := parseDeviceInfo(userAgent)
+
+	// Use frontend-provided values if available, otherwise fallback to UA parsing
+	deviceType := parsedDeviceType
+	os := parsedOS
+	browser := parsedBrowser
+
+	if frontendDeviceType != "" {
+		deviceType = frontendDeviceType
+	}
+	if frontendOsVersion != "" {
+		os = frontendOsVersion
+	}
 
 	// Use frontend-provided device name if available, otherwise use parsed name
 	if deviceName == "" {
@@ -45,6 +59,7 @@ func (s *UserDeviceService) RegisterOrUpdateDevice(userID uint, deviceID, device
 		existing.Browser = browser
 		existing.IsActive = true
 		existing.DeviceName = deviceName
+		existing.DeviceType = deviceType
 		return s.deviceRepo.Save(existing)
 	}
 

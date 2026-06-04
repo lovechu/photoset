@@ -95,6 +95,8 @@ type LoginRequest struct {
 	CaptchaCode string `json:"captcha_code" binding:"required"`
 	DeviceID    string `json:"device_id"`
 	DeviceName  string `json:"device_name"`
+	DeviceType  string `json:"device_type"`
+	OsVersion   string `json:"os_version"`
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -132,7 +134,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	userAgent := c.Request.UserAgent()
 	if h.loginHistoryService != nil {
 		if err := h.loginHistoryService.CreateLoginHistory(
-			user.ID, clientIP, ipLocation, userAgent, "password", true, "",
+			user.ID, clientIP, ipLocation, userAgent, "password", req.DeviceType, req.OsVersion, true, "",
 		); err != nil {
 			logger.Warn("Failed to record login history", "user_id", user.ID, "error", err)
 		}
@@ -143,7 +145,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		deviceID := req.DeviceID
 		deviceName := req.DeviceName
 		if err := h.userDeviceService.RegisterOrUpdateDevice(
-			user.ID, deviceID, deviceName, userAgent, clientIP, ipLocation,
+			user.ID, deviceID, deviceName, userAgent, req.DeviceType, req.OsVersion, clientIP, ipLocation,
 		); err != nil {
 			logger.Warn("Failed to register device", "user_id", user.ID, "error", err)
 		}
