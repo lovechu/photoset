@@ -18,6 +18,15 @@ func NewUserDeviceHandler(deviceService *service.UserDeviceService) *UserDeviceH
 	return &UserDeviceHandler{deviceService: deviceService}
 }
 
+// @Summary      设备列表
+// @Description  获取当前用户的活跃设备列表
+// @Tags         User
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  object  "设备列表"
+// @Failure      401  {object}  object  "未登录"
+// @Security     BearerAuth
+// @Router       /api/user/devices [get]
 // GetUserDevices handles getting user's active devices
 func (h *UserDeviceHandler) GetUserDevices(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
@@ -69,6 +78,16 @@ func (h *UserDeviceHandler) GetUserDevices(c *gin.Context) {
 	})
 }
 
+// @Summary      停用设备
+// @Description  停用指定设备
+// @Tags         User
+// @Accept       json
+// @Produce      json
+// @Param        deviceId  path  string  true  "设备ID"
+// @Success      200  {object}  object  "操作成功"
+// @Failure      400  {object}  object  "设备ID为空"
+// @Security     BearerAuth
+// @Router       /api/user/devices/{deviceId} [delete]
 // DeactivateDevice handles deactivating a specific device
 func (h *UserDeviceHandler) DeactivateDevice(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
@@ -94,6 +113,16 @@ func (h *UserDeviceHandler) DeactivateDevice(c *gin.Context) {
 	})
 }
 
+// @Summary      停用其他设备
+// @Description  停用除当前设备外的所有其他设备
+// @Tags         User
+// @Accept       json
+// @Produce      json
+// @Param        X-Device-ID  header  string  false  "当前设备ID"
+// @Success      200  {object}  object  "操作成功"
+// @Failure      400  {object}  object  "当前设备ID为空"
+// @Security     BearerAuth
+// @Router       /api/user/devices [delete]
 // DeactivateOtherDevices handles deactivating all devices except current one
 func (h *UserDeviceHandler) DeactivateOtherDevices(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)

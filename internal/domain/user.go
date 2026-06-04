@@ -40,6 +40,10 @@ type User struct {
 	FollowingCount int     `gorm:"type:int;default:0" json:"following_count"`
 	FollowerCount  int     `gorm:"type:int;default:0" json:"follower_count"`
 	LikeCount    int       `gorm:"type:int;default:0" json:"like_count"`
+
+	// 账号注销相关
+	DeletionRequestedAt *time.Time `json:"deletion_requested_at"` // 注销申请时间
+	DeletionReason      string     `gorm:"type:varchar(500);default:''" json:"-"` // 注销原因
 }
 
 func (User) TableName() string {

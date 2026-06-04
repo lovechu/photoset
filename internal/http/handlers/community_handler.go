@@ -66,6 +66,19 @@ func NewCommunityHandler(
 }
 
 // GetPosts gets post list with pagination and filtering
+// @Summary      获取帖子列表
+// @Description  分页获取社区帖子列表，支持按分类、排序方式筛选
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        page      query  int     false  "页码"        default(1)
+// @Param        page_size query  int     false  "每页数量"    default(20)
+// @Param        category  query  string  false  "分类"
+// @Param        sort_by   query  string  false  "排序方式(latest/hot)"
+// @Param        keyword   query  string  false  "搜索关键词"
+// @Success      200  {object}  response.Response  "帖子列表"
+// @Failure      500  {object}  response.Response  "服务器错误"
+// @Router       /api/community/posts [get]
 func (h *CommunityHandler) GetPosts(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
@@ -109,6 +122,16 @@ func (h *CommunityHandler) GetPosts(c *gin.Context) {
 }
 
 // GetPostDetail gets post detail and increments view count
+// @Summary      获取帖子详情
+// @Description  获取指定帖子的详细信息，同时增加浏览次数
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        id  path  int  true  "帖子ID"
+// @Success      200  {object}  response.Response  "帖子详情"
+// @Failure      400  {object}  response.Response  "无效的帖子ID"
+// @Failure      404  {object}  response.Response  "帖子不存在"
+// @Router       /api/community/posts/{id} [get]
 func (h *CommunityHandler) GetPostDetail(c *gin.Context) {
 	postID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -136,6 +159,16 @@ func (h *CommunityHandler) GetPostDetail(c *gin.Context) {
 }
 
 // CreatePost creates a new post
+// @Summary      发布帖子
+// @Description  在社区中发布新帖子，支持标题、内容、分类和标签
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        body  body  object  true  "帖子内容 {title, content, category, post_type, topics}"
+// @Success      201  {object}  response.Response  "发帖成功"
+// @Failure      400  {object}  response.Response  "参数错误"
+// @Security     BearerAuth
+// @Router       /api/community/posts [post]
 func (h *CommunityHandler) CreatePost(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
@@ -170,6 +203,17 @@ func (h *CommunityHandler) CreatePost(c *gin.Context) {
 }
 
 // CreateReply creates a reply to a post
+// @Summary      回复帖子
+// @Description  对帖子发表回复，支持引用父回复
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        id    path  int     true  "帖子ID"
+// @Param        body  body  object  true  "回复内容 {content, parent_reply_id, mentioned_user_ids}"
+// @Success      201  {object}  response.Response  "回复成功"
+// @Failure      400  {object}  response.Response  "参数错误"
+// @Security     BearerAuth
+// @Router       /api/community/posts/{id}/reply [post]
 func (h *CommunityHandler) CreateReply(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
@@ -209,6 +253,16 @@ func (h *CommunityHandler) CreateReply(c *gin.Context) {
 }
 
 // TogglePostLike toggles like status for a post
+// @Summary      点赞/取消点赞帖子
+// @Description  切换帖子的点赞状态（点赞或取消点赞）
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        id  path  int  true  "帖子ID"
+// @Success      200  {object}  response.Response  "操作成功"
+// @Failure      400  {object}  response.Response  "无效的帖子ID"
+// @Security     BearerAuth
+// @Router       /api/community/posts/{id}/like [post]
 func (h *CommunityHandler) TogglePostLike(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
@@ -236,6 +290,25 @@ func (h *CommunityHandler) TogglePostLike(c *gin.Context) {
 }
 
 // ToggleReplyLike toggles like status for a reply
+// @Summary 点赞/取消点赞回复
+// @Tags Community
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "回复ID"
+// @Success 200 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Router /api/community/replies/{id}/like [post]
+// @Summary      点赞/取消点赞回复
+// @Description  切换回复的点赞状态
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        id  path  int  true  "回复ID"
+// @Success      200  {object}  response.Response  "操作成功"
+// @Security     BearerAuth
+// @Router       /api/community/replies/{id}/like [post]
 func (h *CommunityHandler) ToggleReplyLike(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
@@ -263,6 +336,26 @@ func (h *CommunityHandler) ToggleReplyLike(c *gin.Context) {
 }
 
 // ReportPost reports a post
+// @Summary 举报帖子
+// @Tags Community
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "帖子ID"
+// @Param request body object true "举报原因 {reason: string}"
+// @Success 200 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Router /api/community/posts/{id}/report [post]
+// @Summary      举报帖子
+// @Description  举报违规帖子，提供举报原因
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        id    path  int     true  "帖子ID"
+// @Param        body  body  object  true  "举报原因 {reason}"
+// @Success      200  {object}  response.Response  "举报成功"
+// @Security     BearerAuth
+// @Router       /api/community/posts/{id}/report [post]
 func (h *CommunityHandler) ReportPost(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
@@ -293,6 +386,16 @@ func (h *CommunityHandler) ReportPost(c *gin.Context) {
 }
 
 // ReportReply reports a reply
+// @Summary 举报回复
+// @Tags Community
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "回复ID"
+// @Param request body object true "举报原因 {reason: string}"
+// @Success 200 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Router /api/community/replies/{id}/report [post]
 func (h *CommunityHandler) ReportReply(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
@@ -322,6 +425,13 @@ func (h *CommunityHandler) ReportReply(c *gin.Context) {
 	response.Success(c, gin.H{"message": "report submitted successfully"})
 }
 
+// @Summary      获取社区分类列表
+// @Description  获取社区所有可用的帖子分类
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  response.Response  "分类列表"
+// @Router       /api/community/categories [get]
 // GetCategories gets available categories from the database
 func (h *CommunityHandler) GetCategories(c *gin.Context) {
 	categories, err := h.categoryRepo.ListCategories()
@@ -348,6 +458,15 @@ func (h *CommunityHandler) GetCategories(c *gin.Context) {
 	response.Success(c, gin.H{"categories": items})
 }
 
+// @Summary      热门帖子
+// @Description  获取社区热门帖子列表
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        page      query  int  false  "页码"       default(1)
+// @Param        page_size query  int  false  "每页数量"   default(20)
+// @Success      200  {object}  response.Response  "热门帖子"
+// @Router       /api/community/hot [get]
 // GetHotPosts gets hot posts
 func (h *CommunityHandler) GetHotPosts(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -373,6 +492,16 @@ func (h *CommunityHandler) GetHotPosts(c *gin.Context) {
 }
 
 // GetMyPosts gets current user's posts
+// @Summary 获取我的帖子
+// @Tags Community
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "页码" default(1)
+// @Param page_size query int false "每页数量" default(20)
+// @Success 200 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Router /api/community/me/posts [get]
 func (h *CommunityHandler) GetMyPosts(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
@@ -400,6 +529,17 @@ func (h *CommunityHandler) GetMyPosts(c *gin.Context) {
 }
 
 // GetUserPosts gets a specific user's posts
+// @Summary 获取用户帖子列表
+// @Tags User
+// @Accept json
+// @Produce json
+// @Param id path int true "用户ID"
+// @Param page query int false "页码" default(1)
+// @Param page_size query int false "每页数量" default(20)
+// @Param sort query string false "排序方式" default(latest)
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Router /api/community/users/{id}/posts [get]
 func (h *CommunityHandler) GetUserPosts(c *gin.Context) {
 	targetUserID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -431,6 +571,17 @@ func (h *CommunityHandler) GetUserPosts(c *gin.Context) {
 	})
 }
 
+// @Summary      我的回复
+// @Description  获取当前用户的所有回复列表
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        page      query  int  false  "页码"       default(1)
+// @Param        page_size query  int  false  "每页数量"   default(20)
+// @Success      200  {object}  response.Response  "我的回复"
+// @Failure      401  {object}  response.Response  "未登录"
+// @Security     BearerAuth
+// @Router       /api/community/me/replies [get]
 // GetMyReplies gets current user's replies
 func (h *CommunityHandler) GetMyReplies(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
@@ -458,6 +609,15 @@ func (h *CommunityHandler) GetMyReplies(c *gin.Context) {
 	})
 }
 
+// @Summary      我的积分
+// @Description  获取当前用户的积分和等级信息
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  response.Response  "积分信息"
+// @Failure      401  {object}  response.Response  "未登录"
+// @Security     BearerAuth
+// @Router       /api/community/me/points [get]
 // GetMyPoints gets current user's points and level info
 func (h *CommunityHandler) GetMyPoints(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
@@ -480,6 +640,17 @@ func (h *CommunityHandler) GetMyPoints(c *gin.Context) {
 	})
 }
 
+// @Summary      获取帖子回复列表
+// @Description  分页获取指定帖子的所有回复
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        id         path  int   true   "帖子ID"
+// @Param        page       query int   false  "页码"
+// @Param        page_size  query int   false  "每页数量"
+// @Success      200  {object}  response.Response  "回复列表"
+// @Failure      400  {object}  response.Response  "无效的帖子ID"
+// @Router       /api/community/posts/{id}/replies [get]
 // GetReplies gets replies for a post
 func (h *CommunityHandler) GetReplies(c *gin.Context) {
 	postID, err := strconv.ParseUint(c.Param("id"), 10, 64)
@@ -614,6 +785,15 @@ func (h *CommunityHandler) canViewPost(post *domain.Post, userRole string) bool 
 }
 
 // GetUserProfile gets a user's public profile info
+// @Summary 获取用户主页信息
+// @Tags User
+// @Accept json
+// @Produce json
+// @Param id path int true "用户ID"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Failure 404 {object} response.Response
+// @Router /api/community/users/{id} [get]
 func (h *CommunityHandler) GetUserProfile(c *gin.Context) {
 	userID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -685,6 +865,15 @@ func (h *CommunityHandler) GetUserProfile(c *gin.Context) {
 	})
 }
 
+// @Summary      切换帖子收藏
+// @Description  切换帖子的收藏状态（收藏或取消收藏）
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        id  path  int  true  "帖子ID"
+// @Success      200  {object}  response.Response  "操作成功"
+// @Security     BearerAuth
+// @Router       /api/community/posts/{id}/favorite [post]
 // TogglePostFavorite toggles favorite status for a post
 func (h *CommunityHandler) TogglePostFavorite(c *gin.Context) {
 	postID, err := strconv.ParseUint(c.Param("id"), 10, 64)
@@ -723,6 +912,15 @@ func (h *CommunityHandler) TogglePostFavorite(c *gin.Context) {
 	})
 }
 
+// @Summary      检查收藏状态
+// @Description  检查当前用户是否收藏了指定帖子
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        id  path  int  true  "帖子ID"
+// @Success      200  {object}  response.Response  "收藏状态"
+// @Security     BearerAuth
+// @Router       /api/community/posts/{id}/favorite/check [get]
 // CheckPostFavorite checks if user has favorited a post
 func (h *CommunityHandler) CheckPostFavorite(c *gin.Context) {
 	postID, err := strconv.ParseUint(c.Param("id"), 10, 64)
@@ -747,6 +945,16 @@ func (h *CommunityHandler) CheckPostFavorite(c *gin.Context) {
 }
 
 // GetMyFavorites gets current user's favorite posts
+// @Summary 获取我的收藏
+// @Tags Community
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "页码" default(1)
+// @Param page_size query int false "每页数量" default(20)
+// @Success 200 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Router /api/community/me/favorites [get]
 func (h *CommunityHandler) GetMyFavorites(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
@@ -780,6 +988,18 @@ func (h *CommunityHandler) GetMyFavorites(c *gin.Context) {
 }
 
 // UpdatePost updates a post (only by the owner)
+// @Summary 更新帖子
+// @Tags Community
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "帖子ID"
+// @Param request body service.UpdatePostRequest true "更新内容"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Router /api/community/posts/{id} [put]
 func (h *CommunityHandler) UpdatePost(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
@@ -818,6 +1038,16 @@ func (h *CommunityHandler) UpdatePost(c *gin.Context) {
 	response.Success(c, gin.H{"post": h.postToResponse(*post, userID)})
 }
 
+// @Summary      删除帖子
+// @Description  删除指定帖子（仅作者可操作）
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        id  path  int  true  "帖子ID"
+// @Success      200  {object}  response.Response  "删除成功"
+// @Failure      403  {object}  response.Response  "无权删除"
+// @Security     BearerAuth
+// @Router       /api/community/posts/{id} [delete]
 // DeletePost deletes a post (only by the owner)
 func (h *CommunityHandler) DeletePost(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
@@ -846,6 +1076,16 @@ func (h *CommunityHandler) DeletePost(c *gin.Context) {
 	response.Success(c, gin.H{"message": "post deleted successfully"})
 }
 
+// @Summary      更新回复
+// @Description  更新指定回复的内容（仅作者可操作）
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        id    path  int     true  "回复ID"
+// @Param        body  body  object  true  "更新内容 {content}"
+// @Success      200  {object}  response.Response  "更新成功"
+// @Security     BearerAuth
+// @Router       /api/community/replies/{id} [put]
 // UpdateReply updates a reply (only by the owner)
 func (h *CommunityHandler) UpdateReply(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
@@ -884,6 +1124,16 @@ func (h *CommunityHandler) UpdateReply(c *gin.Context) {
 }
 
 // DeleteReply deletes a reply (only by the owner)
+// @Summary 删除回复
+// @Tags Community
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path int true "回复ID"
+// @Success 200 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Failure 403 {object} response.Response
+// @Router /api/community/replies/{id} [delete]
 func (h *CommunityHandler) DeleteReply(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
@@ -912,6 +1162,16 @@ func (h *CommunityHandler) DeleteReply(c *gin.Context) {
 }
 
 // SaveDraft saves a draft (create or update)
+// @Summary 保存草稿
+// @Tags Community
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body service.SaveDraftRequest true "草稿内容"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Router /api/community/drafts [post]
 func (h *CommunityHandler) SaveDraft(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
@@ -940,6 +1200,16 @@ func (h *CommunityHandler) SaveDraft(c *gin.Context) {
 	response.Success(c, gin.H{"draft": draft})
 }
 
+// @Summary      我的草稿
+// @Description  获取当前用户的草稿列表
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        page      query  int  false  "页码"       default(1)
+// @Param        page_size query  int  false  "每页数量"   default(20)
+// @Success      200  {object}  response.Response  "草稿列表"
+// @Security     BearerAuth
+// @Router       /api/community/me/drafts [get]
 // GetMyDrafts gets current user's drafts
 func (h *CommunityHandler) GetMyDrafts(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
@@ -967,6 +1237,15 @@ func (h *CommunityHandler) GetMyDrafts(c *gin.Context) {
 	})
 }
 
+// @Summary      删除草稿
+// @Description  删除指定的草稿
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        id  path  int  true  "草稿ID"
+// @Success      200  {object}  response.Response  "删除成功"
+// @Security     BearerAuth
+// @Router       /api/community/drafts/{id} [delete]
 // DeleteDraft deletes a draft
 func (h *CommunityHandler) DeleteDraft(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
@@ -996,6 +1275,16 @@ func (h *CommunityHandler) DeleteDraft(c *gin.Context) {
 }
 
 // SearchPosts searches posts by keyword
+// @Summary 搜索帖子
+// @Tags Community
+// @Accept json
+// @Produce json
+// @Param keyword query string true "搜索关键词"
+// @Param page query int false "页码" default(1)
+// @Param page_size query int false "每页数量" default(20)
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Router /api/community/posts/search [get]
 func (h *CommunityHandler) SearchPosts(c *gin.Context) {
 	keyword := c.Query("keyword")
 	if keyword == "" {
@@ -1027,6 +1316,15 @@ func (h *CommunityHandler) SearchPosts(c *gin.Context) {
 }
 
 // SearchUsersForMention searches users for @mention autocomplete
+// @Summary 搜索用户（@提及）
+// @Tags Community
+// @Accept json
+// @Produce json
+// @Param keyword query string true "搜索关键词"
+// @Param limit query int false "返回数量" default(10)
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Router /api/community/users/search [get]
 func (h *CommunityHandler) SearchUsersForMention(c *gin.Context) {
 	keyword := c.Query("keyword")
 	if keyword == "" {
@@ -1058,6 +1356,16 @@ func (h *CommunityHandler) SearchUsersForMention(c *gin.Context) {
 	response.Success(c, gin.H{"users": result})
 }
 
+// @Summary      分享帖子
+// @Description  记录帖子的分享行为
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        id    path  int     true  "帖子ID"
+// @Param        body  body  object  false  "分享平台 {platform}"
+// @Success      200  {object}  response.Response  "记录成功"
+// @Security     BearerAuth
+// @Router       /api/community/posts/{id}/share [post]
 // RecordShare records a share action for a post
 func (h *CommunityHandler) RecordShare(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
@@ -1094,6 +1402,14 @@ func (h *CommunityHandler) RecordShare(c *gin.Context) {
 	response.Success(c, gin.H{"message": "share recorded"})
 }
 
+// @Summary      分享统计
+// @Description  获取指定帖子的分享统计数据
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        id  path  int  true  "帖子ID"
+// @Success      200  {object}  response.Response  "分享统计"
+// @Router       /api/community/posts/{id}/shares [get]
 // GetShareStats gets share statistics for a post
 func (h *CommunityHandler) GetShareStats(c *gin.Context) {
 	postID, err := strconv.ParseUint(c.Param("id"), 10, 64)
@@ -1118,6 +1434,14 @@ func (h *CommunityHandler) GetShareStats(c *gin.Context) {
 	})
 }
 
+// @Summary      热门标签
+// @Description  获取社区热门标签列表
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        limit  query  int  false  "数量限制"  default(20)
+// @Success      200  {object}  response.Response  "热门标签"
+// @Router       /api/community/tags/popular [get]
 // GetPopularTags gets popular tags
 func (h *CommunityHandler) GetPopularTags(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
@@ -1141,6 +1465,15 @@ func (h *CommunityHandler) GetPopularTags(c *gin.Context) {
 }
 
 // SearchTags searches tags by keyword
+// @Summary 搜索标签
+// @Tags Community
+// @Accept json
+// @Produce json
+// @Param keyword query string true "搜索关键词"
+// @Param limit query int false "返回数量" default(10)
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Router /api/community/tags/search [get]
 func (h *CommunityHandler) SearchTags(c *gin.Context) {
 	keyword := c.Query("keyword")
 	if keyword == "" {
@@ -1168,6 +1501,17 @@ func (h *CommunityHandler) SearchTags(c *gin.Context) {
 	response.Success(c, gin.H{"tags": result})
 }
 
+// @Summary      标签帖子列表
+// @Description  根据标签名称获取相关帖子列表
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        name       path  string  true   "标签名称"
+// @Param        page       query int     false  "页码"
+// @Param        page_size  query int     false  "每页数量"
+// @Param        sort       query string  false  "排序方式(latest/hot)"
+// @Success      200  {object}  response.Response  "帖子列表"
+// @Router       /api/community/tags/{name}/posts [get]
 // GetPostsByTagName gets posts by tag name
 func (h *CommunityHandler) GetPostsByTagName(c *gin.Context) {
 	tagName := c.Param("name")
@@ -1226,6 +1570,15 @@ func (h *CommunityHandler) GetHotTopics(c *gin.Context) {
 	response.Success(c, gin.H{"topics": result})
 }
 
+// @Summary      搜索话题
+// @Description  根据关键词搜索话题
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        keyword  query  string  true  "搜索关键词"
+// @Param        limit    query  int     false "数量限制"
+// @Success      200  {object}  response.Response  "话题列表"
+// @Router       /api/community/topics/search [get]
 // SearchTopics searches topics by keyword
 func (h *CommunityHandler) SearchTopics(c *gin.Context) {
 	keyword := c.Query("keyword")
@@ -1258,6 +1611,17 @@ func (h *CommunityHandler) SearchTopics(c *gin.Context) {
 	response.Success(c, gin.H{"topics": result})
 }
 
+// @Summary      话题帖子列表
+// @Description  根据话题名称获取相关帖子列表
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        name       path  string  true   "话题名称"
+// @Param        page       query int     false  "页码"
+// @Param        page_size  query int     false  "每页数量"
+// @Param        sort       query string  false  "排序方式"
+// @Success      200  {object}  response.Response  "帖子列表"
+// @Router       /api/community/topics/{name}/posts [get]
 // GetPostsByTopicName gets posts by topic name
 func (h *CommunityHandler) GetPostsByTopicName(c *gin.Context) {
 	topicName := c.Param("name")
@@ -1299,6 +1663,17 @@ func (h *CommunityHandler) GetPostsByTopicName(c *gin.Context) {
 	})
 }
 
+// @Summary      推荐帖子
+// @Description  根据算法获取个性化推荐帖子
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Param        type       query string  false  "推荐类型(mixed/hot/collaborative)"  default(mixed)
+// @Param        page       query int     false  "页码"
+// @Param        page_size  query int     false  "每页数量"
+// @Success      200  {object}  response.Response  "推荐帖子"
+// @Security     BearerAuth
+// @Router       /api/community/recommendations [get]
 // GetRecommendations gets recommended posts based on algorithm type
 func (h *CommunityHandler) GetRecommendations(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
@@ -1337,6 +1712,14 @@ func (h *CommunityHandler) GetRecommendations(c *gin.Context) {
 	})
 }
 
+// @Summary      用户兴趣画像
+// @Description  获取当前用户的兴趣画像（标签和话题偏好）
+// @Tags         Community
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  response.Response  "兴趣画像"
+// @Security     BearerAuth
+// @Router       /api/community/interests [get]
 // GetUserInterestProfile gets user's interest profile (tags and topics)
 func (h *CommunityHandler) GetUserInterestProfile(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)

@@ -18,6 +18,17 @@ func NewFavoriteHandler(repo *repository.FavoriteRepository) *FavoriteHandler {
 }
 
 // Add 收藏套图
+// @Summary      收藏套图
+// @Description  将指定套图添加到当前用户的收藏列表
+// @Tags         Favorites
+// @Accept       json
+// @Produce      json
+// @Param        photosetId path int true "套图ID"
+// @Success      200 {object} response.Response "收藏成功"
+// @Failure      400 {object} response.Response "无效的套图ID"
+// @Failure      500 {object} response.Response "收藏失败"
+// @Security     BearerAuth
+// @Router       /api/favorites/{photosetId} [post]
 func (h *FavoriteHandler) Add(c *gin.Context) {
 	photosetID, err := strconv.ParseUint(c.Param("photosetId"), 10, 32)
 	if err != nil {
@@ -33,6 +44,17 @@ func (h *FavoriteHandler) Add(c *gin.Context) {
 }
 
 // Remove 取消收藏
+// @Summary      取消收藏
+// @Description  从当前用户的收藏列表中移除指定套图
+// @Tags         Favorites
+// @Accept       json
+// @Produce      json
+// @Param        photosetId path int true "套图ID"
+// @Success      200 {object} response.Response "取消收藏成功"
+// @Failure      400 {object} response.Response "无效的套图ID"
+// @Failure      500 {object} response.Response "取消收藏失败"
+// @Security     BearerAuth
+// @Router       /api/favorites/{photosetId} [delete]
 func (h *FavoriteHandler) Remove(c *gin.Context) {
 	photosetID, err := strconv.ParseUint(c.Param("photosetId"), 10, 32)
 	if err != nil {
@@ -42,6 +64,23 @@ func (h *FavoriteHandler) Remove(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	if err := h.repo.Remove(userID.(uint), uint(photosetID)); err != nil {
 		response.Error(c, http.StatusInternalServerError, "取消收藏失败")
+		return
+	}
+	response.Success(c, nil)
+}
+
+// BatchRemove 批量取消收藏
+func (h *FavoriteHandler) BatchRemove(c *gin.Context) {
+	var req struct {
+		PhotoSetIDs []uint `json:"photoset_ids" binding:"required,min=1,max=50"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "参数错误：需要 photoset_ids 数组（1-50个）")
+		return
+	}
+	userID, _ := c.Get("user_id")
+	if err := h.repo.BatchRemove(userID.(uint), req.PhotoSetIDs); err != nil {
+		response.Error(c, http.StatusInternalServerError, "批量取消收藏失败")
 		return
 	}
 	response.Success(c, nil)

@@ -10,6 +10,7 @@ import (
 type NotificationService struct {
 	notificationRepo *repository.NotificationRepository
 	hub              *Hub
+	pushService      *PushNotificationService
 }
 
 // NewNotificationService creates a new NotificationService
@@ -20,26 +21,50 @@ func NewNotificationService(notificationRepo *repository.NotificationRepository,
 	}
 }
 
+// SetPushService 设置推送通知服务（延迟注入）
+func (s *NotificationService) SetPushService(pushService *PushNotificationService) {
+	s.pushService = pushService
+}
+
 // sendRealTimeNotification sends a WebSocket notification to the user
 func (s *NotificationService) sendRealTimeNotification(userID uint, notification *domain.Notification) {
-	if s.hub == nil {
-		return
+	if s.hub != nil {
+		s.hub.SendToUser(userID, WSTypeNotification, map[string]interface{}{
+			"id":          notification.ID,
+			"type":        notification.Type,
+			"title":       notification.Title,
+			"content":     notification.Content,
+			"sender_id":   notification.SenderID,
+			"target_id":   notification.TargetID,
+			"target_type": notification.TargetType,
+			"created_at":  notification.CreatedAt,
+		})
+		// Also send updated unread count
+		unreadCount, _ := s.notificationRepo.CountUnread(userID)
+		s.hub.SendToUser(userID, WSTypeUnreadCount, map[string]interface{}{
+			"notification_unread": unreadCount,
+		})
 	}
-	s.hub.SendToUser(userID, WSTypeNotification, map[string]interface{}{
-		"id":          notification.ID,
-		"type":        notification.Type,
-		"title":       notification.Title,
-		"content":     notification.Content,
-		"sender_id":   notification.SenderID,
-		"target_id":   notification.TargetID,
-		"target_type": notification.TargetType,
-		"created_at":  notification.CreatedAt,
-	})
-	// Also send updated unread count
-	unreadCount, _ := s.notificationRepo.CountUnread(userID)
-	s.hub.SendToUser(userID, WSTypeUnreadCount, map[string]interface{}{
-		"notification_unread": unreadCount,
-	})
+
+	// 发送推送通知（离线用户）
+	if s.pushService != nil && s.pushService.IsEnabled() {
+		data := map[string]string{
+			"notification_id": fmt.Sprintf("%d", notification.ID),
+			"type":            string(notification.Type),
+		}
+		if notification.TargetID != nil {
+			data["target_id"] = fmt.Sprintf("%d", *notification.TargetID)
+			data["target_type"] = notification.TargetType
+		}
+		
+		// 异步发送推送，不阻塞主流程
+		go func() {
+			if err := s.pushService.SendPushNotification(userID, notification.Title, notification.Content, data); err != nil {
+				// 推送失败不影响主流程，仅记录日志
+				_ = err
+			}
+		}()
+	}
 }
 
 // CreateLikeNotification creates a notification when someone likes a post

@@ -19,6 +19,17 @@ func NewLoginHistoryHandler(historyService *service.LoginHistoryService) *LoginH
 	return &LoginHistoryHandler{historyService: historyService}
 }
 
+// @Summary      登录历史
+// @Description  获取当前用户的登录历史记录
+// @Tags         User
+// @Accept       json
+// @Produce      json
+// @Param        page      query int  false  "页码"
+// @Param        page_size query int  false  "每页数量"
+// @Success      200  {object}  object  "登录历史列表"
+// @Failure      401  {object}  object  "未登录"
+// @Security     BearerAuth
+// @Router       /api/user/login-history [get]
 // GetLoginHistory handles getting user login history
 func (h *LoginHistoryHandler) GetLoginHistory(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)

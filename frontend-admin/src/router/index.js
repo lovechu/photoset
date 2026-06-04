@@ -157,6 +157,12 @@ const routes = [
         meta: { title: '系统监控', icon: 'Monitor' }
       },
       {
+        path: 'system/performance',
+        name: 'PerformanceMonitor',
+        component: () => import('@/views/PerformanceMonitor.vue'),
+        meta: { title: '性能分析', icon: 'Odometer' }
+      },
+      {
         path: 'system/trash',
         name: 'TrashManage',
         component: () => import('@/views/TrashManage.vue'),

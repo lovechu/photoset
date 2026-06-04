@@ -27,7 +27,14 @@ func NewUserLevelHandler(userLevelService *service.UserLevelService) *UserLevelH
 // ===== Level System =====
 
 // GetUserLevelInfo returns current user's level information
-// GET /api/community/user/level
+// @Summary Get current user's level information
+// @Tags UserLevel
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Router /api/community/user/level [get]
 func (h *UserLevelHandler) GetUserLevelInfo(c *gin.Context) {
 	userID, ok := middleware.GetUserID(c)
 	if !ok || userID == 0 {
@@ -45,7 +52,14 @@ func (h *UserLevelHandler) GetUserLevelInfo(c *gin.Context) {
 }
 
 // GetUserLevelInfoByID returns a specific user's level information
-// GET /api/community/users/:id/level
+// @Summary Get a specific user's level information
+// @Tags UserLevel
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Router /api/community/users/:id/level [get]
 func (h *UserLevelHandler) GetUserLevelInfoByID(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -63,7 +77,12 @@ func (h *UserLevelHandler) GetUserLevelInfoByID(c *gin.Context) {
 }
 
 // GetAllLevelConfigs returns all level configurations
-// GET /api/community/levels
+// @Summary Get all level configurations
+// @Tags UserLevel
+// @Accept json
+// @Produce json
+// @Success 200 {object} response.Response
+// @Router /api/community/levels [get]
 func (h *UserLevelHandler) GetAllLevelConfigs(c *gin.Context) {
 	configs, err := h.userLevelService.GetAllLevelConfigs()
 	if err != nil {
@@ -77,7 +96,14 @@ func (h *UserLevelHandler) GetAllLevelConfigs(c *gin.Context) {
 // ===== Achievement System =====
 
 // GetUserAchievements returns current user's achievements
-// GET /api/community/user/achievements
+// @Summary Get current user's achievements
+// @Tags UserLevel
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} response.Response
+// @Failure 401 {object} response.Response
+// @Router /api/community/user/achievements [get]
 func (h *UserLevelHandler) GetUserAchievements(c *gin.Context) {
 	userID, ok := middleware.GetUserID(c)
 	if !ok || userID == 0 {
@@ -95,7 +121,14 @@ func (h *UserLevelHandler) GetUserAchievements(c *gin.Context) {
 }
 
 // GetUserAchievementsByID returns a specific user's achievements
-// GET /api/community/users/:id/achievements
+// @Summary Get a specific user's achievements
+// @Tags UserLevel
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Success 200 {object} response.Response
+// @Failure 400 {object} response.Response
+// @Router /api/community/users/:id/achievements [get]
 func (h *UserLevelHandler) GetUserAchievementsByID(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -115,7 +148,13 @@ func (h *UserLevelHandler) GetUserAchievementsByID(c *gin.Context) {
 // ===== Points Mall =====
 
 // GetPointsMallItems returns all points mall items
-// GET /api/community/points-mall/items
+// @Summary Get all points mall items
+// @Tags UserLevel
+// @Accept json
+// @Produce json
+// @Param category query string false "Category filter"
+// @Success 200 {object} response.Response
+// @Router /api/community/points-mall/items [get]
 func (h *UserLevelHandler) GetPointsMallItems(c *gin.Context) {
 	category := c.Query("category")
 

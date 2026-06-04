@@ -22,6 +22,19 @@ func NewOAuthHandler(oauthService service.OAuthService) *OAuthHandler {
 }
 
 // Authorize 获取授权页面信息
+// @Summary      OAuth2 授权页面
+// @Description  获取第三方应用的授权页面信息，验证 client_id 和 redirect_uri
+// @Tags         OAuth2
+// @Accept       json
+// @Produce      json
+// @Param        client_id     query  string  true   "应用 Client ID"
+// @Param        redirect_uri  query  string  true   "回调地址"
+// @Param        scope         query  string  false  "授权范围"
+// @Param        state         query  string  false  "状态参数"
+// @Param        response_type query  string  true   "响应类型（必须为 code）"
+// @Success      200  {object}  response.Response  "授权页面信息"
+// @Failure      400  {object}  response.Response  "参数错误"
+// @Router       /api/oauth/authorize [get]
 func (h *OAuthHandler) Authorize(c *gin.Context) {
 	clientID := c.Query("client_id")
 	redirectURI := c.Query("redirect_uri")
@@ -175,6 +188,15 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 }
 
 // Revoke 撤销令牌
+// @Summary      OAuth2 撤销令牌
+// @Description  撤销已授权的访问令牌或刷新令牌
+// @Tags         OAuth2
+// @Accept       json
+// @Produce      json
+// @Param        body  body  object  true  "撤销请求 {token}"
+// @Success      200  {object}  response.Response  "撤销成功"
+// @Failure      400  {object}  response.Response  "参数错误"
+// @Router       /api/oauth/revoke [post]
 func (h *OAuthHandler) Revoke(c *gin.Context) {
 	var req struct {
 		Token string `json:"token" binding:"required"`
@@ -194,6 +216,15 @@ func (h *OAuthHandler) Revoke(c *gin.Context) {
 }
 
 // UserInfo 获取用户信息
+// @Summary      OAuth2 用户信息
+// @Description  通过 OAuth2 访问令牌获取当前用户信息
+// @Tags         OAuth2
+// @Accept       json
+// @Produce      json
+// @Param        Authorization  header  string  true  "Bearer {access_token}"
+// @Success      200  {object}  response.Response  "用户信息"
+// @Failure      401  {object}  response.Response  "令牌无效"
+// @Router       /api/oauth/userinfo [get]
 func (h *OAuthHandler) UserInfo(c *gin.Context) {
 	token := extractBearerToken(c)
 	if token == "" {

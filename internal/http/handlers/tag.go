@@ -21,6 +21,14 @@ func NewTagHandler(service *service.PhotoSetService) *TagHandler {
 }
 
 // List 标签列表（公开）
+//
+//	@Summary		获取标签列表
+//	@Description	获取所有标签列表，无需登录
+//	@Tags			Tags
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	response.Response{data=[]domain.Tag}	"成功"
+//	@Router			/api/tags [get]
 func (h *TagHandler) List(c *gin.Context) {
 	tags, err := h.service.GetAllTags()
 	if err != nil {
@@ -98,6 +106,18 @@ func (h *TagHandler) Create(c *gin.Context) {
 }
 
 // Update 更新标签
+//
+//	@Summary		更新标签
+//	@Description	管理员更新标签名称
+//	@Tags			Admin
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		int						true	"标签ID"
+//	@Param			request	body		object{name=string}		true	"标签名称"
+//	@Success		200		{object}	response.Response{data=object}	"更新成功"
+//	@Failure		400		{object}	response.Response				"参数错误"
+//	@Security		BearerAuth
+//	@Router			/api/admin/tags/{id} [put]
 func (h *TagHandler) Update(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -125,6 +145,17 @@ func (h *TagHandler) Update(c *gin.Context) {
 }
 
 // Delete 删除标签
+//
+//	@Summary		删除标签
+//	@Description	管理员删除标签
+//	@Tags			Admin
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"标签ID"
+//	@Success		200	{object}	response.Response{data=object}	"删除成功"
+//	@Failure		400	{object}	response.Response				"无效的标签ID"
+//	@Security		BearerAuth
+//	@Router			/api/admin/tags/{id} [delete]
 func (h *TagHandler) Delete(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)

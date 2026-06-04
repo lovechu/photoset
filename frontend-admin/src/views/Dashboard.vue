@@ -62,6 +62,28 @@
       </el-col>
     </el-row>
 
+    <!-- 分布图表 -->
+    <el-row :gutter="20" style="margin-bottom: 24px">
+      <el-col :span="8">
+        <el-card shadow="hover">
+          <template #header><span>用户角色分布</span></template>
+          <div ref="roleChartRef" style="height: 260px" />
+        </el-card>
+      </el-col>
+      <el-col :span="8">
+        <el-card shadow="hover">
+          <template #header><span>套图状态分布</span></template>
+          <div ref="photoStatusChartRef" style="height: 260px" />
+        </el-card>
+      </el-col>
+      <el-col :span="8">
+        <el-card shadow="hover">
+          <template #header><span>订单状态分布</span></template>
+          <div ref="orderStatusChartRef" style="height: 260px" />
+        </el-card>
+      </el-col>
+    </el-row>
+
     <!-- 近期活动 -->
     <el-row>
       <el-col :span="24">
@@ -105,11 +127,19 @@ const trendLoading = ref(false)
 const ordersLoading = ref(false)
 const chartDays = ref(7)
 const lineChartRef = ref(null)
+const roleChartRef = ref(null)
+const photoStatusChartRef = ref(null)
+const orderStatusChartRef = ref(null)
 let chart = null
+let roleChart = null
+let photoStatusChart = null
+let orderStatusChart = null
 
 const stats = reactive({
   total_users: 0, total_photosets: 0, total_orders: 0, total_revenue: 0, pending_reviews: 0,
-  total_posts: 0, total_replies: 0, pending_reports: 0, total_notifications: 0
+  approved_photosets: 0, rejected_photosets: 0,
+  total_posts: 0, total_replies: 0, pending_reports: 0, total_notifications: 0,
+  role_distribution: [], order_distribution: []
 })
 
 const trendData = ref([])
@@ -194,9 +224,75 @@ async function fetchStats() {
   loading.value = true
   try {
     const res = await getStats()
-    Object.assign(stats, res.data)
+    const d = res.data || {}
+    Object.assign(stats, {
+      total_users: d.total_users || 0,
+      total_photosets: d.total_photosets || 0,
+      total_orders: d.total_orders || 0,
+      total_revenue: d.total_revenue || 0,
+      pending_reviews: d.pending_reviews || 0,
+      approved_photosets: d.approved_photosets || 0,
+      rejected_photosets: d.rejected_photosets || 0,
+      role_distribution: d.role_distribution || [],
+      order_distribution: d.order_distribution || [],
+    })
+    await nextTick()
+    renderDistributionCharts()
   } catch {}
   finally { loading.value = false }
+}
+
+function renderDistributionCharts() {
+  // 角色分布饼图
+  if (roleChartRef.value) {
+    if (!roleChart) roleChart = echarts.init(roleChartRef.value)
+    const roleData = stats.role_distribution
+    const roleMap = { admin: '管理员', creator: '创作者', user: '普通用户' }
+    roleChart.setOption({
+      tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+      color: ['#F56C6C', '#409EFF', '#67C23A'],
+      series: [{
+        type: 'pie', radius: ['45%', '70%'], center: ['50%', '55%'],
+        avoidLabelOverlap: false,
+        label: { show: true, position: 'outside', formatter: '{b}\n{d}%' },
+        data: roleData.map(r => ({ name: roleMap[r.role] || r.role, value: r.count })),
+      }]
+    })
+  }
+  // 套图状态分布环形图
+  if (photoStatusChartRef.value) {
+    if (!photoStatusChart) photoStatusChart = echarts.init(photoStatusChartRef.value)
+    photoStatusChart.setOption({
+      tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+      color: ['#E6A23C', '#67C23A', '#F56C6C'],
+      series: [{
+        type: 'pie', radius: ['40%', '65%'], center: ['50%', '55%'],
+        label: { show: true, formatter: '{b}\n{d}%' },
+        data: [
+          { name: '待审核', value: stats.pending_reviews },
+          { name: '已通过', value: stats.approved_photosets },
+          { name: '已拒绝', value: stats.rejected_photosets },
+        ],
+      }]
+    })
+  }
+  // 订单状态分布饼图
+  if (orderStatusChartRef.value) {
+    if (!orderStatusChart) orderStatusChart = echarts.init(orderStatusChartRef.value)
+    const statusMap = { pending: '待支付', paid: '已支付', completed: '已完成', refunded: '已退款', cancelled: '已取消' }
+    const statusColors = { pending: '#E6A23C', paid: '#409EFF', completed: '#67C23A', refunded: '#F56C6C', cancelled: '#909399' }
+    const orderData = stats.order_distribution.map(o => ({
+      name: statusMap[o.status] || o.status, value: o.count, itemStyle: { color: statusColors[o.status] || '#909399' }
+    }))
+    orderStatusChart.setOption({
+      tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+      series: [{
+        type: 'pie', radius: ['45%', '70%'], center: ['50%', '55%'],
+        label: { show: true, formatter: '{b}\n{d}%' },
+        data: orderData,
+      }]
+    })
+  }
 }
 
 async function fetchTrend() {
@@ -237,8 +333,10 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  chart?.dispose()
-  chart = null
+  chart?.dispose(); chart = null
+  roleChart?.dispose(); roleChart = null
+  photoStatusChart?.dispose(); photoStatusChart = null
+  orderStatusChart?.dispose(); orderStatusChart = null
 })
 </script>
 

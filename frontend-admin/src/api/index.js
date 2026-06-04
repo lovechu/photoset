@@ -272,6 +272,41 @@ export function getSystemHealth() {
 }
 
 /**
+ * 获取系统性能指标（路由延迟、QPS、状态码、GC 等）
+ */
+export function getSystemMetrics() {
+  return request.get('/admin/system/metrics')
+}
+
+/**
+ * 获取 Goroutine 堆栈信息
+ */
+export function getGoroutines() {
+  return request.get('/admin/system/goroutines')
+}
+
+/**
+ * 下载 CPU Profile（pprof）
+ * @param {number} duration 采样时长（秒），默认 30
+ */
+export function downloadCPUProfile(duration = 30) {
+  return request.get('/admin/system/profile/cpu', {
+    params: { duration },
+    responseType: 'blob',
+    timeout: (duration + 10) * 1000,
+  })
+}
+
+/**
+ * 下载 Heap Profile（pprof）
+ */
+export function downloadHeapProfile() {
+  return request.get('/admin/system/profile/heap', {
+    responseType: 'blob',
+  })
+}
+
+/**
  * 重启后端服务（仅管理员）
  */
 export function restartServer() {

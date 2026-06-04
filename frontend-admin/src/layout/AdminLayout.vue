@@ -68,6 +68,9 @@
           <el-menu-item index="/system/monitor">
             <span>系统监控</span>
           </el-menu-item>
+          <el-menu-item index="/system/performance">
+            <span>性能分析</span>
+          </el-menu-item>
           <el-menu-item index="/system/backup">
             <span>数据备份</span>
           </el-menu-item>

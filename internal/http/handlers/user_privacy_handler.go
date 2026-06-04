@@ -18,6 +18,15 @@ func NewUserPrivacyHandler(privacyService *service.UserPrivacyService) *UserPriv
 	return &UserPrivacyHandler{privacyService: privacyService}
 }
 
+// @Summary      隐私设置
+// @Description  获取当前用户的隐私设置
+// @Tags         User
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  object  "隐私设置"
+// @Failure      401  {object}  object  "未登录"
+// @Security     BearerAuth
+// @Router       /api/user/privacy-settings [get]
 // GetPrivacySettings handles getting user privacy settings
 func (h *UserPrivacyHandler) GetPrivacySettings(c *gin.Context) {
 	userID, exists := c.Get("userID")
@@ -38,6 +47,16 @@ func (h *UserPrivacyHandler) GetPrivacySettings(c *gin.Context) {
 	})
 }
 
+// @Summary      更新隐私设置
+// @Description  更新当前用户的隐私设置
+// @Tags         User
+// @Accept       json
+// @Produce      json
+// @Param        body  body  object  true  "隐私设置对象"
+// @Success      200  {object}  object  "更新成功"
+// @Failure      400  {object}  object  "无效的请求参数"
+// @Security     BearerAuth
+// @Router       /api/user/privacy-settings [put]
 // UpdatePrivacySettings handles updating user privacy settings
 func (h *UserPrivacyHandler) UpdatePrivacySettings(c *gin.Context) {
 	userID, exists := c.Get("userID")

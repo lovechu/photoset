@@ -16,6 +16,14 @@ func NewHealthHandler() *HealthHandler {
 	return &HealthHandler{}
 }
 
+// Check 系统健康检查
+// @Summary      系统健康检查
+// @Description  检查数据库、Redis 连接状态、服务器时间
+// @Tags         Health
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  response.Response  "系统状态"
+// @Router       /api/health [get]
 func (h *HealthHandler) Check(c *gin.Context) {
 	// 检查数据库连接
 	dbStatus := "ok"

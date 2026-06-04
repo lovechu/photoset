@@ -30,6 +30,18 @@ func (h *CategoryHandler) List(c *gin.Context) {
 }
 
 // AdminList 管理后台分类列表（带分页和搜索）
+//
+//	@Summary		管理分类列表
+//	@Description	管理员获取分类列表，支持分页和关键词搜索
+//	@Tags			Admin
+//	@Accept			json
+//	@Produce		json
+//	@Param			page		query		int		false	"页码，默认1"
+//	@Param			page_size	query		int		false	"每页数量，默认20"
+//	@Param			keyword		query		string	false	"搜索关键词"
+//	@Success		200			{object}	response.Response{data=object}	"成功"
+//	@Security		BearerAuth
+//	@Router			/api/admin/categories [get]
 func (h *CategoryHandler) AdminList(c *gin.Context) {
 	var req struct {
 		Page     int    `form:"page"`
@@ -85,6 +97,17 @@ func (h *CategoryHandler) AdminList(c *gin.Context) {
 }
 
 // Create 创建分类
+//
+//	@Summary		创建分类
+//	@Description	管理员创建新分类
+//	@Tags			Admin
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		object{name=string,slug=string,description=string,sort_order=int}	true	"分类信息"
+//	@Success		200		{object}	response.Response{data=domain.Category}	"创建成功"
+//	@Failure		400		{object}	response.Response							"参数错误"
+//	@Security		BearerAuth
+//	@Router			/api/admin/categories [post]
 func (h *CategoryHandler) Create(c *gin.Context) {
 	var req struct {
 		Name        string `json:"name" binding:"required,max=50"`

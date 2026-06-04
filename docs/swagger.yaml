@@ -1,0 +1,3990 @@
+basePath: /api
+definitions:
+  domain.Category:
+    properties:
+      created_at:
+        type: string
+      description:
+        description: 描述（可选）
+        type: string
+      id:
+        type: integer
+      name:
+        description: 显示名称，如 "自然风光"
+        type: string
+      slug:
+        description: URL标识，如 "nature"
+        type: string
+      sort_order:
+        description: 排序权重，越大越前
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  domain.Photo:
+    properties:
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      id:
+        type: integer
+      photoset:
+        allOf:
+        - $ref: '#/definitions/domain.PhotoSet'
+        description: 关联
+      photoset_id:
+        type: integer
+      sort_order:
+        type: integer
+      url:
+        type: string
+    type: object
+  domain.PhotoSet:
+    properties:
+      category:
+        description: 分类 slug，如 'nature'
+        type: string
+      cover:
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      is_favorited:
+        description: 非数据库字段（忽略数据库的 photo_count 列，手动计算）
+        type: boolean
+      is_free:
+        type: integer
+      photo_count:
+        description: 图片数量（忽略数据库列）
+        type: integer
+      photos:
+        items:
+          $ref: '#/definitions/domain.Photo'
+        type: array
+      price:
+        type: number
+      status:
+        type: string
+      tags:
+        items:
+          $ref: '#/definitions/domain.Tag'
+        type: array
+      title:
+        type: string
+      updated_at:
+        type: string
+      user:
+        allOf:
+        - $ref: '#/definitions/domain.User'
+        description: 关联
+      user_id:
+        type: integer
+    type: object
+  domain.Post:
+    properties:
+      author_ip_location:
+        type: string
+      category:
+        type: string
+      content:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      is_essence:
+        type: boolean
+      is_pinned:
+        type: boolean
+      like_count:
+        type: integer
+      photoset:
+        $ref: '#/definitions/domain.PhotoSet'
+      photoset_id:
+        description: nullable, optional association with photoset
+        type: integer
+      post_type:
+        type: string
+      replies:
+        items:
+          $ref: '#/definitions/domain.PostReply'
+        type: array
+      reply_count:
+        type: integer
+      share_count:
+        type: integer
+      status:
+        type: string
+      tags:
+        items:
+          $ref: '#/definitions/domain.Tag'
+        type: array
+      title:
+        type: string
+      topics:
+        items:
+          $ref: '#/definitions/domain.Topic'
+        type: array
+      updated_at:
+        type: string
+      user:
+        allOf:
+        - $ref: '#/definitions/domain.User'
+        description: Associations
+      user_id:
+        type: integer
+      view_count:
+        type: integer
+      visibility:
+        type: string
+    type: object
+  domain.PostReply:
+    properties:
+      author_ip_location:
+        type: string
+      children:
+        items:
+          $ref: '#/definitions/domain.PostReply'
+        type: array
+      content:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      like_count:
+        type: integer
+      parent_reply_id:
+        description: nil means direct reply to post
+        type: integer
+      post_id:
+        type: integer
+      updated_at:
+        type: string
+      user:
+        allOf:
+        - $ref: '#/definitions/domain.User'
+        description: Associations
+      user_id:
+        type: integer
+    type: object
+  domain.Tag:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      photosets:
+        description: 关联
+        items:
+          $ref: '#/definitions/domain.PhotoSet'
+        type: array
+      posts:
+        items:
+          $ref: '#/definitions/domain.Post'
+        type: array
+    type: object
+  domain.Topic:
+    properties:
+      cover:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      is_hot:
+        type: boolean
+      name:
+        type: string
+      post_count:
+        type: integer
+      posts:
+        description: 关联
+        items:
+          $ref: '#/definitions/domain.Post'
+        type: array
+      status:
+        type: string
+    type: object
+  domain.User:
+    properties:
+      avatar:
+        type: string
+      bio:
+        type: string
+      circle_count:
+        type: integer
+      created_at:
+        type: string
+      deletion_requested_at:
+        description: 账号注销相关
+        type: string
+      email:
+        type: string
+      exp:
+        type: integer
+      follower_count:
+        type: integer
+      following_count:
+        type: integer
+      id:
+        type: integer
+      ip_location:
+        type: string
+      last_login_at:
+        type: string
+      level:
+        type: integer
+      like_count:
+        type: integer
+      membership_expires:
+        description: 会员过期时间，nil 表示非会员
+        type: string
+      nickname:
+        type: string
+      role:
+        $ref: '#/definitions/domain.UserRole'
+      status:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  domain.UserRole:
+    enum:
+    - guest
+    - user
+    - member
+    - creator
+    - vip
+    - admin
+    type: string
+    x-enum-varnames:
+    - RoleGuest
+    - RoleUser
+    - RoleMember
+    - RoleCreator
+    - RoleVIP
+    - RoleAdmin
+  handlers.CreateFeedbackRequest:
+    properties:
+      category:
+        type: string
+      contact:
+        type: string
+      content:
+        maxLength: 2000
+        minLength: 10
+        type: string
+      device_info:
+        type: string
+      images:
+        items:
+          type: string
+        type: array
+    required:
+    - category
+    - content
+    type: object
+  handlers.CreateOrderRequest:
+    properties:
+      membership_id:
+        type: integer
+      photoset_id:
+        type: integer
+      type:
+        enum:
+        - membership
+        - single
+        type: string
+    required:
+    - type
+    type: object
+  handlers.CreateRequest:
+    properties:
+      category:
+        description: 分类 slug
+        type: string
+      cover:
+        maxLength: 500
+        type: string
+      description:
+        type: string
+      is_free:
+        enum:
+        - 0
+        - 1
+        type: integer
+      photos:
+        items:
+          $ref: '#/definitions/handlers.Photo'
+        type: array
+      price:
+        type: number
+      status:
+        enum:
+        - draft
+        - published
+        - pending
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      title:
+        maxLength: 200
+        type: string
+    required:
+    - cover
+    - title
+    type: object
+  handlers.PayRequest:
+    properties:
+      payment_method:
+        enum:
+        - alipay
+        - mock
+        type: string
+    required:
+    - payment_method
+    type: object
+  handlers.Photo:
+    properties:
+      sort_order:
+        type: integer
+      url:
+        maxLength: 500
+        type: string
+    required:
+    - url
+    type: object
+  handlers.RegisterRequest:
+    properties:
+      captcha_code:
+        type: string
+      captcha_id:
+        type: string
+      email:
+        type: string
+      nickname:
+        type: string
+      password:
+        minLength: 6
+        type: string
+    required:
+    - captcha_code
+    - captcha_id
+    - email
+    - nickname
+    - password
+    type: object
+  handlers.RequestDeletionRequest:
+    properties:
+      password:
+        type: string
+      reason:
+        type: string
+    required:
+    - password
+    type: object
+  handlers.UpdateRequest:
+    properties:
+      category:
+        description: 分类 slug
+        type: string
+      cover:
+        maxLength: 500
+        type: string
+      description:
+        type: string
+      is_free:
+        enum:
+        - 0
+        - 1
+        type: integer
+      photos:
+        items:
+          $ref: '#/definitions/handlers.Photo'
+        type: array
+      price:
+        type: number
+      status:
+        enum:
+        - draft
+        - published
+        - pending
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      title:
+        maxLength: 200
+        type: string
+    required:
+    - cover
+    - title
+    type: object
+  response.Response:
+    properties:
+      code:
+        type: integer
+      data: {}
+      message:
+        type: string
+    type: object
+  service.SaveDraftRequest:
+    properties:
+      category:
+        type: string
+      content:
+        type: string
+      id:
+        description: nil for create, non-nil for update
+        type: integer
+      post_type:
+        type: string
+      title:
+        type: string
+      visibility:
+        type: string
+    required:
+    - content
+    type: object
+  service.UpdatePostRequest:
+    properties:
+      category:
+        type: string
+      content:
+        type: string
+      post_type:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+      topics:
+        items:
+          type: string
+        type: array
+      visibility:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@photoset.example.com
+    name: API Support
+  description: |-
+    PhotoSet 摄影套图浏览平台后端 API 文档
+    提供套图管理、社区互动、用户认证、支付等功能
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: https://photoset.example.com/terms
+  title: PhotoSet API
+  version: "1.0"
+paths:
+  /api/admin/categories:
+    get:
+      consumes:
+      - application/json
+      description: 管理员获取分类列表，支持分页和关键词搜索
+      parameters:
+      - description: 页码，默认1
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量，默认20
+        in: query
+        name: page_size
+        type: integer
+      - description: 搜索关键词
+        in: query
+        name: keyword
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+      security:
+      - BearerAuth: []
+      summary: 管理分类列表
+      tags:
+      - Admin
+    post:
+      consumes:
+      - application/json
+      description: 管理员创建新分类
+      parameters:
+      - description: 分类信息
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            description:
+              type: string
+            name:
+              type: string
+            slug:
+              type: string
+            sort_order:
+              type: integer
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.Category'
+              type: object
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 创建分类
+      tags:
+      - Admin
+  /api/admin/system/goroutines:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前所有 Goroutine 的堆栈信息（调试用）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Goroutine 堆栈
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Goroutine 信息
+      tags:
+      - System
+  /api/admin/system/profile/cpu:
+    get:
+      consumes:
+      - application/json
+      description: 开始 CPU 性能分析采样
+      parameters:
+      - default: 30
+        description: 采样时长（秒）
+        in: query
+        name: duration
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Profile 文件
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 开始 CPU Profile
+      tags:
+      - System
+  /api/admin/system/profile/heap:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前堆内存分析快照（pprof 格式）
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+      security:
+      - BearerAuth: []
+      summary: 内存分析
+      tags:
+      - System
+  /api/admin/tags/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 管理员删除标签
+      parameters:
+      - description: 标签ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 无效的标签ID
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 删除标签
+      tags:
+      - Admin
+    put:
+      consumes:
+      - application/json
+      description: 管理员更新标签名称
+      parameters:
+      - description: 标签ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 标签名称
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            name:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 更新标签
+      tags:
+      - Admin
+  /api/auth/bind-email:
+    put:
+      consumes:
+      - application/json
+      description: 将邮箱绑定到当前登录用户，需要先通过VerifyEmailCode验证
+      parameters:
+      - description: 绑定邮箱请求参数，包含email和code
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 绑定成功，返回用户邮箱信息
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 参数错误或验证码错误
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: 未登录
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: 服务未初始化
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 绑定邮箱
+      tags:
+      - Auth
+  /api/auth/cancel-deletion:
+    post:
+      consumes:
+      - application/json
+      description: 取消已提交的账号注销申请
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 取消成功
+          schema:
+            type: object
+        "400":
+          description: 操作失败
+          schema:
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 取消注销申请
+      tags:
+      - Auth
+  /api/auth/captcha:
+    get:
+      consumes:
+      - application/json
+      description: 生成登录/注册/找回密码用的图形验证码
+      parameters:
+      - default: login
+        description: 场景(login/register/forgot)
+        in: query
+        name: action
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 验证码ID和Base64图片
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: 生成失败
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 生成图形验证码
+      tags:
+      - Auth
+  /api/auth/deletion-status:
+    get:
+      consumes:
+      - application/json
+      description: 查询当前账号的注销申请状态
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 注销状态
+          schema:
+            type: object
+        "401":
+          description: 未登录
+          schema:
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 查询注销状态
+      tags:
+      - Auth
+  /api/auth/email-config:
+    get:
+      consumes:
+      - application/json
+      description: 检查SMTP邮件服务是否已配置可用
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 邮件配置状态
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+      summary: 检查邮件配置
+      tags:
+      - Auth
+  /api/auth/register:
+    post:
+      consumes:
+      - application/json
+      description: 创建新用户账户，需要提供昵称、邮箱、密码和图形验证码
+      parameters:
+      - description: 注册请求参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 注册成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 请求参数错误或验证码错误
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 用户注册
+      tags:
+      - Auth
+  /api/auth/request-deletion:
+    post:
+      consumes:
+      - application/json
+      description: 提交账号注销申请，进入30天冷静期
+      parameters:
+      - description: 注销请求 {password, reason}
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.RequestDeletionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 申请成功
+          schema:
+            type: object
+        "400":
+          description: 参数错误
+          schema:
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 申请注销账号
+      tags:
+      - Auth
+  /api/auth/reset-password:
+    post:
+      consumes:
+      - application/json
+      description: 使用邮件中的重置Token来设置新密码
+      parameters:
+      - description: 重置密码请求参数，包含token和new_password
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 密码重置成功
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 参数错误或Token无效
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 通过Token重置密码
+      tags:
+      - Auth
+  /api/auth/verify-email-code:
+    post:
+      consumes:
+      - application/json
+      description: 验证发送到邮箱的验证码，确认邮箱所有权
+      parameters:
+      - description: 验证请求参数，包含email、code和purpose
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 验证成功
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 参数错误或验证码错误
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: 服务未初始化
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 验证邮箱验证码
+      tags:
+      - Auth
+  /api/collections:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前用户的所有合集列表
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 合集列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取合集列表
+      tags:
+      - Collections
+    post:
+      consumes:
+      - application/json
+      description: 创建新的套图合集
+      parameters:
+      - description: 合集信息 {name, description, is_public}
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 创建合集
+      tags:
+      - Collections
+  /api/collections/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的合集及其关联数据
+      parameters:
+      - description: 合集ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 无效的合集ID
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 删除合集
+      tags:
+      - Collections
+    get:
+      consumes:
+      - application/json
+      description: 获取指定合集的详细信息和包含的套图列表
+      parameters:
+      - description: 合集ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 合集详情
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 无效的合集ID
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取合集详情
+      tags:
+      - Collections
+    put:
+      consumes:
+      - application/json
+      description: 修改合集的名称、描述或可见性
+      parameters:
+      - description: 合集ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 更新信息 {name, description, is_public}
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 更新合集
+      tags:
+      - Collections
+  /api/collections/{id}/items:
+    post:
+      consumes:
+      - application/json
+      description: 将指定套图添加到合集
+      parameters:
+      - description: 合集ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 套图信息 {photoset_id}
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 添加成功
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 添加套图到合集
+      tags:
+      - Collections
+  /api/collections/{id}/items/{photosetId}:
+    delete:
+      consumes:
+      - application/json
+      description: 从指定合集中移除套图
+      parameters:
+      - description: 合集ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 套图ID
+        in: path
+        name: photosetId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 移除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 从合集移除套图
+      tags:
+      - Collections
+  /api/collections/{id}/items/batch:
+    post:
+      consumes:
+      - application/json
+      description: 批量将多个套图添加到指定合集
+      parameters:
+      - description: 合集ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 套图ID数组 {photoset_ids}
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 批量添加成功
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 批量添加套图到合集
+      tags:
+      - Collections
+  /api/collections/by-photoset/{photosetId}:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定套图所属的合集列表
+      parameters:
+      - description: 套图ID
+        in: path
+        name: photosetId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 合集列表
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取套图所在合集
+      tags:
+      - Collections
+  /api/community/categories:
+    get:
+      consumes:
+      - application/json
+      description: 获取社区所有可用的帖子分类
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 分类列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 获取社区分类列表
+      tags:
+      - Community
+  /api/community/drafts:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 草稿内容
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/service.SaveDraftRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 保存草稿
+      tags:
+      - Community
+  /api/community/drafts/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定的草稿
+      parameters:
+      - description: 草稿ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 删除草稿
+      tags:
+      - Community
+  /api/community/hot:
+    get:
+      consumes:
+      - application/json
+      description: 获取社区热门帖子列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 热门帖子
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 热门帖子
+      tags:
+      - Community
+  /api/community/interests:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前用户的兴趣画像（标签和话题偏好）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 兴趣画像
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 用户兴趣画像
+      tags:
+      - Community
+  /api/community/levels:
+    get:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: Get all level configurations
+      tags:
+      - UserLevel
+  /api/community/me/drafts:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前用户的草稿列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 草稿列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 我的草稿
+      tags:
+      - Community
+  /api/community/me/favorites:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取我的收藏
+      tags:
+      - Community
+  /api/community/me/points:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前用户的积分和等级信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 积分信息
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: 未登录
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 我的积分
+      tags:
+      - Community
+  /api/community/me/posts:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取我的帖子
+      tags:
+      - Community
+  /api/community/me/replies:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前用户的所有回复列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 我的回复
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: 未登录
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 我的回复
+      tags:
+      - Community
+  /api/community/points-mall/items:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: Category filter
+        in: query
+        name: category
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: Get all points mall items
+      tags:
+      - UserLevel
+  /api/community/posts:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取社区帖子列表，支持按分类、排序方式筛选
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 分类
+        in: query
+        name: category
+        type: string
+      - description: 排序方式(latest/hot)
+        in: query
+        name: sort_by
+        type: string
+      - description: 搜索关键词
+        in: query
+        name: keyword
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 帖子列表
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: 服务器错误
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 获取帖子列表
+      tags:
+      - Community
+    post:
+      consumes:
+      - application/json
+      description: 在社区中发布新帖子，支持标题、内容、分类和标签
+      parameters:
+      - description: 帖子内容 {title, content, category, post_type, topics}
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 发帖成功
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 发布帖子
+      tags:
+      - Community
+  /api/community/posts/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定帖子（仅作者可操作）
+      parameters:
+      - description: 帖子ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: 无权删除
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 删除帖子
+      tags:
+      - Community
+    get:
+      consumes:
+      - application/json
+      description: 获取指定帖子的详细信息，同时增加浏览次数
+      parameters:
+      - description: 帖子ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 帖子详情
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 无效的帖子ID
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: 帖子不存在
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 获取帖子详情
+      tags:
+      - Community
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 帖子ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 更新内容
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/service.UpdatePostRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 更新帖子
+      tags:
+      - Community
+  /api/community/posts/{id}/favorite:
+    post:
+      consumes:
+      - application/json
+      description: 切换帖子的收藏状态（收藏或取消收藏）
+      parameters:
+      - description: 帖子ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 切换帖子收藏
+      tags:
+      - Community
+  /api/community/posts/{id}/favorite/check:
+    get:
+      consumes:
+      - application/json
+      description: 检查当前用户是否收藏了指定帖子
+      parameters:
+      - description: 帖子ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 收藏状态
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 检查收藏状态
+      tags:
+      - Community
+  /api/community/posts/{id}/like:
+    post:
+      consumes:
+      - application/json
+      description: 切换帖子的点赞状态（点赞或取消点赞）
+      parameters:
+      - description: 帖子ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 无效的帖子ID
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 点赞/取消点赞帖子
+      tags:
+      - Community
+  /api/community/posts/{id}/replies:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取指定帖子的所有回复
+      parameters:
+      - description: 帖子ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 回复列表
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 无效的帖子ID
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 获取帖子回复列表
+      tags:
+      - Community
+  /api/community/posts/{id}/reply:
+    post:
+      consumes:
+      - application/json
+      description: 对帖子发表回复，支持引用父回复
+      parameters:
+      - description: 帖子ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 回复内容 {content, parent_reply_id, mentioned_user_ids}
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 回复成功
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 回复帖子
+      tags:
+      - Community
+  /api/community/posts/{id}/report:
+    post:
+      consumes:
+      - application/json
+      - application/json
+      description: 举报违规帖子，提供举报原因
+      parameters:
+      - description: 帖子ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: '举报原因 {reason: string}'
+        in: body
+        name: request
+        required: true
+        schema:
+          type: object
+      - description: 帖子ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 举报原因 {reason}
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      - application/json
+      responses:
+        "200":
+          description: 举报成功
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      - BearerAuth: []
+      summary: 举报帖子
+      tags:
+      - Community
+      - Community
+  /api/community/posts/{id}/share:
+    post:
+      consumes:
+      - application/json
+      description: 记录帖子的分享行为
+      parameters:
+      - description: 帖子ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 分享平台 {platform}
+        in: body
+        name: body
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 记录成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 分享帖子
+      tags:
+      - Community
+  /api/community/posts/{id}/shares:
+    get:
+      consumes:
+      - application/json
+      description: 获取指定帖子的分享统计数据
+      parameters:
+      - description: 帖子ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 分享统计
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 分享统计
+      tags:
+      - Community
+  /api/community/posts/search:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: 搜索关键词
+        in: query
+        name: keyword
+        required: true
+        type: string
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 搜索帖子
+      tags:
+      - Community
+  /api/community/recommendations:
+    get:
+      consumes:
+      - application/json
+      description: 根据算法获取个性化推荐帖子
+      parameters:
+      - default: mixed
+        description: 推荐类型(mixed/hot/collaborative)
+        in: query
+        name: type
+        type: string
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 推荐帖子
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 推荐帖子
+      tags:
+      - Community
+  /api/community/replies/{id}:
+    delete:
+      consumes:
+      - application/json
+      parameters:
+      - description: 回复ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 删除回复
+      tags:
+      - Community
+    put:
+      consumes:
+      - application/json
+      description: 更新指定回复的内容（仅作者可操作）
+      parameters:
+      - description: 回复ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 更新内容 {content}
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 更新回复
+      tags:
+      - Community
+  /api/community/replies/{id}/like:
+    post:
+      consumes:
+      - application/json
+      - application/json
+      description: 切换回复的点赞状态
+      parameters:
+      - description: 回复ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 回复ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      - BearerAuth: []
+      summary: 点赞/取消点赞回复
+      tags:
+      - Community
+      - Community
+  /api/community/replies/{id}/report:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 回复ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: '举报原因 {reason: string}'
+        in: body
+        name: request
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 举报回复
+      tags:
+      - Community
+  /api/community/tags/{name}/posts:
+    get:
+      consumes:
+      - application/json
+      description: 根据标签名称获取相关帖子列表
+      parameters:
+      - description: 标签名称
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 排序方式(latest/hot)
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 帖子列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 标签帖子列表
+      tags:
+      - Community
+  /api/community/tags/popular:
+    get:
+      consumes:
+      - application/json
+      description: 获取社区热门标签列表
+      parameters:
+      - default: 20
+        description: 数量限制
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 热门标签
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 热门标签
+      tags:
+      - Community
+  /api/community/tags/search:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: 搜索关键词
+        in: query
+        name: keyword
+        required: true
+        type: string
+      - default: 10
+        description: 返回数量
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 搜索标签
+      tags:
+      - Community
+  /api/community/topics/{name}/posts:
+    get:
+      consumes:
+      - application/json
+      description: 根据话题名称获取相关帖子列表
+      parameters:
+      - description: 话题名称
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - description: 排序方式
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 帖子列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 话题帖子列表
+      tags:
+      - Community
+  /api/community/topics/search:
+    get:
+      consumes:
+      - application/json
+      description: 根据关键词搜索话题
+      parameters:
+      - description: 搜索关键词
+        in: query
+        name: keyword
+        required: true
+        type: string
+      - description: 数量限制
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 话题列表
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 搜索话题
+      tags:
+      - Community
+  /api/community/user/achievements:
+    get:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Get current user's achievements
+      tags:
+      - UserLevel
+  /api/community/user/level:
+    get:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: Get current user's level information
+      tags:
+      - UserLevel
+  /api/community/users/:id/achievements:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: Get a specific user's achievements
+      tags:
+      - UserLevel
+  /api/community/users/:id/level:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: Get a specific user's level information
+      tags:
+      - UserLevel
+  /api/community/users/{id}:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 获取用户主页信息
+      tags:
+      - User
+  /api/community/users/{id}/posts:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - default: latest
+        description: 排序方式
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 获取用户帖子列表
+      tags:
+      - User
+  /api/community/users/search:
+    get:
+      consumes:
+      - application/json
+      parameters:
+      - description: 搜索关键词
+        in: query
+        name: keyword
+        required: true
+        type: string
+      - default: 10
+        description: 返回数量
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 搜索用户（@提及）
+      tags:
+      - Community
+  /api/explore/feed:
+    get:
+      consumes:
+      - application/json
+      description: 获取个性化的探索发现内容流，支持分页
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 发现内容
+          schema:
+            type: object
+        "500":
+          description: 服务器错误
+          schema:
+            type: object
+      summary: 探索发现
+      tags:
+      - Explore
+  /api/explore/hot:
+    get:
+      consumes:
+      - application/json
+      description: 获取热门套图排行榜列表
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 热门套图列表
+          schema:
+            type: object
+      summary: 热门套图
+      tags:
+      - Explore
+  /api/favorites/{photosetId}:
+    delete:
+      consumes:
+      - application/json
+      description: 从当前用户的收藏列表中移除指定套图
+      parameters:
+      - description: 套图ID
+        in: path
+        name: photosetId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 取消收藏成功
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 无效的套图ID
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: 取消收藏失败
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 取消收藏
+      tags:
+      - Favorites
+    post:
+      consumes:
+      - application/json
+      description: 将指定套图添加到当前用户的收藏列表
+      parameters:
+      - description: 套图ID
+        in: path
+        name: photosetId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 收藏成功
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 无效的套图ID
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: 收藏失败
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 收藏套图
+      tags:
+      - Favorites
+  /api/feedback:
+    post:
+      consumes:
+      - application/json
+      description: 用户提交反馈意见，支持上传图片、设备信息等
+      parameters:
+      - description: 反馈请求参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateFeedbackRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 反馈提交成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: 提交失败
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 提交反馈
+      tags:
+      - Feedback
+  /api/feedback/image:
+    post:
+      consumes:
+      - multipart/form-data
+      description: 上传反馈附带的图片，支持JPG、PNG、WebP格式，最大5MB
+      parameters:
+      - description: 反馈图片文件
+        in: formData
+        name: image
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 上传成功，返回图片URL
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 文件错误或格式不支持
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: 上传失败
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 上传反馈图片
+      tags:
+      - Feedback
+  /api/health:
+    get:
+      consumes:
+      - application/json
+      description: 检查数据库、Redis 连接状态、服务器时间
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 系统状态
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 系统健康检查
+      tags:
+      - Health
+  /api/oauth/authorize:
+    get:
+      consumes:
+      - application/json
+      description: 获取第三方应用的授权页面信息，验证 client_id 和 redirect_uri
+      parameters:
+      - description: 应用 Client ID
+        in: query
+        name: client_id
+        required: true
+        type: string
+      - description: 回调地址
+        in: query
+        name: redirect_uri
+        required: true
+        type: string
+      - description: 授权范围
+        in: query
+        name: scope
+        type: string
+      - description: 状态参数
+        in: query
+        name: state
+        type: string
+      - description: 响应类型（必须为 code）
+        in: query
+        name: response_type
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 授权页面信息
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: OAuth2 授权页面
+      tags:
+      - OAuth2
+  /api/oauth/revoke:
+    post:
+      consumes:
+      - application/json
+      description: 撤销已授权的访问令牌或刷新令牌
+      parameters:
+      - description: 撤销请求 {token}
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 撤销成功
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: OAuth2 撤销令牌
+      tags:
+      - OAuth2
+  /api/oauth/userinfo:
+    get:
+      consumes:
+      - application/json
+      description: 通过 OAuth2 访问令牌获取当前用户信息
+      parameters:
+      - description: Bearer {access_token}
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 用户信息
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: 令牌无效
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: OAuth2 用户信息
+      tags:
+      - OAuth2
+  /api/orders:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前用户的订单列表，支持分页
+      parameters:
+      - description: 页码，默认1
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量，默认20
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 订单列表
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Response'
+        "500":
+          description: 获取订单列表失败
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取订单列表
+      tags:
+      - Orders
+    post:
+      consumes:
+      - application/json
+      description: 创建支付订单，支持会员购买(membership)和单图购买(single)
+      parameters:
+      - description: 创建订单请求参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateOrderRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 订单创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 参数错误或创建失败
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 创建订单
+      tags:
+      - Orders
+  /api/orders/{id}/pay:
+    post:
+      consumes:
+      - application/json
+      description: 对指定订单发起支付，支持支付宝(alipay)和模拟支付(mock)
+      parameters:
+      - description: 订单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 支付请求参数
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.PayRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 支付成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 参数错误或支付失败
+          schema:
+            $ref: '#/definitions/response.Response'
+        "503":
+          description: 支付宝支付未配置
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 支付订单
+      tags:
+      - Orders
+  /api/orders/{id}/refund:
+    post:
+      consumes:
+      - application/json
+      description: 用户对指定订单申请退款
+      parameters:
+      - description: 订单ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 退款成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 参数错误或退款失败
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 申请退款
+      tags:
+      - Orders
+  /api/payment/alipay/notify:
+    post:
+      consumes:
+      - application/x-www-form-urlencoded
+      description: 接收支付宝支付结果异步通知（公开接口，无需认证）
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: fail
+          schema:
+            type: string
+      summary: 支付宝异步通知回调
+      tags:
+      - Orders
+  /api/photosets:
+    get:
+      consumes:
+      - application/json
+      description: 获取套图列表，支持分页、标签、关键词等筛选条件（可选鉴权）
+      parameters:
+      - description: 页码，默认1
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量，默认20，最大100
+        in: query
+        name: page_size
+        type: integer
+      - description: 标签名称
+        in: query
+        name: tag
+        type: string
+      - description: 仅查看自己的作品
+        in: query
+        name: mine
+        type: boolean
+      - description: 搜索关键词
+        in: query
+        name: keyword
+        type: string
+      - description: 状态筛选(draft/published/pending)
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 获取套图列表
+      tags:
+      - PhotoSet
+    post:
+      consumes:
+      - application/json
+      description: 创建新套图，需要登录（creator/admin角色）
+      parameters:
+      - description: 创建套图请求体
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 创建成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.PhotoSet'
+              type: object
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: 未登录
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 创建套图
+      tags:
+      - PhotoSet
+  /api/photosets/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 软删除套图，仅创建者或管理员可操作
+      parameters:
+      - description: 套图ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 无效的套图ID
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: 无权删除
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: 套图不存在
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 删除套图
+      tags:
+      - PhotoSet
+    get:
+      consumes:
+      - application/json
+      description: 根据套图ID获取套图详情，支持可选鉴权（登录用户可查看更多信息）
+      parameters:
+      - description: 套图ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/domain.PhotoSet'
+              type: object
+        "400":
+          description: 无效的套图ID
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: 套图不存在
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 获取套图详情
+      tags:
+      - PhotoSet
+    put:
+      consumes:
+      - application/json
+      description: 更新套图信息，仅创建者或管理员可操作
+      parameters:
+      - description: 套图ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 更新套图请求体
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: 无权编辑
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: 套图不存在
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 更新套图
+      tags:
+      - PhotoSet
+  /api/photosets/{id}/comments:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取指定套图的评论列表
+      parameters:
+      - description: 套图ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 评论列表
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 获取套图评论列表
+      tags:
+      - Comments
+    post:
+      consumes:
+      - application/json
+      description: 对指定套图发表评论，支持图片和回复父评论
+      parameters:
+      - description: 套图ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 评论内容 {content, image_url, parent_id}
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 评论成功
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 发表评论
+      tags:
+      - Comments
+  /api/photosets/{id}/comments/{commentId}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定评论（仅作者本人或管理员可操作）
+      parameters:
+      - description: 套图ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 评论ID
+        in: path
+        name: commentId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 无效的评论ID
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: 无权删除此评论
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 删除评论
+      tags:
+      - Comments
+  /api/photosets/{id}/comments/{commentId}/like:
+    post:
+      consumes:
+      - application/json
+      description: 切换评论的点赞状态
+      parameters:
+      - description: 套图ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 评论ID
+        in: path
+        name: commentId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 无效的评论ID
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 点赞/取消点赞评论
+      tags:
+      - Comments
+  /api/photosets/{id}/comments/{commentId}/replies:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取指定评论的子回复列表
+      parameters:
+      - description: 套图ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 评论ID
+        in: path
+        name: commentId
+        required: true
+        type: integer
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 回复列表
+          schema:
+            $ref: '#/definitions/response.Response'
+        "400":
+          description: 无效的评论ID
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 获取评论的回复列表
+      tags:
+      - Comments
+  /api/photosets/{id}/download:
+    get:
+      consumes:
+      - application/json
+      description: 获取套图的图片URL列表，需要登录认证
+      parameters:
+      - description: 套图ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 无效的套图ID
+          schema:
+            $ref: '#/definitions/response.Response'
+        "403":
+          description: 无权下载
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 下载套图
+      tags:
+      - PhotoSet
+  /api/photosets/{id}/permanent:
+    delete:
+      consumes:
+      - application/json
+      description: 从数据库永久删除套图，不可恢复
+      parameters:
+      - description: 套图ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 永久删除成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 无效的套图ID
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: 未登录
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 永久删除套图
+      tags:
+      - PhotoSet
+  /api/photosets/{id}/restore:
+    post:
+      consumes:
+      - application/json
+      description: 从回收站恢复已删除的套图
+      parameters:
+      - description: 套图ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 恢复成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 无效的套图ID
+          schema:
+            $ref: '#/definitions/response.Response'
+        "401":
+          description: 未登录
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 恢复套图
+      tags:
+      - PhotoSet
+  /api/photosets/{id}/reviews:
+    get:
+      consumes:
+      - application/json
+      description: 分页获取套图评价列表，支持排序
+      parameters:
+      - description: 套图ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      - default: newest
+        description: 排序方式(newest/highest/lowest)
+        in: query
+        name: sort_by
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 评价列表
+          schema:
+            type: object
+        "400":
+          description: 参数错误
+          schema:
+            type: object
+      summary: 获取评价列表
+      tags:
+      - Review
+    post:
+      consumes:
+      - application/json
+      description: 对套图进行评分（1-5星）和评价
+      parameters:
+      - description: 套图ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 评价请求 {rating, tags, content, is_anonymous}
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 评价结果
+          schema:
+            type: object
+        "400":
+          description: 参数错误
+          schema:
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 创建评价
+      tags:
+      - Review
+  /api/photosets/{id}/reviews/{reviewId}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除自己对套图的评价
+      parameters:
+      - description: 套图ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 评价ID
+        in: path
+        name: reviewId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 删除成功
+          schema:
+            type: object
+        "400":
+          description: 参数错误
+          schema:
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 删除评价
+      tags:
+      - Review
+    put:
+      consumes:
+      - application/json
+      description: 更新自己对套图的评价
+      parameters:
+      - description: 套图ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 评价ID
+        in: path
+        name: reviewId
+        required: true
+        type: integer
+      - description: 更新请求 {rating, tags, content, is_anonymous}
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新结果
+          schema:
+            type: object
+        "400":
+          description: 参数错误
+          schema:
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 更新评价
+      tags:
+      - Review
+  /api/photosets/{id}/reviews/mine:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前用户对指定套图的评价
+      parameters:
+      - description: 套图ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 我的评价
+          schema:
+            type: object
+        "401":
+          description: 未登录
+          schema:
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 获取我的评价
+      tags:
+      - Review
+  /api/photosets/{id}/reviews/summary:
+    get:
+      consumes:
+      - application/json
+      description: 获取套图的评价统计汇总（评分分布、标签统计等）
+      parameters:
+      - description: 套图ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 评价汇总
+          schema:
+            type: object
+        "400":
+          description: 参数错误
+          schema:
+            type: object
+      summary: 获取评价汇总
+      tags:
+      - Review
+  /api/photosets/{id}/share-link:
+    get:
+      consumes:
+      - application/json
+      description: 为指定套图生成带签名的分享链接
+      parameters:
+      - description: 套图ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 分享来源(app/web/miniapp)，默认app
+        in: query
+        name: source
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 分享链接
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 缺少套图ID
+          schema:
+            $ref: '#/definitions/response.Response'
+        "404":
+          description: 套图不存在
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 生成套图分享链接
+      tags:
+      - Share
+  /api/photosets/advanced:
+    get:
+      consumes:
+      - application/json
+      description: 高级搜索套图列表，支持分类、价格、排序等多维度筛选（可选鉴权）
+      parameters:
+      - description: 页码，默认1
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量，默认20，最大100
+        in: query
+        name: page_size
+        type: integer
+      - description: 标签名称
+        in: query
+        name: tag
+        type: string
+      - description: 仅查看自己的作品
+        in: query
+        name: mine
+        type: boolean
+      - description: 搜索关键词
+        in: query
+        name: keyword
+        type: string
+      - description: 状态筛选(draft/published/pending)
+        in: query
+        name: status
+        type: string
+      - description: 分类slug
+        in: query
+        name: category
+        type: string
+      - description: 最低价格
+        in: query
+        name: price_min
+        type: number
+      - description: 最高价格
+        in: query
+        name: price_max
+        type: number
+      - description: 是否免费
+        in: query
+        name: is_free
+        type: boolean
+      - description: 排序方式
+        in: query
+        name: sort_by
+        type: string
+      - description: 时间范围
+        in: query
+        name: time_range
+        type: string
+      - description: 用户ID筛选
+        in: query
+        name: user_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 参数错误
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 高级搜索套图
+      tags:
+      - PhotoSet
+  /api/photosets/trash:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前用户已删除的套图列表
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/domain.PhotoSet'
+                  type: array
+              type: object
+        "401":
+          description: 未登录
+          schema:
+            $ref: '#/definitions/response.Response'
+      security:
+      - BearerAuth: []
+      summary: 获取回收站列表
+      tags:
+      - PhotoSet
+  /api/share/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 验证分享链接的签名是否有效
+      parameters:
+      - description: 套图ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 分享来源
+        in: query
+        name: s
+        required: true
+        type: string
+      - description: 时间戳
+        in: query
+        name: t
+        required: true
+        type: string
+      - description: 签名
+        in: query
+        name: sig
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 验证通过
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: object
+              type: object
+        "400":
+          description: 无效的分享链接或签名无效
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 验证分享链接
+      tags:
+      - Share
+  /api/system/metrics:
+    get:
+      consumes:
+      - application/json
+      description: 获取系统性能指标（请求量、延迟、内存、goroutine 等）
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 性能指标
+          schema:
+            $ref: '#/definitions/response.Response'
+      summary: 性能指标
+      tags:
+      - System
+  /api/tags:
+    get:
+      consumes:
+      - application/json
+      description: 获取所有标签列表，无需登录
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/domain.Tag'
+                  type: array
+              type: object
+      summary: 获取标签列表
+      tags:
+      - Tags
+  /api/user/devices:
+    delete:
+      consumes:
+      - application/json
+      description: 停用除当前设备外的所有其他设备
+      parameters:
+      - description: 当前设备ID
+        in: header
+        name: X-Device-ID
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            type: object
+        "400":
+          description: 当前设备ID为空
+          schema:
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 停用其他设备
+      tags:
+      - User
+    get:
+      consumes:
+      - application/json
+      description: 获取当前用户的活跃设备列表
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 设备列表
+          schema:
+            type: object
+        "401":
+          description: 未登录
+          schema:
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 设备列表
+      tags:
+      - User
+  /api/user/devices/{deviceId}:
+    delete:
+      consumes:
+      - application/json
+      description: 停用指定设备
+      parameters:
+      - description: 设备ID
+        in: path
+        name: deviceId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 操作成功
+          schema:
+            type: object
+        "400":
+          description: 设备ID为空
+          schema:
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 停用设备
+      tags:
+      - User
+  /api/user/login-history:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前用户的登录历史记录
+      parameters:
+      - description: 页码
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 登录历史列表
+          schema:
+            type: object
+        "401":
+          description: 未登录
+          schema:
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 登录历史
+      tags:
+      - User
+  /api/user/privacy-settings:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前用户的隐私设置
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 隐私设置
+          schema:
+            type: object
+        "401":
+          description: 未登录
+          schema:
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 隐私设置
+      tags:
+      - User
+    put:
+      consumes:
+      - application/json
+      description: 更新当前用户的隐私设置
+      parameters:
+      - description: 隐私设置对象
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新成功
+          schema:
+            type: object
+        "400":
+          description: 无效的请求参数
+          schema:
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 更新隐私设置
+      tags:
+      - User
+securityDefinitions:
+  BearerAuth:
+    description: 在请求头中添加 Bearer {token} 进行认证
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
+tags:
+- description: 用户认证相关接口（注册、登录、密码重置等）
+  name: Auth
+- description: 套图管理接口（CRUD、列表、详情、下载等）
+  name: PhotoSet
+- description: 社区互动接口（帖子、回帖、点赞、收藏等）
+  name: Community
+- description: 用户信息接口
+  name: User
+- description: 收藏夹接口
+  name: Favorites
+- description: 评论接口
+  name: Comments
+- description: 合集接口
+  name: Collections
+- description: 订单与支付接口
+  name: Orders
+- description: 会员套餐接口
+  name: Membership
+- description: 文件上传接口
+  name: Upload
+- description: 标签管理接口
+  name: Tags
+- description: 分类管理接口
+  name: Categories
+- description: 探索发现接口
+  name: Explore
+- description: 创作者数据统计接口
+  name: Creator
+- description: 用户反馈接口
+  name: Feedback
+- description: 浏览历史接口
+  name: ViewHistory
+- description: 通知接口
+  name: Notification
+- description: 私信接口
+  name: Message
+- description: 关注接口
+  name: Follow
+- description: 用户等级与积分接口
+  name: UserLevel
+- description: OAuth2 第三方授权接口
+  name: OAuth2
+- description: 分享链接接口
+  name: Share
+- description: 套图评价接口
+  name: Review
+- description: 页面管理接口
+  name: Pages
+- description: 站点设置接口
+  name: Settings
+- description: 系统管理接口
+  name: System
+- description: 管理后台接口
+  name: Admin
+- description: 健康检查接口
+  name: Health

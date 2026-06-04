@@ -32,6 +32,14 @@ func (r *FavoriteRepository) IsFavorited(userID, photosetID uint) (bool, error) 
 	return count > 0, err
 }
 
+// BatchRemove 批量取消收藏
+func (r *FavoriteRepository) BatchRemove(userID uint, photosetIDs []uint) error {
+	if len(photosetIDs) == 0 {
+		return nil
+	}
+	return r.db.Where("user_id = ? AND photoset_id IN ?", userID, photosetIDs).Delete(&domain.Favorite{}).Error
+}
+
 // List 用户收藏列表（分页，JOIN photosets 返回完整套图信息）
 func (r *FavoriteRepository) List(userID uint, page, pageSize int) ([]domain.Favorite, int64, error) {
 	var favorites []domain.Favorite

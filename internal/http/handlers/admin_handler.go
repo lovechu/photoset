@@ -41,6 +41,7 @@ type AdminHandler struct {
 	loginHistoryService *service.LoginHistoryService
 	userDeviceService   *service.UserDeviceService
 	userPrivacyService  *service.UserPrivacyService
+	db              *gorm.DB
 }
 
 func NewAdminHandler(photosetRepo *repository.PhotoSetRepository, orderRepo *repository.OrderRepository, orderService *service.OrderService, cfg *config.Config, alipayService *service.AlipayService, wechatPayService *service.WechatPayService, db *gorm.DB) *AdminHandler {
@@ -59,6 +60,7 @@ func NewAdminHandler(photosetRepo *repository.PhotoSetRepository, orderRepo *rep
 		loginHistoryService: service.NewLoginHistoryService(repository.NewLoginHistoryRepository(db)),
 		userDeviceService:   service.NewUserDeviceService(repository.NewUserDeviceRepository(db)),
 		userPrivacyService:  service.NewUserPrivacyService(repository.NewUserPrivacyRepository(db)),
+		db:               db,
 	}
 }
 
@@ -362,18 +364,33 @@ func (h *AdminHandler) Stats(c *gin.Context) {
 		return
 	}
 
+	approvedSets, _ := h.photosetRepo.CountByStatus("approved")
+	rejectedSets, _ := h.photosetRepo.CountByStatus("rejected")
+
 	totalOrders, totalRevenue, err := h.orderRepo.CountStats()
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "获取统计数据失败")
 		return
 	}
 
+	// 用户角色分布
+	var roleDistribution []map[string]interface{}
+	h.db.Raw("SELECT role, COUNT(*) as count FROM users GROUP BY role").Scan(&roleDistribution)
+
+	// 订单状态分布
+	var orderDistribution []map[string]interface{}
+	h.db.Raw("SELECT status, COUNT(*) as count FROM orders GROUP BY status").Scan(&orderDistribution)
+
 	response.Success(c, gin.H{
-		"total_users":      totalUsers,
-		"total_photosets":  totalPhotoSets,
-		"total_orders":     totalOrders,
-		"total_revenue":    totalRevenue,
-		"pending_reviews":  pendingReviews,
+		"total_users":          totalUsers,
+		"total_photosets":      totalPhotoSets,
+		"total_orders":         totalOrders,
+		"total_revenue":        totalRevenue,
+		"pending_reviews":      pendingReviews,
+		"approved_photosets":   approvedSets,
+		"rejected_photosets":   rejectedSets,
+		"role_distribution":    roleDistribution,
+		"order_distribution":   orderDistribution,
 	})
 }
 

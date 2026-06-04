@@ -36,6 +36,16 @@ type PayRequest struct {
 }
 
 // Create 创建订单
+// @Summary      创建订单
+// @Description  创建支付订单，支持会员购买(membership)和单图购买(single)
+// @Tags         Orders
+// @Accept       json
+// @Produce      json
+// @Param        body body CreateOrderRequest true "创建订单请求参数"
+// @Success      200 {object} response.Response{data=object} "订单创建成功"
+// @Failure      400 {object} response.Response "参数错误或创建失败"
+// @Security     BearerAuth
+// @Router       /api/orders [post]
 func (h *OrderHandler) Create(c *gin.Context) {
 	var req CreateOrderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -56,6 +66,18 @@ func (h *OrderHandler) Create(c *gin.Context) {
 }
 
 // Pay 支付订单
+// @Summary      支付订单
+// @Description  对指定订单发起支付，支持支付宝(alipay)和模拟支付(mock)
+// @Tags         Orders
+// @Accept       json
+// @Produce      json
+// @Param        id path int true "订单ID"
+// @Param        body body PayRequest true "支付请求参数"
+// @Success      200 {object} response.Response{data=object} "支付成功"
+// @Failure      400 {object} response.Response "参数错误或支付失败"
+// @Failure      503 {object} response.Response "支付宝支付未配置"
+// @Security     BearerAuth
+// @Router       /api/orders/{id}/pay [post]
 func (h *OrderHandler) Pay(c *gin.Context) {
 	idStr := c.Param("id")
 	orderID, err := strconv.ParseUint(idStr, 10, 32)
@@ -114,6 +136,18 @@ func (h *OrderHandler) Pay(c *gin.Context) {
 }
 
 // List 我的订单列表
+// @Summary      获取订单列表
+// @Description  获取当前用户的订单列表，支持分页
+// @Tags         Orders
+// @Accept       json
+// @Produce      json
+// @Param        page query int false "页码，默认1"
+// @Param        page_size query int false "每页数量，默认20"
+// @Success      200 {object} response.Response{data=object} "订单列表"
+// @Failure      400 {object} response.Response "参数错误"
+// @Failure      500 {object} response.Response "获取订单列表失败"
+// @Security     BearerAuth
+// @Router       /api/orders [get]
 func (h *OrderHandler) List(c *gin.Context) {
 	var req struct {
 		Page     int `form:"page"`
@@ -147,6 +181,16 @@ func (h *OrderHandler) List(c *gin.Context) {
 }
 
 // Refund 用户自助退款
+// @Summary      申请退款
+// @Description  用户对指定订单申请退款
+// @Tags         Orders
+// @Accept       json
+// @Produce      json
+// @Param        id path int true "订单ID"
+// @Success      200 {object} response.Response{data=object} "退款成功"
+// @Failure      400 {object} response.Response "参数错误或退款失败"
+// @Security     BearerAuth
+// @Router       /api/orders/{id}/refund [post]
 func (h *OrderHandler) Refund(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -166,6 +210,14 @@ func (h *OrderHandler) Refund(c *gin.Context) {
 }
 
 // AlipayNotify 支付宝异步回调
+// @Summary      支付宝异步通知回调
+// @Description  接收支付宝支付结果异步通知（公开接口，无需认证）
+// @Tags         Orders
+// @Accept       x-www-form-urlencoded
+// @Produce      plain
+// @Success      200 {string} string "success"
+// @Failure      200 {string} string "fail"
+// @Router       /api/payment/alipay/notify [post]
 func (h *OrderHandler) AlipayNotify(c *gin.Context) {
 	if h.alipayService == nil {
 		logger.Error("支付宝回调: 服务未配置")

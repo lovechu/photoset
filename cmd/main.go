@@ -12,7 +12,113 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-sql-driver/mysql"
+
+	_ "photoset/docs" // Swagger docs
 )
+
+// @title           PhotoSet API
+// @version         1.0
+// @description     PhotoSet 摄影套图浏览平台后端 API 文档
+// @description     提供套图管理、社区互动、用户认证、支付等功能
+// @termsOfService  https://photoset.example.com/terms
+
+// @contact.name   API Support
+// @contact.email  support@photoset.example.com
+
+// @license.name  MIT
+// @license.url   https://opensource.org/licenses/MIT
+
+// @host      localhost:8080
+// @BasePath  /api
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description 在请求头中添加 Bearer {token} 进行认证
+
+// @tag.name Auth
+// @tag.description 用户认证相关接口（注册、登录、密码重置等）
+
+// @tag.name PhotoSet
+// @tag.description 套图管理接口（CRUD、列表、详情、下载等）
+
+// @tag.name Community
+// @tag.description 社区互动接口（帖子、回帖、点赞、收藏等）
+
+// @tag.name User
+// @tag.description 用户信息接口
+
+// @tag.name Favorites
+// @tag.description 收藏夹接口
+
+// @tag.name Comments
+// @tag.description 评论接口
+
+// @tag.name Collections
+// @tag.description 合集接口
+
+// @tag.name Orders
+// @tag.description 订单与支付接口
+
+// @tag.name Membership
+// @tag.description 会员套餐接口
+
+// @tag.name Upload
+// @tag.description 文件上传接口
+
+// @tag.name Tags
+// @tag.description 标签管理接口
+
+// @tag.name Categories
+// @tag.description 分类管理接口
+
+// @tag.name Explore
+// @tag.description 探索发现接口
+
+// @tag.name Creator
+// @tag.description 创作者数据统计接口
+
+// @tag.name Feedback
+// @tag.description 用户反馈接口
+
+// @tag.name ViewHistory
+// @tag.description 浏览历史接口
+
+// @tag.name Notification
+// @tag.description 通知接口
+
+// @tag.name Message
+// @tag.description 私信接口
+
+// @tag.name Follow
+// @tag.description 关注接口
+
+// @tag.name UserLevel
+// @tag.description 用户等级与积分接口
+
+// @tag.name OAuth2
+// @tag.description OAuth2 第三方授权接口
+
+// @tag.name Share
+// @tag.description 分享链接接口
+
+// @tag.name Review
+// @tag.description 套图评价接口
+
+// @tag.name Pages
+// @tag.description 页面管理接口
+
+// @tag.name Settings
+// @tag.description 站点设置接口
+
+// @tag.name System
+// @tag.description 系统管理接口
+
+// @tag.name Admin
+// @tag.description 管理后台接口
+
+// @tag.name Health
+// @tag.description 健康检查接口
 
 func main() {
 	cfg := config.Load()
@@ -76,8 +182,13 @@ func main() {
 		&domain.LoginHistory{},
 		&domain.UserDevice{},
 		&domain.UserPrivacySetting{},
+		// Browsing history
+		&domain.ViewHistory{},
 		// Email verification
 		&domain.EmailVerificationCode{},
+		// User collections
+		&domain.UserCollection{},
+		&domain.CollectionItem{},
 	); err != nil {
 		// 忽略多对多关联表的重复主键错误（表已存在时 GORM 会尝试重复添加主键）
 		if !isMultiplePrimaryKeyError(err) {

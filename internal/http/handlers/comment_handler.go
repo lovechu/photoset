@@ -60,6 +60,17 @@ func sanitizeContent(content string) string {
 	return cleaned
 }
 
+// @Summary      获取套图评论列表
+// @Description  分页获取指定套图的评论列表
+// @Tags         Comments
+// @Accept       json
+// @Produce      json
+// @Param        id        path  int   true   "套图ID"
+// @Param        page      query int   false  "页码"        default(1)
+// @Param        page_size query int   false  "每页数量"    default(20)
+// @Success      200  {object}  response.Response  "评论列表"
+// @Failure      400  {object}  response.Response  "参数错误"
+// @Router       /api/photosets/{id}/comments [get]
 // List 获取套图评论列表
 func (h *CommentHandler) List(c *gin.Context) {
 	photosetID, err := strconv.ParseUint(c.Param("id"), 10, 32)
@@ -164,6 +175,18 @@ func (h *CommentHandler) List(c *gin.Context) {
 	})
 }
 
+// @Summary      获取评论的回复列表
+// @Description  分页获取指定评论的子回复列表
+// @Tags         Comments
+// @Accept       json
+// @Produce      json
+// @Param        id         path  int  true  "套图ID"
+// @Param        commentId  path  int  true  "评论ID"
+// @Param        page       query int  false "页码"
+// @Param        page_size  query int  false "每页数量"
+// @Success      200  {object}  response.Response  "回复列表"
+// @Failure      400  {object}  response.Response  "无效的评论ID"
+// @Router       /api/photosets/{id}/comments/{commentId}/replies [get]
 // GetReplies 获取评论的回复列表
 func (h *CommentHandler) GetReplies(c *gin.Context) {
 	commentID, err := strconv.ParseUint(c.Param("commentId"), 10, 32)
@@ -229,6 +252,17 @@ func (h *CommentHandler) GetReplies(c *gin.Context) {
 	})
 }
 
+// @Summary      发表评论
+// @Description  对指定套图发表评论，支持图片和回复父评论
+// @Tags         Comments
+// @Accept       json
+// @Produce      json
+// @Param        id    path  int     true  "套图ID"
+// @Param        body  body  object  true  "评论内容 {content, image_url, parent_id}"
+// @Success      200  {object}  response.Response  "评论成功"
+// @Failure      400  {object}  response.Response  "参数错误"
+// @Security     BearerAuth
+// @Router       /api/photosets/{id}/comments [post]
 // Create 发表评论
 func (h *CommentHandler) Create(c *gin.Context) {
 	photosetID, err := strconv.ParseUint(c.Param("id"), 10, 32)
@@ -294,6 +328,18 @@ func (h *CommentHandler) Create(c *gin.Context) {
 	})
 }
 
+// @Summary      删除评论
+// @Description  删除指定评论（仅作者本人或管理员可操作）
+// @Tags         Comments
+// @Accept       json
+// @Produce      json
+// @Param        id         path  int  true  "套图ID"
+// @Param        commentId  path  int  true  "评论ID"
+// @Success      200  {object}  response.Response  "删除成功"
+// @Failure      400  {object}  response.Response  "无效的评论ID"
+// @Failure      403  {object}  response.Response  "无权删除此评论"
+// @Security     BearerAuth
+// @Router       /api/photosets/{id}/comments/{commentId} [delete]
 // Delete 删除评论
 func (h *CommentHandler) Delete(c *gin.Context) {
 	commentID, err := strconv.ParseUint(c.Param("commentId"), 10, 32)
@@ -326,6 +372,17 @@ func (h *CommentHandler) Delete(c *gin.Context) {
 	response.Success(c, gin.H{"message": "删除成功"})
 }
 
+// @Summary      点赞/取消点赞评论
+// @Description  切换评论的点赞状态
+// @Tags         Comments
+// @Accept       json
+// @Produce      json
+// @Param        id         path  int  true  "套图ID"
+// @Param        commentId  path  int  true  "评论ID"
+// @Success      200  {object}  response.Response  "操作成功"
+// @Failure      400  {object}  response.Response  "无效的评论ID"
+// @Security     BearerAuth
+// @Router       /api/photosets/{id}/comments/{commentId}/like [post]
 // ToggleLike 点赞/取消点赞评论
 func (h *CommentHandler) ToggleLike(c *gin.Context) {
 	commentID, err := strconv.ParseUint(c.Param("commentId"), 10, 32)

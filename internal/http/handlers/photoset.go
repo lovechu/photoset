@@ -60,6 +60,21 @@ type Photo struct {
 }
 
 // List 套图列表（基础版本，向后兼容）
+//
+//	@Summary		获取套图列表
+//	@Description	获取套图列表，支持分页、标签、关键词等筛选条件（可选鉴权）
+//	@Tags			PhotoSet
+//	@Accept			json
+//	@Produce		json
+//	@Param			page		query	int		false	"页码，默认1"
+//	@Param			page_size	query	int		false	"每页数量，默认20，最大100"
+//	@Param			tag			query	string	false	"标签名称"
+//	@Param			mine		query	bool	false	"仅查看自己的作品"
+//	@Param			keyword		query	string	false	"搜索关键词"
+//	@Param			status		query	string	false	"状态筛选(draft/published/pending)"
+//	@Success		200			{object}	response.Response{data=object}	"成功"
+//	@Failure		400			{object}	response.Response				"参数错误"
+//	@Router			/api/photosets [get]
 func (h *PhotoSetHandler) List(c *gin.Context) {
 	var req ListRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -104,6 +119,17 @@ func (h *PhotoSetHandler) List(c *gin.Context) {
 }
 
 // Detail 套图详情
+//
+//	@Summary		获取套图详情
+//	@Description	根据套图ID获取套图详情，支持可选鉴权（登录用户可查看更多信息）
+//	@Tags			PhotoSet
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"套图ID"
+//	@Success		200	{object}	response.Response{data=domain.PhotoSet}	"成功"
+//	@Failure		400	{object}	response.Response							"无效的套图ID"
+//	@Failure		404	{object}	response.Response							"套图不存在"
+//	@Router			/api/photosets/{id} [get]
 func (h *PhotoSetHandler) Detail(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -158,6 +184,18 @@ func (h *PhotoSetHandler) Detail(c *gin.Context) {
 }
 
 // Download 下载套图（获取图片 URL 列表）
+//
+//	@Summary		下载套图
+//	@Description	获取套图的图片URL列表，需要登录认证
+//	@Tags			PhotoSet
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"套图ID"
+//	@Success		200	{object}	response.Response{data=object}	"成功"
+//	@Failure		400	{object}	response.Response				"无效的套图ID"
+//	@Failure		403	{object}	response.Response				"无权下载"
+//	@Security		BearerAuth
+//	@Router			/api/photosets/{id}/download [get]
 func (h *PhotoSetHandler) Download(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -208,6 +246,20 @@ type UpdateRequest struct {
 }
 
 // Update 更新套图（creator 更新自己的 / admin 更新任意）
+//
+//	@Summary		更新套图
+//	@Description	更新套图信息，仅创建者或管理员可操作
+//	@Tags			PhotoSet
+//	@Accept			json
+//	@Produce		json
+//	@Param			id		path		int				true	"套图ID"
+//	@Param			request	body		UpdateRequest	true	"更新套图请求体"
+//	@Success		200		{object}	response.Response{data=object}	"更新成功"
+//	@Failure		400		{object}	response.Response				"参数错误"
+//	@Failure		403		{object}	response.Response				"无权编辑"
+//	@Failure		404		{object}	response.Response				"套图不存在"
+//	@Security		BearerAuth
+//	@Router			/api/photosets/{id} [put]
 func (h *PhotoSetHandler) Update(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -257,6 +309,19 @@ func (h *PhotoSetHandler) Update(c *gin.Context) {
 }
 
 // Delete 删除套图（creator 删除自己的 / admin 删除任意）
+//
+//	@Summary		删除套图
+//	@Description	软删除套图，仅创建者或管理员可操作
+//	@Tags			PhotoSet
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"套图ID"
+//	@Success		200	{object}	response.Response{data=object}	"删除成功"
+//	@Failure		400	{object}	response.Response				"无效的套图ID"
+//	@Failure		403	{object}	response.Response				"无权删除"
+//	@Failure		404	{object}	response.Response				"套图不存在"
+//	@Security		BearerAuth
+//	@Router			/api/photosets/{id} [delete]
 func (h *PhotoSetHandler) Delete(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -290,6 +355,16 @@ func (h *PhotoSetHandler) Delete(c *gin.Context) {
 }
 
 // GetTrash 获取回收站列表
+//
+//	@Summary		获取回收站列表
+//	@Description	获取当前用户已删除的套图列表
+//	@Tags			PhotoSet
+//	@Accept			json
+//	@Produce		json
+//	@Success		200	{object}	response.Response{data=[]domain.PhotoSet}	"成功"
+//	@Failure		401	{object}	response.Response								"未登录"
+//	@Security		BearerAuth
+//	@Router			/api/photosets/trash [get]
 func (h *PhotoSetHandler) GetTrash(c *gin.Context) {
 	userID, _ := c.Get("user_id")
 	uid, ok := userID.(uint)
@@ -308,6 +383,18 @@ func (h *PhotoSetHandler) GetTrash(c *gin.Context) {
 }
 
 // Restore 恢复已删除的套图
+//
+//	@Summary		恢复套图
+//	@Description	从回收站恢复已删除的套图
+//	@Tags			PhotoSet
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"套图ID"
+//	@Success		200	{object}	response.Response{data=object}	"恢复成功"
+//	@Failure		400	{object}	response.Response				"无效的套图ID"
+//	@Failure		401	{object}	response.Response				"未登录"
+//	@Security		BearerAuth
+//	@Router			/api/photosets/{id}/restore [post]
 func (h *PhotoSetHandler) Restore(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -332,6 +419,18 @@ func (h *PhotoSetHandler) Restore(c *gin.Context) {
 }
 
 // PermanentDelete 永久删除套图
+//
+//	@Summary		永久删除套图
+//	@Description	从数据库永久删除套图，不可恢复
+//	@Tags			PhotoSet
+//	@Accept			json
+//	@Produce		json
+//	@Param			id	path		int	true	"套图ID"
+//	@Success		200	{object}	response.Response{data=object}	"永久删除成功"
+//	@Failure		400	{object}	response.Response				"无效的套图ID"
+//	@Failure		401	{object}	response.Response				"未登录"
+//	@Security		BearerAuth
+//	@Router			/api/photosets/{id}/permanent [delete]
 func (h *PhotoSetHandler) PermanentDelete(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 32)
@@ -368,6 +467,28 @@ func toPhotos(ps []Photo, photosetID uint) []domain.Photo {
 }
 
 // AdvancedList 高级搜索套图列表
+//
+//	@Summary		高级搜索套图
+//	@Description	高级搜索套图列表，支持分类、价格、排序等多维度筛选（可选鉴权）
+//	@Tags			PhotoSet
+//	@Accept			json
+//	@Produce		json
+//	@Param			page		query	int		false	"页码，默认1"
+//	@Param			page_size	query	int		false	"每页数量，默认20，最大100"
+//	@Param			tag			query	string	false	"标签名称"
+//	@Param			mine		query	bool	false	"仅查看自己的作品"
+//	@Param			keyword		query	string	false	"搜索关键词"
+//	@Param			status		query	string	false	"状态筛选(draft/published/pending)"
+//	@Param			category	query	string	false	"分类slug"
+//	@Param			price_min	query	number	false	"最低价格"
+//	@Param			price_max	query	number	false	"最高价格"
+//	@Param			is_free		query	bool	false	"是否免费"
+//	@Param			sort_by		query	string	false	"排序方式"
+//	@Param			time_range	query	string	false	"时间范围"
+//	@Param			user_id		query	int		false	"用户ID筛选"
+//	@Success		200			{object}	response.Response{data=object}	"成功"
+//	@Failure		400			{object}	response.Response				"参数错误"
+//	@Router			/api/photosets/advanced [get]
 func (h *PhotoSetHandler) AdvancedList(c *gin.Context) {
 	var req ListRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -434,6 +555,18 @@ func hasAdvancedFilters(req ListRequest) bool {
 }
 
 // Create 创建套图
+//
+//	@Summary		创建套图
+//	@Description	创建新套图，需要登录（creator/admin角色）
+//	@Tags			PhotoSet
+//	@Accept			json
+//	@Produce		json
+//	@Param			request	body		CreateRequest	true	"创建套图请求体"
+//	@Success		200		{object}	response.Response{data=domain.PhotoSet}	"创建成功"
+//	@Failure		400		{object}	response.Response							"参数错误"
+//	@Failure		401		{object}	response.Response							"未登录"
+//	@Security		BearerAuth
+//	@Router			/api/photosets [post]
 func (h *PhotoSetHandler) Create(c *gin.Context) {
 	var req CreateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

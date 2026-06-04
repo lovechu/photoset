@@ -53,6 +53,15 @@ type RegisterRequest struct {
 	CaptchaCode string `json:"captcha_code" binding:"required"`
 }
 
+// @Summary      用户注册
+// @Description  创建新用户账户，需要提供昵称、邮箱、密码和图形验证码
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body body RegisterRequest true "注册请求参数"
+// @Success      200 {object} response.Response{data=object} "注册成功"
+// @Failure      400 {object} response.Response "请求参数错误或验证码错误"
+// @Router       /api/auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -405,6 +414,15 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 	response.Success(c, gin.H{"message": "重置邮件已发送，请查收邮箱"})
 }
 
+// @Summary      通过Token重置密码
+// @Description  使用邮件中的重置Token来设置新密码
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body body object true "重置密码请求参数，包含token和new_password"
+// @Success      200 {object} response.Response "密码重置成功"
+// @Failure      400 {object} response.Response "参数错误或Token无效"
+// @Router       /api/auth/reset-password [post]
 // ResetPasswordByToken 通过 token 重置密码
 func (h *AuthHandler) ResetPasswordByToken(c *gin.Context) {
 	var req struct {
@@ -424,6 +442,13 @@ func (h *AuthHandler) ResetPasswordByToken(c *gin.Context) {
 	response.Success(c, gin.H{"message": "密码重置成功，请使用新密码登录"})
 }
 
+// @Summary      检查邮件配置
+// @Description  检查SMTP邮件服务是否已配置可用
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Success      200 {object} response.Response{data=object} "邮件配置状态"
+// @Router       /api/auth/email-config [get]
 // CheckEmailConfig 检查邮件配置是否可用（公开接口，前端在忘记密码页面判断是否显示）
 func (h *AuthHandler) CheckEmailConfig(c *gin.Context) {
 	settings, _ := h.siteSettingRepo.GetAll()
@@ -464,6 +489,16 @@ func (h *AuthHandler) SendEmailCode(c *gin.Context) {
 	response.Success(c, gin.H{"message": "验证码已发送，请查收邮箱"})
 }
 
+// @Summary      验证邮箱验证码
+// @Description  验证发送到邮箱的验证码，确认邮箱所有权
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body body object true "验证请求参数，包含email、code和purpose"
+// @Success      200 {object} response.Response "验证成功"
+// @Failure      400 {object} response.Response "参数错误或验证码错误"
+// @Failure      500 {object} response.Response "服务未初始化"
+// @Router       /api/auth/verify-email-code [post]
 // VerifyEmailCode 验证邮箱验证码并确认邮箱所有权
 func (h *AuthHandler) VerifyEmailCode(c *gin.Context) {
 	if h.emailVerificationSvc == nil {
@@ -489,6 +524,18 @@ func (h *AuthHandler) VerifyEmailCode(c *gin.Context) {
 	response.Success(c, gin.H{"message": "验证成功"})
 }
 
+// @Summary      绑定邮箱
+// @Description  将邮箱绑定到当前登录用户，需要先通过VerifyEmailCode验证
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body body object true "绑定邮箱请求参数，包含email和code"
+// @Success      200 {object} response.Response{data=object} "绑定成功，返回用户邮箱信息"
+// @Failure      400 {object} response.Response "参数错误或验证码错误"
+// @Failure      401 {object} response.Response "未登录"
+// @Failure      500 {object} response.Response "服务未初始化"
+// @Security     BearerAuth
+// @Router       /api/auth/bind-email [put]
 // BindEmail 绑定邮箱（需登录，验证码已通过 VerifyEmailCode 验证）
 func (h *AuthHandler) BindEmail(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)

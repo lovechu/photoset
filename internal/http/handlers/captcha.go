@@ -15,6 +15,15 @@ func NewCaptchaHandler(cs service.CaptchaService) *CaptchaHandler {
 	return &CaptchaHandler{captchaService: cs}
 }
 
+// @Summary      生成图形验证码
+// @Description  生成登录/注册/找回密码用的图形验证码
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        action  query  string  false  "场景(login/register/forgot)"  default(login)
+// @Success      200  {object}  response.Response  "验证码ID和Base64图片"
+// @Failure      500  {object}  response.Response  "生成失败"
+// @Router       /api/auth/captcha [get]
 // Generate 生成图形验证码
 // GET /api/captcha?action=login
 func (h *CaptchaHandler) Generate(c *gin.Context) {

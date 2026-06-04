@@ -13,6 +13,10 @@ import (
 	"photoset/internal/storage"
 
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+
+	_ "photoset/docs" // Swagger generated docs
 )
 
 func Setup(r *gin.Engine, cfg *config.Config) {
@@ -22,9 +26,11 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	}
 
 	healthHandler := handlers.NewHealthHandler()
+	performanceHandler := handlers.NewPerformanceHandler()
 
 	r.Use(middleware.CORS())
 	r.Use(middleware.RequestID())
+	r.Use(middleware.Metrics()) // 性能指标追踪
 	r.Use(middleware.Logger())
 	r.Use(middleware.Recovery())
 
@@ -34,6 +40,9 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 
 	r.GET("/api/health", healthHandler.Check)
 	r.GET("/api/v1/health", healthHandler.Check) // 兼容新版本
+
+	// Swagger API 文档
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// 初始化服务和处理器
 	userRepo := repository.NewUserRepository()
@@ -151,6 +160,14 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	notificationService := service.NewNotificationService(notificationRepo, wsHub)
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 
+	// 推送通知功能
+	pushTokenRepo := repository.NewPushTokenRepository(database.GetMySQL())
+	pushNotificationService := service.NewPushNotificationService(pushTokenRepo)
+	pushNotificationHandler := handlers.NewPushNotificationHandler(pushNotificationService)
+	
+	// 将推送服务注入到通知服务中
+	notificationService.SetPushService(pushNotificationService)
+
 	// 私信功能
 	messageRepo := repository.NewMessageRepository(database.GetMySQL())
 	messageService := service.NewMessageService(messageRepo, userRepo)
@@ -183,6 +200,34 @@ privacyRepo := repository.NewUserPrivacyRepository(database.GetMySQL())
 privacyService := service.NewUserPrivacyService(privacyRepo)
 privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
 
+// 浏览历史功能
+viewHistoryRepo := repository.NewViewHistoryRepository(database.GetMySQL())
+viewHistoryService := service.NewViewHistoryService(viewHistoryRepo)
+viewHistoryHandler := handlers.NewViewHistoryHandler(viewHistoryService)
+
+	// 账号注销功能
+	accountDeletionService := service.NewAccountDeletionService()
+	accountDeletionHandler := handlers.NewAccountDeletionHandler(accountDeletionService)
+
+	// 用户反馈功能
+	feedbackHandler := handlers.NewFeedbackHandler()
+
+	// 分享链接功能
+	shareHandler := handlers.NewShareHandler(photosetRepo, cfg)
+
+	// 探索/发现页功能
+	exploreService := service.NewExploreService(database.GetMySQL(), photosetRepo)
+	exploreHandler := handlers.NewExploreHandler(exploreService)
+
+	// 创作者数据统计功能
+	creatorStatsService := service.NewCreatorStatsService(database.GetMySQL())
+	creatorStatsHandler := handlers.NewCreatorStatsHandler(creatorStatsService)
+
+	// 套图评价功能
+	reviewRepo := repository.NewPhotoSetReviewRepository(database.GetMySQL())
+	reviewService := service.NewReviewService(reviewRepo, photosetRepo)
+	reviewHandler := handlers.NewReviewHandler(reviewService)
+
 // OAuth2 第三方登录授权系统
 	oauthClientRepo := repository.NewOAuthClientRepository()
 	oauthAuthorizationRepo := repository.NewOAuthAuthorizationRepository()
@@ -194,6 +239,11 @@ privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
 	// 评论路由（需要在 api 和 v1 中使用）
 	commentRepo := repository.NewCommentRepository(database.GetMySQL())
 	commentHandler := handlers.NewCommentHandler(commentRepo)
+
+	// 合集路由（需要在 api 和 v1 中使用）
+	collectionRepo := repository.NewUserCollectionRepository(database.GetMySQL())
+	collectionService := service.NewCollectionService(collectionRepo)
+	collectionHandler := handlers.NewCollectionHandler(collectionService)
 
 	// 会员套餐路由（需要在 api 和 v1 中使用）
 	membershipRepo := repository.NewMembershipRepository(database.GetMySQL())
@@ -254,6 +304,10 @@ privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
 			auth.POST("/send-email-code", authHandler.SendEmailCode)
 			auth.POST("/verify-email-code", authHandler.VerifyEmailCode)
 			auth.PUT("/bind-email", middleware.Auth(), authHandler.BindEmail)
+			// 账号注销
+			auth.POST("/request-deletion", middleware.Auth(), accountDeletionHandler.RequestDeletion)
+			auth.POST("/cancel-deletion", middleware.Auth(), accountDeletionHandler.CancelDeletion)
+			auth.GET("/deletion-status", middleware.Auth(), accountDeletionHandler.GetDeletionStatus)
 		}
 
 		// 套图路由
@@ -269,7 +323,19 @@ privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
 			photosets.POST("/:id/restore", middleware.Auth(), photosetHandler.Restore)
 			photosets.DELETE("/:id/permanent", middleware.Auth(), photosetHandler.PermanentDelete)
 			photosets.GET("/:id/download", middleware.Auth(), photosetHandler.Download)
+			// 分享链接
+			photosets.GET("/:id/share-link", shareHandler.GenerateShareLink)
+			// 套图评价
+			photosets.GET("/:id/reviews", middleware.OptionalAuth(), reviewHandler.List)
+			photosets.GET("/:id/reviews/summary", middleware.OptionalAuth(), reviewHandler.GetSummary)
+			photosets.GET("/:id/reviews/mine", middleware.Auth(), reviewHandler.GetMyReview)
+			photosets.POST("/:id/reviews", middleware.Auth(), reviewHandler.Create)
+			photosets.PUT("/:id/reviews/:reviewId", middleware.Auth(), reviewHandler.Update)
+			photosets.DELETE("/:id/reviews/:reviewId", middleware.Auth(), reviewHandler.Delete)
 		}
+
+		// 分享链接验证（公开）
+		api.GET("/share/:id", shareHandler.VerifyShareLink)
 
 		// 标签路由
 		api.GET("/tags", tagHandler.List)
@@ -284,6 +350,7 @@ privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
 			favorites.POST("/:photosetId", favHandler.Add)
 			favorites.DELETE("/:photosetId", favHandler.Remove)
 			favorites.GET("", favHandler.List)
+			favorites.POST("/batch-remove", favHandler.BatchRemove)
 		}
 
 		// 评论路由
@@ -294,6 +361,21 @@ privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
 			comments.GET("/:commentId/replies", middleware.OptionalAuth(), commentHandler.GetReplies)
 			comments.DELETE("/:commentId", middleware.Auth(), commentHandler.Delete)
 			comments.POST("/:commentId/like", middleware.Auth(), commentHandler.ToggleLike)
+		}
+
+		// 合集路由
+		collections := api.Group("/collections")
+		{
+			collections.Use(middleware.Auth())
+			collections.POST("", collectionHandler.Create)
+			collections.GET("", collectionHandler.List)
+			collections.GET("/:id", collectionHandler.Get)
+			collections.PUT("/:id", collectionHandler.Update)
+			collections.DELETE("/:id", collectionHandler.Delete)
+			collections.POST("/:id/items", collectionHandler.AddItem)
+			collections.DELETE("/:id/items/:photosetId", collectionHandler.RemoveItem)
+			collections.POST("/:id/items/batch", collectionHandler.BatchAddItems)
+			collections.GET("/by-photoset/:photosetId", collectionHandler.GetCollectionsForPhotoset)
 		}
 
 		// 上传路由
@@ -328,6 +410,21 @@ privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
 		api.GET("/user/devices", middleware.Auth(), userDeviceHandler.GetUserDevices)
 		api.DELETE("/user/devices/:deviceId", middleware.Auth(), userDeviceHandler.DeactivateDevice)
 		api.DELETE("/user/devices", middleware.Auth(), userDeviceHandler.DeactivateOtherDevices)
+
+		// 浏览历史路由
+		api.POST("/user/view-history", middleware.Auth(), viewHistoryHandler.Record)
+		api.GET("/user/view-history", middleware.Auth(), viewHistoryHandler.List)
+		api.DELETE("/user/view-history/:id", middleware.Auth(), viewHistoryHandler.Delete)
+		api.DELETE("/user/view-history", middleware.Auth(), viewHistoryHandler.ClearAll)
+		api.POST("/user/view-history/batch-delete", middleware.Auth(), viewHistoryHandler.BatchDelete)
+
+		// 推送通知路由
+		api.POST("/user/push-tokens", middleware.Auth(), pushNotificationHandler.RegisterToken)
+		api.DELETE("/user/push-tokens", middleware.Auth(), pushNotificationHandler.UnregisterToken)
+
+		// 用户反馈路由
+		api.POST("/feedback", middleware.OptionalAuth(), feedbackHandler.Create)
+		api.POST("/feedback/image", middleware.OptionalAuth(), feedbackHandler.UploadFeedbackImage)
 
 		// 会员套餐路由（公开接口）
 		api.GET("/memberships", membershipHandler.List)
@@ -391,6 +488,11 @@ privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
 			admin.PUT("/settings", adminHandler.UpdateSettings)
 			// 系统管理
 			admin.POST("/system/restart", middleware.RestartRateLimit(), adminHandler.RestartServer)
+			// 性能分析（管理员）
+			admin.GET("/system/metrics", performanceHandler.GetMetrics)
+			admin.GET("/system/goroutines", performanceHandler.GetGoroutines)
+			admin.GET("/system/profile/cpu", performanceHandler.StartCPUProfile)
+			admin.GET("/system/profile/heap", performanceHandler.GetHeapProfile)
 			// 邮件配置
 			admin.POST("/mail/test-connection", adminHandler.TestMailConnection)
 			admin.GET("/mail/config", adminHandler.GetMailConfig)
@@ -486,6 +588,15 @@ privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
 		api.GET("/pages/:slug", pageHandler.GetBySlug)
 		api.GET("/pages", pageHandler.ListPublished)
 
+		// 探索/发现页路由
+		api.GET("/explore/feed", exploreHandler.GetExploreFeed)
+		api.GET("/explore/hot", exploreHandler.GetHotPhotosets)
+
+		// 创作者数据统计路由
+		api.GET("/creator/stats", middleware.Auth(), creatorStatsHandler.GetCreatorStats)
+		api.GET("/creator/stats/daily", middleware.Auth(), creatorStatsHandler.GetDailyStats)
+		api.GET("/creator/stats/photosets", middleware.Auth(), creatorStatsHandler.GetPhotoSetStats)
+
 		// OAuth2 公开端点（第三方应用调用）
 		oauth := api.Group("/oauth")
 		{
@@ -517,6 +628,10 @@ privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
 			v1Auth.POST("/send-email-code", authHandler.SendEmailCode)
 			v1Auth.POST("/verify-email-code", authHandler.VerifyEmailCode)
 			v1Auth.PUT("/bind-email", middleware.Auth(), authHandler.BindEmail)
+			// 账号注销
+			v1Auth.POST("/request-deletion", middleware.Auth(), accountDeletionHandler.RequestDeletion)
+			v1Auth.POST("/cancel-deletion", middleware.Auth(), accountDeletionHandler.CancelDeletion)
+			v1Auth.GET("/deletion-status", middleware.Auth(), accountDeletionHandler.GetDeletionStatus)
 		}
 
 		// 套图路由
@@ -532,7 +647,19 @@ privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
 			v1Photosets.POST("/:id/restore", middleware.Auth(), photosetHandler.Restore)
 			v1Photosets.DELETE("/:id/permanent", middleware.Auth(), photosetHandler.PermanentDelete)
 			v1Photosets.GET("/:id/download", middleware.Auth(), photosetHandler.Download)
+			// 分享链接
+			v1Photosets.GET("/:id/share-link", shareHandler.GenerateShareLink)
+			// 套图评价
+			v1Photosets.GET("/:id/reviews", middleware.OptionalAuth(), reviewHandler.List)
+			v1Photosets.GET("/:id/reviews/summary", middleware.OptionalAuth(), reviewHandler.GetSummary)
+			v1Photosets.GET("/:id/reviews/mine", middleware.Auth(), reviewHandler.GetMyReview)
+			v1Photosets.POST("/:id/reviews", middleware.Auth(), reviewHandler.Create)
+			v1Photosets.PUT("/:id/reviews/:reviewId", middleware.Auth(), reviewHandler.Update)
+			v1Photosets.DELETE("/:id/reviews/:reviewId", middleware.Auth(), reviewHandler.Delete)
 		}
+
+		// 分享链接验证（公开）
+		v1.GET("/share/:id", shareHandler.VerifyShareLink)
 
 		// 标签路由
 		v1.GET("/tags", tagHandler.List)
@@ -547,6 +674,7 @@ privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
 			v1Fav.POST("/:photosetId", favHandler.Add)
 			v1Fav.DELETE("/:photosetId", favHandler.Remove)
 			v1Fav.GET("", favHandler.List)
+			v1Fav.POST("/batch-remove", favHandler.BatchRemove)
 		}
 
 		// 评论路由
@@ -557,6 +685,21 @@ privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
 			v1Comments.GET("/:commentId/replies", middleware.OptionalAuth(), commentHandler.GetReplies)
 			v1Comments.DELETE("/:commentId", middleware.Auth(), commentHandler.Delete)
 			v1Comments.POST("/:commentId/like", middleware.Auth(), commentHandler.ToggleLike)
+		}
+
+		// 合集路由
+		v1Collections := v1.Group("/collections")
+		{
+			v1Collections.Use(middleware.Auth())
+			v1Collections.POST("", collectionHandler.Create)
+			v1Collections.GET("", collectionHandler.List)
+			v1Collections.GET("/:id", collectionHandler.Get)
+			v1Collections.PUT("/:id", collectionHandler.Update)
+			v1Collections.DELETE("/:id", collectionHandler.Delete)
+			v1Collections.POST("/:id/items", collectionHandler.AddItem)
+			v1Collections.DELETE("/:id/items/:photosetId", collectionHandler.RemoveItem)
+			v1Collections.POST("/:id/items/batch", collectionHandler.BatchAddItems)
+			v1Collections.GET("/by-photoset/:photosetId", collectionHandler.GetCollectionsForPhotoset)
 		}
 
 		// 上传路由
@@ -591,6 +734,21 @@ privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
 		v1.GET("/user/devices", middleware.Auth(), userDeviceHandler.GetUserDevices)
 		v1.DELETE("/user/devices/:deviceId", middleware.Auth(), userDeviceHandler.DeactivateDevice)
 		v1.DELETE("/user/devices", middleware.Auth(), userDeviceHandler.DeactivateOtherDevices)
+
+		// 浏览历史路由
+		v1.POST("/user/view-history", middleware.Auth(), viewHistoryHandler.Record)
+		v1.GET("/user/view-history", middleware.Auth(), viewHistoryHandler.List)
+		v1.DELETE("/user/view-history/:id", middleware.Auth(), viewHistoryHandler.Delete)
+		v1.DELETE("/user/view-history", middleware.Auth(), viewHistoryHandler.ClearAll)
+		v1.POST("/user/view-history/batch-delete", middleware.Auth(), viewHistoryHandler.BatchDelete)
+
+		// 推送通知路由
+		v1.POST("/user/push-tokens", middleware.Auth(), pushNotificationHandler.RegisterToken)
+		v1.DELETE("/user/push-tokens", middleware.Auth(), pushNotificationHandler.UnregisterToken)
+
+		// 用户反馈路由
+		v1.POST("/feedback", middleware.OptionalAuth(), feedbackHandler.Create)
+		v1.POST("/feedback/image", middleware.OptionalAuth(), feedbackHandler.UploadFeedbackImage)
 
 		// 会员套餐路由
 		v1.GET("/memberships", membershipHandler.List)
@@ -681,6 +839,15 @@ privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
 		v1.GET("/settings", adminHandler.GetPublicSettings)
 		v1.GET("/pages/:slug", pageHandler.GetBySlug)
 		v1.GET("/pages", pageHandler.ListPublished)
+
+		// 探索/发现页路由
+		v1.GET("/explore/feed", exploreHandler.GetExploreFeed)
+		v1.GET("/explore/hot", exploreHandler.GetHotPhotosets)
+
+		// 创作者数据统计路由
+		v1.GET("/creator/stats", middleware.Auth(), creatorStatsHandler.GetCreatorStats)
+		v1.GET("/creator/stats/daily", middleware.Auth(), creatorStatsHandler.GetDailyStats)
+		v1.GET("/creator/stats/photosets", middleware.Auth(), creatorStatsHandler.GetPhotoSetStats)
 
 		// OAuth2 公开端点
 		v1OAuth := v1.Group("/oauth")
