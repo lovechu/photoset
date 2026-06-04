@@ -23,6 +23,7 @@ type AuthHandler struct {
 	ipGeoService         *service.IPGeoService
 	loginHistoryService  *service.LoginHistoryService
 	userDeviceService    *service.UserDeviceService
+	emailVerificationSvc *service.EmailVerificationService
 }
 
 func NewAuthHandler(
@@ -31,14 +32,16 @@ func NewAuthHandler(
 	siteSettingRepo *repository.SiteSettingRepository,
 	loginHistoryService *service.LoginHistoryService,
 	userDeviceService *service.UserDeviceService,
+	emailVerificationSvc *service.EmailVerificationService,
 ) *AuthHandler {
 	return &AuthHandler{
-		userService:         userService,
-		captchaService:      captchaService,
-		siteSettingRepo:     siteSettingRepo,
-		ipGeoService:        service.NewIPGeoService(),
-		loginHistoryService: loginHistoryService,
-		userDeviceService:   userDeviceService,
+		userService:          userService,
+		captchaService:       captchaService,
+		siteSettingRepo:      siteSettingRepo,
+		ipGeoService:         service.NewIPGeoService(),
+		loginHistoryService:  loginHistoryService,
+		userDeviceService:    userDeviceService,
+		emailVerificationSvc: emailVerificationSvc,
 	}
 }
 
@@ -427,5 +430,103 @@ func (h *AuthHandler) CheckEmailConfig(c *gin.Context) {
 
 	response.Success(c, gin.H{
 		"configured": mailCfg.IsConfigured(),
+	})
+}
+
+// SendEmailCode 发送邮箱验证码（绑定邮箱或注册验证）
+func (h *AuthHandler) SendEmailCode(c *gin.Context) {
+	if h.emailVerificationSvc == nil {
+		response.Error(c, http.StatusInternalServerError, "邮箱验证服务未初始化")
+		return
+	}
+
+	var req struct {
+		Email   string `json:"email" binding:"required,email"`
+		Purpose string `json:"purpose" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "参数错误："+err.Error())
+		return
+	}
+
+	if req.Purpose != "bind" && req.Purpose != "verify" {
+		response.BadRequest(c, "无效的验证码用途")
+		return
+	}
+
+	if err := h.emailVerificationSvc.SendVerificationCode(req.Email, req.Purpose); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{"message": "验证码已发送，请查收邮箱"})
+}
+
+// VerifyEmailCode 验证邮箱验证码并确认邮箱所有权
+func (h *AuthHandler) VerifyEmailCode(c *gin.Context) {
+	if h.emailVerificationSvc == nil {
+		response.Error(c, http.StatusInternalServerError, "邮箱验证服务未初始化")
+		return
+	}
+
+	var req struct {
+		Email   string `json:"email" binding:"required,email"`
+		Code    string `json:"code" binding:"required"`
+		Purpose string `json:"purpose" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "参数错误："+err.Error())
+		return
+	}
+
+	if err := h.emailVerificationSvc.VerifyCode(req.Email, req.Code, req.Purpose); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{"message": "验证成功"})
+}
+
+// BindEmail 绑定邮箱（需登录，验证码已通过 VerifyEmailCode 验证）
+func (h *AuthHandler) BindEmail(c *gin.Context) {
+	userID, exists := middleware.GetUserID(c)
+	if !exists {
+		response.Error(c, http.StatusUnauthorized, "请先登录")
+		return
+	}
+
+	if h.emailVerificationSvc == nil {
+		response.Error(c, http.StatusInternalServerError, "邮箱验证服务未初始化")
+		return
+	}
+
+	var req struct {
+		Email   string `json:"email" binding:"required,email"`
+		Code    string `json:"code" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "参数错误："+err.Error())
+		return
+	}
+
+	// 验证验证码
+	if err := h.emailVerificationSvc.VerifyCode(req.Email, req.Code, "bind"); err != nil {
+		response.Error(c, http.StatusBadRequest, "验证码错误或已过期")
+		return
+	}
+
+	// 更新用户邮箱
+	user, err := h.userService.UpdateEmail(userID, req.Email)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{
+		"message": "邮箱绑定成功",
+		"user": gin.H{
+			"id":    user.ID,
+			"email": user.Email,
+		},
 	})
 }

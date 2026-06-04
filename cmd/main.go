@@ -76,6 +76,8 @@ func main() {
 		&domain.LoginHistory{},
 		&domain.UserDevice{},
 		&domain.UserPrivacySetting{},
+		// Email verification
+		&domain.EmailVerificationCode{},
 	); err != nil {
 		// 忽略多对多关联表的重复主键错误（表已存在时 GORM 会尝试重复添加主键）
 		if !isMultiplePrimaryKeyError(err) {

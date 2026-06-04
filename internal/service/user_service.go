@@ -22,6 +22,7 @@ type UserService interface {
 	RequestPasswordReset(email string) (token string, err error)
 	ResetPasswordByToken(token, newPassword string) error
 	AdminCreateUser(nickname, email, password, role string) (*domain.User, error)
+	UpdateEmail(userID uint, newEmail string) (*domain.User, error)
 }
 
 type userService struct {
@@ -277,6 +278,31 @@ func (s *userService) AdminCreateUser(nickname, email, pwd, role string) (*domai
 
 	if err := s.userRepo.Create(user); err != nil {
 		return nil, err
+	}
+
+	return user, nil
+}
+
+// UpdateEmail 更新用户邮箱（用于绑定/更换邮箱）
+func (s *userService) UpdateEmail(userID uint, newEmail string) (*domain.User, error) {
+	// 检查新邮箱是否已被使用
+	existing, _ := s.userRepo.FindByEmail(newEmail)
+	if existing != nil {
+		if existing.ID != userID {
+			return nil, errors.New("该邮箱已被其他账号使用")
+		}
+		// 如果就是当前用户的邮箱，无需更新
+		return existing, nil
+	}
+
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil || user == nil {
+		return nil, errors.New("用户不存在")
+	}
+
+	user.Email = newEmail
+	if err := s.userRepo.Update(user); err != nil {
+		return nil, errors.New("更新邮箱失败")
 	}
 
 	return user, nil

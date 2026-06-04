@@ -42,6 +42,9 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	captchaHandler := handlers.NewCaptchaHandler(captchaService)
 	siteSettingRepo := repository.NewSiteSettingRepository()
 
+	// 邮箱验证码服务（需要在 AuthHandler 之前初始化，因为 AuthHandler 依赖它）
+	emailVerificationSvc := service.NewEmailVerificationService(siteSettingRepo)
+
 	// 登录历史服务（需要在 AuthHandler 之前初始化）
 	loginHistoryRepo := repository.NewLoginHistoryRepository(database.GetMySQL())
 	loginHistoryService := service.NewLoginHistoryService(loginHistoryRepo)
@@ -52,7 +55,7 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	userDeviceService := service.NewUserDeviceService(userDeviceRepo)
 	userDeviceHandler := handlers.NewUserDeviceHandler(userDeviceService)
 
-	authHandler := handlers.NewAuthHandler(userService, captchaService, siteSettingRepo, loginHistoryService, userDeviceService)
+	authHandler := handlers.NewAuthHandler(userService, captchaService, siteSettingRepo, loginHistoryService, userDeviceService, emailVerificationSvc)
 
 	// 页面服务（新模块）
 	pageRepo := repository.NewPageRepository(database.GetMySQL())
@@ -247,6 +250,10 @@ privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
 			auth.POST("/forgot-password", authHandler.ForgotPassword)
 			auth.POST("/reset-password", authHandler.ResetPasswordByToken)
 			auth.GET("/email-config", authHandler.CheckEmailConfig)
+			// 邮箱验证码和绑定邮箱
+			auth.POST("/send-email-code", authHandler.SendEmailCode)
+			auth.POST("/verify-email-code", authHandler.VerifyEmailCode)
+			auth.PUT("/bind-email", middleware.Auth(), authHandler.BindEmail)
 		}
 
 		// 套图路由
@@ -506,6 +513,10 @@ privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
 			v1Auth.POST("/forgot-password", authHandler.ForgotPassword)
 			v1Auth.POST("/reset-password", authHandler.ResetPasswordByToken)
 			v1Auth.GET("/email-config", authHandler.CheckEmailConfig)
+			// 邮箱验证码和绑定邮箱
+			v1Auth.POST("/send-email-code", authHandler.SendEmailCode)
+			v1Auth.POST("/verify-email-code", authHandler.VerifyEmailCode)
+			v1Auth.PUT("/bind-email", middleware.Auth(), authHandler.BindEmail)
 		}
 
 		// 套图路由
