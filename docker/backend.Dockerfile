@@ -2,7 +2,7 @@
 # 多阶段构建：编译阶段 + 运行阶段
 
 # 阶段1：Go 编译
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
