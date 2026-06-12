@@ -126,7 +126,7 @@ func (s *ExploreService) getHotPhotosets(limit int) ([]ExploreItem, error) {
 	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
 	
 	err := s.db.Model(&domain.PhotoSet{}).
-		Where("status = ? AND created_at >= ?", "approved", sevenDaysAgo).
+		Where("status = ? AND created_at >= ?", "published", sevenDaysAgo).
 		Order("created_at DESC").
 		Limit(limit).
 		Find(&photosets).Error
@@ -159,7 +159,7 @@ func (s *ExploreService) getNewPhotosets(limit int) ([]ExploreItem, error) {
 	var photosets []domain.PhotoSet
 
 	err := s.db.Model(&domain.PhotoSet{}).
-		Where("status = ?", "approved").
+		Where("status = ?", "published").
 		Order("created_at DESC").
 		Limit(limit).
 		Find(&photosets).Error
@@ -207,7 +207,7 @@ func (s *ExploreService) getRecommendedPhotosets(userID uint, limit int) ([]Expl
 		if len(recentCategories) > 0 {
 			// 推荐同类别的其他套图
 			err := s.db.Model(&domain.PhotoSet{}).
-				Where("status = ? AND category IN ?", "approved", recentCategories).
+				Where("status = ? AND category IN ?", "published", recentCategories).
 				Order("created_at DESC").
 				Limit(limit).
 				Find(&photosets).Error
@@ -235,7 +235,7 @@ func (s *ExploreService) getRecommendedPhotosets(userID uint, limit int) ([]Expl
 
 	// 降级：返回随机套图
 	err := s.db.Model(&domain.PhotoSet{}).
-		Where("status = ?", "approved").
+		Where("status = ?", "published").
 		Order("RAND()").
 		Limit(limit).
 		Find(&photosets).Error

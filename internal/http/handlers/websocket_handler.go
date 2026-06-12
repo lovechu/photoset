@@ -74,17 +74,8 @@ func NewWebSocketHandler(hub *service.Hub) *WebSocketHandler {
 // 认证方式: URL query 参数 ?token=xxx 或 Authorization header
 // 升级后客户端也可发送 auth 消息进行认证
 func (h *WebSocketHandler) HandleConnection(c *gin.Context) {
-	// 调试日志
-	log.Printf("[WebSocket] HandleConnection called")
-	log.Printf("[WebSocket] Method: %s, URL: %s", c.Request.Method, c.Request.URL)
-	log.Printf("[WebSocket] Headers: %v", c.Request.Header)
-	log.Printf("[WebSocket] Origin: %s", c.Request.Header.Get("Origin"))
-	log.Printf("[WebSocket] Upgrade: %s", c.Request.Header.Get("Upgrade"))
-	log.Printf("[WebSocket] Connection: %s", c.Request.Header.Get("Connection"))
-
 	// 从 query 参数或 Authorization header 提取 token
 	token := extractWSToken(c)
-	log.Printf("[WebSocket] Token extracted: %v", token != "")
 
 	var userID uint
 	if token != "" {

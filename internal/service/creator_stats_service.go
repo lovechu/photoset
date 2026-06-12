@@ -24,12 +24,12 @@ func (s *CreatorStatsService) GetCreatorStats(userID uint) (*domain.CreatorStats
 
 	// 获取总套图数
 	s.db.Model(&domain.PhotoSet{}).
-		Where("user_id = ? AND status = ?", userID, "approved").
+		Where("user_id = ? AND status = ?", userID, "published").
 		Count(&stats.TotalPhotosets)
 
 	// 获取总浏览量、下载量、收藏量
 	s.db.Model(&domain.PhotoSet{}).
-		Where("user_id = ? AND status = ?", userID, "approved").
+		Where("user_id = ? AND status = ?", userID, "published").
 		Select("COALESCE(SUM(view_count), 0), COALESCE(SUM(download_count), 0), COALESCE(SUM(fav_count), 0)").
 		Row().
 		Scan(&stats.TotalViews, &stats.TotalDownloads, &stats.TotalFavorites)
@@ -83,7 +83,7 @@ func (s *CreatorStatsService) GetDailyStats(userID uint, days int) ([]domain.Dai
 	// 查询套图ID列表
 	var photosetIDs []uint
 	s.db.Model(&domain.PhotoSet{}).
-		Where("user_id = ? AND status = ?", userID, "approved").
+		Where("user_id = ? AND status = ?", userID, "published").
 		Pluck("id", &photosetIDs)
 
 	if len(photosetIDs) == 0 {
@@ -151,7 +151,7 @@ func (s *CreatorStatsService) GetPhotoSetStats(userID uint, limit int) ([]domain
 	var stats []domain.PhotoSetStats
 
 	s.db.Model(&domain.PhotoSet{}).
-		Where("user_id = ? AND status = ?", userID, "approved").
+		Where("user_id = ? AND status = ?", userID, "published").
 		Select("id as photoset_id, title, cover_image, view_count, download_count, fav_count, created_at").
 		Order("view_count DESC").
 		Limit(limit).

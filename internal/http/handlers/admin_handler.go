@@ -364,8 +364,8 @@ func (h *AdminHandler) Stats(c *gin.Context) {
 		return
 	}
 
-	approvedSets, _ := h.photosetRepo.CountByStatus("approved")
-	rejectedSets, _ := h.photosetRepo.CountByStatus("rejected")
+	approvedSets, _ := h.photosetRepo.CountByStatus("published")
+	rejectedSets, _ := h.photosetRepo.CountByStatus("draft")
 
 	totalOrders, totalRevenue, err := h.orderRepo.CountStats()
 	if err != nil {
