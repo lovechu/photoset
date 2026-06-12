@@ -20,7 +20,7 @@ func NewUserBlockHandler(blockService *service.UserBlockService) *UserBlockHandl
 
 // BlockUser handles blocking a user
 func (h *UserBlockHandler) BlockUser(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录"})
 		return
@@ -42,7 +42,7 @@ func (h *UserBlockHandler) BlockUser(c *gin.Context) {
 
 // MuteUser handles muting a user
 func (h *UserBlockHandler) MuteUser(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录"})
 		return
@@ -64,7 +64,7 @@ func (h *UserBlockHandler) MuteUser(c *gin.Context) {
 
 // UnblockUser handles unblocking/unmuting a user
 func (h *UserBlockHandler) UnblockUser(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录"})
 		return
@@ -86,7 +86,7 @@ func (h *UserBlockHandler) UnblockUser(c *gin.Context) {
 
 // GetBlockedUsers handles getting list of blocked users
 func (h *UserBlockHandler) GetBlockedUsers(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录"})
 		return
@@ -137,7 +137,7 @@ func (h *UserBlockHandler) GetBlockedUsers(c *gin.Context) {
 
 // GetBlockStatus handles getting block status with a user
 func (h *UserBlockHandler) GetBlockStatus(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录"})
 		return

@@ -127,7 +127,7 @@ func (s *ExploreService) getHotPhotosets(limit int) ([]ExploreItem, error) {
 	
 	err := s.db.Model(&domain.PhotoSet{}).
 		Where("status = ? AND created_at >= ?", "approved", sevenDaysAgo).
-		Order("view_count * 2 + fav_count DESC").
+		Order("created_at DESC").
 		Limit(limit).
 		Find(&photosets).Error
 
@@ -208,7 +208,7 @@ func (s *ExploreService) getRecommendedPhotosets(userID uint, limit int) ([]Expl
 			// 推荐同类别的其他套图
 			err := s.db.Model(&domain.PhotoSet{}).
 				Where("status = ? AND category IN ?", "approved", recentCategories).
-				Order("view_count DESC").
+				Order("created_at DESC").
 				Limit(limit).
 				Find(&photosets).Error
 

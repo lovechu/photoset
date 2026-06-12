@@ -29,7 +29,7 @@ func NewUserPrivacyHandler(privacyService *service.UserPrivacyService) *UserPriv
 // @Router       /api/user/privacy-settings [get]
 // GetPrivacySettings handles getting user privacy settings
 func (h *UserPrivacyHandler) GetPrivacySettings(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录"})
 		return
@@ -59,7 +59,7 @@ func (h *UserPrivacyHandler) GetPrivacySettings(c *gin.Context) {
 // @Router       /api/user/privacy-settings [put]
 // UpdatePrivacySettings handles updating user privacy settings
 func (h *UserPrivacyHandler) UpdatePrivacySettings(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录"})
 		return

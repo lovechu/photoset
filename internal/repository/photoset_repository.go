@@ -246,7 +246,7 @@ func (r *PhotoSetRepository) ListAdvanced(
 	case "latest":
 		orderBy = "photosets.created_at DESC"
 	case "popular":
-		orderBy = "photosets.view_count DESC, photosets.created_at DESC"
+		orderBy = "photosets.created_at DESC"
 	case "price_asc":
 		orderBy = "photosets.price ASC, photosets.created_at DESC"
 	case "price_desc":
