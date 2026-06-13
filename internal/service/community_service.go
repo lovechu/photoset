@@ -95,6 +95,11 @@ func (s *CommunityService) CreatePost(userID uint, req *CreatePostRequest, autho
 		Status:            string(domain.PostStatusApproved), // Auto-approve on creation
 	}
 
+	// 用户手动指定位置时覆盖 IP 定位
+	if req.Location != "" {
+		post.AuthorIPLocation = req.Location
+	}
+
 	// 解析定时发布时间
 	if req.ScheduledAt != nil && *req.ScheduledAt != "" {
 		t, err := time.Parse(time.RFC3339, *req.ScheduledAt)
@@ -968,6 +973,7 @@ type CreatePostRequest struct {
 	Visibility  string   `json:"visibility"`
 	IsOriginal  bool     `json:"is_original"`
 	ScheduledAt *string  `json:"scheduled_at"`
+	Location    string   `json:"location"`
 	Tags        []string `json:"tags"`
 	Topics      []string `json:"topics"`
 }
