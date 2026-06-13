@@ -92,8 +92,26 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	logger.Info("User registered successfully", "user_id", user.ID, "email", req.Email)
 
+	// 获取城市级别位置
+	cityLocation := ""
+	if clientIP := c.ClientIP(); clientIP != "" {
+		cityLocation = h.ipGeoService.GetCityLocation(clientIP)
+	}
+
 	response.Success(c, gin.H{
-		"user": user,
+		"user": gin.H{
+			"id":              user.ID,
+			"nickname":        user.Nickname,
+			"email":           user.Email,
+			"avatar":          user.Avatar,
+			"bio":             user.Bio,
+			"ip_location":     user.IPLocation,
+			"city_location":   cityLocation,
+			"level":           user.Level,
+			"exp":             user.Exp,
+			"role":            user.Role,
+			"created_at":      user.CreatedAt,
+		},
 	})
 }
 
@@ -168,6 +186,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 	logger.Info("User logged in successfully", "user_id", user.ID, "email", req.Email)
 
+	// 获取城市级别位置
+	cityLocation := ""
+	if clientIP := c.ClientIP(); clientIP != "" {
+		cityLocation = h.ipGeoService.GetCityLocation(clientIP)
+	}
+
 	response.Success(c, gin.H{
 		"token": token,
 		"user": gin.H{
@@ -177,6 +201,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			"avatar":          user.Avatar,
 			"bio":             user.Bio,
 			"ip_location":     user.IPLocation,
+			"city_location":   cityLocation,
 			"level":           user.Level,
 			"exp":             user.Exp,
 			"circle_count":    user.CircleCount,
@@ -216,24 +241,31 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		}
 	}
 
+	// 获取城市级别位置
+	cityLocation := ""
+	if clientIP := c.ClientIP(); clientIP != "" {
+		cityLocation = h.ipGeoService.GetCityLocation(clientIP)
+	}
+
 	response.Success(c, gin.H{
 		"user": gin.H{
-			"id":         user.ID,
-			"nickname":   user.Nickname,
-			"email":      user.Email,
-			"avatar":     user.Avatar,
-			"bio":        user.Bio,
-			"ip_location": user.IPLocation,
-			"level":      user.Level,
-			"exp":        user.Exp,
-			"circle_count": user.CircleCount,
+			"id":              user.ID,
+			"nickname":        user.Nickname,
+			"email":           user.Email,
+			"avatar":          user.Avatar,
+			"bio":             user.Bio,
+			"ip_location":     user.IPLocation,
+			"city_location":   cityLocation,
+			"level":           user.Level,
+			"exp":             user.Exp,
+			"circle_count":    user.CircleCount,
 			"following_count": user.FollowingCount,
-			"follower_count": user.FollowerCount,
-			"like_count": user.LikeCount,
-			"role":       user.Role,
-			"status":     user.Status,
-			"created_at": user.CreatedAt,
-			"updated_at": user.UpdatedAt,
+			"follower_count":  user.FollowerCount,
+			"like_count":      user.LikeCount,
+			"role":            user.Role,
+			"status":          user.Status,
+			"created_at":      user.CreatedAt,
+			"updated_at":      user.UpdatedAt,
 		},
 	})
 }

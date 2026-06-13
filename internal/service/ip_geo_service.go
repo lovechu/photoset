@@ -1,4 +1,4 @@
-﻿package service
+package service
 
 import (
 	"fmt"
@@ -424,6 +424,70 @@ func (s *IPGeoService) GetLocation(ip string) string {
 	// 兜底：返回规范化后的省份名
 	if provNorm != "" && provNorm != "0" {
 		return provNorm
+	}
+	return ""
+}
+
+// GetCityLocation 获取IP地理位置（城市级别）
+// 国内IP返回"省份 城市"，海外IP返回国家名
+func (s *IPGeoService) GetCityLocation(ip string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	searcher := s.getSearcher(ip)
+	if searcher == nil {
+		return ""
+	}
+
+	region, err := searcher.Search(ip)
+	if err != nil {
+		return ""
+	}
+
+	parts := strings.Split(region, "|")
+	if len(parts) < 3 {
+		return ""
+	}
+
+	country := parts[0]
+	province := parts[2]
+	city := ""
+	if len(parts) >= 4 {
+		city = parts[3]
+	}
+
+	isChina := country == "中国" || country == "0" || strings.Contains(country, "中国")
+
+	if !isChina && country != "0" && country != "" {
+		return country
+	}
+
+	provNorm := normalizeRegionName(province)
+	cityNorm := normalizeRegionName(city)
+
+	// 获取有效省份名
+	provinceName := ""
+	if chinaProvinces[province] {
+		provinceName = province
+	} else if chinaProvinces[provNorm] {
+		provinceName = provNorm
+	} else if mapped, ok := knownNonProvinceCities[provNorm]; ok {
+		provinceName = mapped
+	} else if mapped, ok := knownNonProvinceCities[province]; ok {
+		provinceName = mapped
+	}
+
+	// 获取有效城市名
+	cityName := ""
+	if city != "0" && city != "" && cityNorm != provinceName {
+		cityName = cityNorm
+	}
+
+	if provinceName != "" && cityName != "" {
+		return provinceName + " " + cityName
+	}
+	if provinceName != "" {
+		return provinceName
 	}
 	return ""
 }
