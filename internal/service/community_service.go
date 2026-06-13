@@ -2,9 +2,11 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"photoset/internal/domain"
 	"photoset/internal/logger"
@@ -88,8 +90,20 @@ func (s *CommunityService) CreatePost(userID uint, req *CreatePostRequest, autho
 		Category:          req.Category,
 		PostType:          req.PostType,
 		Visibility:        req.Visibility,
+		IsOriginal:        req.IsOriginal,
 		AuthorIPLocation:  authorIPLocation,
 		Status:            string(domain.PostStatusApproved), // Auto-approve on creation
+	}
+
+	// 解析定时发布时间
+	if req.ScheduledAt != nil && *req.ScheduledAt != "" {
+		t, err := time.Parse(time.RFC3339, *req.ScheduledAt)
+		if err != nil {
+			return nil, fmt.Errorf("invalid scheduled_at format, expected RFC3339: %w", err)
+		}
+		post.ScheduledAt = &t
+		// 定时发布的帖子状态设为 pending
+		post.Status = string(domain.PostStatusPending)
 	}
 
 	if err := post.Validate(); err != nil {
@@ -946,14 +960,16 @@ func (s *CommunityService) GetPostsByTopicName(topicName string, page, pageSize 
 
 // Request types
 type CreatePostRequest struct {
-	Title      string   `json:"title" binding:""`
-	Content    string   `json:"content" binding:"required"`
-	PhotosetID *uint    `json:"photoset_id"`
-	Category   string   `json:"category"`
-	PostType   string   `json:"post_type"`
-	Visibility string   `json:"visibility"`
-	Tags       []string `json:"tags"`
-	Topics     []string `json:"topics"`
+	Title       string   `json:"title" binding:""`
+	Content     string   `json:"content" binding:"required"`
+	PhotosetID  *uint    `json:"photoset_id"`
+	Category    string   `json:"category"`
+	PostType    string   `json:"post_type"`
+	Visibility  string   `json:"visibility"`
+	IsOriginal  bool     `json:"is_original"`
+	ScheduledAt *string  `json:"scheduled_at"`
+	Tags        []string `json:"tags"`
+	Topics      []string `json:"topics"`
 }
 
 type UpdatePostRequest struct {
