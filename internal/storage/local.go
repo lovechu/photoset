@@ -30,6 +30,8 @@ func (s *LocalStorage) Upload(file multipart.File, header *multipart.FileHeader)
 // UploadWithType 按类型分目录存储，photosetID 嵌入路径用于签名校验
 // photo → /uploads/photos/{photosetID}/{MM}/{uuid}.ext
 // cover → /uploads/covers/{photosetID}/{MM}/{uuid}.ext（photosetID=0 时用时间戳）
+// avatar → /uploads/avatars/{timestamp}/{MM}/{uuid}.ext
+// user_cover → /uploads/user_covers/{timestamp}/{MM}/{uuid}.ext
 func (s *LocalStorage) UploadWithType(file multipart.File, header *multipart.FileHeader, ut UploadType, photosetID uint) (string, error) {
 	fmt.Printf("[STORAGE-DEBUG] LocalStorage.UploadWithType 开始: type=%s, photosetID=%d\n", ut, photosetID)
 
@@ -40,6 +42,8 @@ func (s *LocalStorage) UploadWithType(file multipart.File, header *multipart.Fil
 		subDir = "videos"
 	} else if ut == UploadTypeAvatar {
 		subDir = "avatars"
+	} else if ut == UploadTypeUserCover {
+		subDir = "user_covers"
 	}
 
 	ext := strings.ToLower(filepath.Ext(header.Filename))

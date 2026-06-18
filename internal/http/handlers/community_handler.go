@@ -853,6 +853,7 @@ func (h *CommunityHandler) GetUserProfile(c *gin.Context) {
 		"id":              user.ID,
 		"nickname":        user.Nickname,
 		"avatar":          user.Avatar,
+		"cover_image":     user.CoverImage,
 		"bio":             user.Bio,
 		"ip_location":     user.IPLocation,
 		"level":           user.Level,

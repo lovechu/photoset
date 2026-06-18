@@ -105,6 +105,8 @@ func (h *UploadHandler) UploadImage(c *gin.Context) {
 		uploadType = storage.UploadTypeCover
 	} else if typeParam == "avatar" {
 		uploadType = storage.UploadTypeAvatar
+	} else if typeParam == "user_cover" {
+		uploadType = storage.UploadTypeUserCover
 	}
 	logger.Debug("Upload Step5: OK", "uploadType", uploadType, "typeParam", typeParam)
 

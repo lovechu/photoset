@@ -85,7 +85,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	// 根据IP自动获取用户地理位置
 	if clientIP := c.ClientIP(); clientIP != "" {
 		if ipLocation := h.ipGeoService.GetLocation(clientIP); ipLocation != "" {
-			h.userService.UpdateProfile(user.ID, "", "", "", ipLocation)
+			h.userService.UpdateProfile(user.ID, "", "", "", "", ipLocation)
 			user.IPLocation = ipLocation
 		}
 	}
@@ -152,7 +152,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	if clientIP != "" {
 		ipLocation = h.ipGeoService.GetLocation(clientIP)
 		if ipLocation != "" {
-			h.userService.UpdateProfile(user.ID, "", "", "", ipLocation)
+			h.userService.UpdateProfile(user.ID, "", "", "", "", ipLocation)
 			user.IPLocation = ipLocation
 		}
 	}
@@ -236,7 +236,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	// 每次访问个人页时，实时检查当前IP是否变化，若有变化则更新
 	if clientIP := c.ClientIP(); clientIP != "" {
 		if newLocation := h.ipGeoService.GetLocation(clientIP); newLocation != "" && newLocation != user.IPLocation {
-			h.userService.UpdateProfile(user.ID, "", "", "", newLocation)
+			h.userService.UpdateProfile(user.ID, "", "", "", "", newLocation)
 			user.IPLocation = newLocation
 		}
 	}
@@ -329,9 +329,10 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	}
 
 	var req struct {
-		Nickname   string `json:"nickname"`
-		Bio        string `json:"bio"`
-		Avatar     string `json:"avatar"`
+		Nickname    string `json:"nickname"`
+		Bio         string `json:"bio"`
+		Avatar      string `json:"avatar"`
+		CoverImage  string `json:"cover_image"`
 		IPLocation  string `json:"ip_location"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -340,17 +341,17 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	}
 
 	// DEBUG: 打印收到的参数，确认 avatar 是否传入
-	log.Printf("[UpdateProfile] userID=%d nickname=%q bio=%q avatar=%q ip_location=%q",
-		userID, req.Nickname, req.Bio, req.Avatar, req.IPLocation)
+	log.Printf("[UpdateProfile] userID=%d nickname=%q bio=%q avatar=%q cover_image=%q ip_location=%q",
+		userID, req.Nickname, req.Bio, req.Avatar, req.CoverImage, req.IPLocation)
 
-	user, err := h.userService.UpdateProfile(userID, req.Nickname, req.Bio, req.Avatar, req.IPLocation)
+	user, err := h.userService.UpdateProfile(userID, req.Nickname, req.Bio, req.Avatar, req.CoverImage, req.IPLocation)
 	if err != nil {
 		log.Printf("[UpdateProfile] UpdateProfile error: %v", err)
 		response.Error(c, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	log.Printf("[UpdateProfile] SUCCESS user.ID=%d avatar=%q", user.ID, user.Avatar)
+	log.Printf("[UpdateProfile] SUCCESS user.ID=%d avatar=%q cover_image=%q", user.ID, user.Avatar, user.CoverImage)
 
 	response.Success(c, gin.H{
 		"user": gin.H{
@@ -358,6 +359,7 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 			"nickname":   user.Nickname,
 			"email":      user.Email,
 			"avatar":     user.Avatar,
+			"cover_image": user.CoverImage,
 			"bio":        user.Bio,
 			"ip_location": user.IPLocation,
 			"level":      user.Level,

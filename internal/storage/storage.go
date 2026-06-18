@@ -26,10 +26,11 @@ const (
 type UploadType string
 
 const (
-	UploadTypeCover  UploadType = "cover"  // 封面图 → /covers/ 免费访问
-	UploadTypePhoto  UploadType = "photo"  // 付费照片 → /photos/ 需要签名
-	UploadTypeVideo  UploadType = "video"  // 视频 → /videos/ 免费访问
-	UploadTypeAvatar UploadType = "avatar" // 头像 → /avatars/ 免费访问
+	UploadTypeCover     UploadType = "cover"      // 封面图 → /covers/ 免费访问
+	UploadTypePhoto     UploadType = "photo"      // 付费照片 → /photos/ 需要签名
+	UploadTypeVideo     UploadType = "video"      // 视频 → /videos/ 免费访问
+	UploadTypeAvatar    UploadType = "avatar"     // 头像 → /avatars/ 免费访问
+	UploadTypeUserCover UploadType = "user_cover" // 用户个人页背景图 → /user_covers/ 免费访问
 )
 
 type Storage interface {
@@ -37,6 +38,8 @@ type Storage interface {
 	// UploadWithType 按类型分目录上传，photosetID 嵌入路径用于签名校验
 	// photo 路径：/uploads/photos/{photosetID}/{uuid}.ext
 	// cover 路径：/uploads/covers/{photosetID}/{uuid}.ext（photosetID=0 时用时间戳）
+	// avatar 路径：/uploads/avatars/{timestamp}/{uuid}.ext
+	// user_cover 路径：/uploads/user_covers/{timestamp}/{uuid}.ext
 	UploadWithType(file multipart.File, header *multipart.FileHeader, ut UploadType, photosetID uint) (string, error)
 	// Delete 根据存储 URL 删除物理文件
 	// 本地存储：URL 为 /uploads/photos/... 形式
@@ -108,6 +111,8 @@ func (s *S3Storage) UploadWithType(file multipart.File, header *multipart.FileHe
 		subDir = "videos"
 	} else if ut == UploadTypeAvatar {
 		subDir = "avatars"
+	} else if ut == UploadTypeUserCover {
+		subDir = "user_covers"
 	}
 
 	ext := strings.ToLower(filepath.Ext(header.Filename))

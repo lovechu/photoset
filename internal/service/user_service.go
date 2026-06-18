@@ -16,7 +16,7 @@ type UserService interface {
 	Register(nickname, email, password string) (*domain.User, error)
 	Login(email, password string) (*domain.User, error)
 	GetProfile(userID uint) (*domain.User, error)
-	UpdateProfile(userID uint, nickname, bio, avatar, ipLocation string) (*domain.User, error)
+	UpdateProfile(userID uint, nickname, bio, avatar, coverImage, ipLocation string) (*domain.User, error)
 	ChangePassword(userID uint, oldPassword, newPassword string) error
 	ResetPassword(userID uint, newPassword string) error
 	RequestPasswordReset(email string) (token string, err error)
@@ -100,7 +100,7 @@ func (s *userService) GetProfile(userID uint) (*domain.User, error) {
 }
 
 // UpdateProfile 更新用户资料
-func (s *userService) UpdateProfile(userID uint, nickname, bio, avatar, ipLocation string) (*domain.User, error) {
+func (s *userService) UpdateProfile(userID uint, nickname, bio, avatar, coverImage, ipLocation string) (*domain.User, error) {
 	user, err := s.userRepo.FindByID(userID)
 	if err != nil {
 		return nil, err
@@ -118,6 +118,9 @@ func (s *userService) UpdateProfile(userID uint, nickname, bio, avatar, ipLocati
 	}
 	if avatar != "" {
 		user.Avatar = avatar
+	}
+	if coverImage != "" {
+		user.CoverImage = coverImage
 	}
 	if ipLocation != "" {
 		user.IPLocation = ipLocation

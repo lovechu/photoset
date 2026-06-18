@@ -32,6 +32,7 @@ type User struct {
 	MembershipExpires *time.Time `gorm:"index" json:"membership_expires"` // 会员过期时间，nil 表示非会员
 
 	Avatar       string    `gorm:"type:varchar(255);default:''" json:"avatar"`
+	CoverImage   string    `gorm:"type:varchar(255);default:''" json:"cover_image"`
 	Bio          string    `gorm:"type:varchar(500);default:''" json:"bio"`
 	IPLocation   string    `gorm:"type:varchar(50);default:''" json:"ip_location"`
 	Level        int       `gorm:"type:tinyint;default:1" json:"level"`
