@@ -10,6 +10,8 @@ import (
 	"photoset/internal/pkg/password"
 	"photoset/internal/repository"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type UserService interface {
@@ -232,31 +234,44 @@ func (s *userService) RequestPasswordReset(email string) (string, error) {
 }
 
 // ResetPasswordByToken 通过 token 重置密码
+// 使用事务 + 原子条件更新，防止 TOCTOU 竞态条件（并发请求重复使用同一 token）
 func (s *userService) ResetPasswordByToken(token, newPassword string) error {
 	if len(newPassword) < 6 {
 		return errors.New("新密码长度不能少于6位")
 	}
 
 	db := database.GetMySQL()
-	var resetToken domain.PasswordResetToken
-	if err := db.Where("token = ? AND used = ? AND expire > ?", token, false, time.Now()).First(&resetToken).Error; err != nil {
-		return errors.New("重置链接无效或已过期")
-	}
 
-	// 标记 token 为已使用
-	db.Model(&resetToken).Update("used", true)
+	// 使用事务确保原子性：标记 token 已使用 + 更新密码要么同时成功，要么同时失败
+	return db.Transaction(func(tx *gorm.DB) error {
+		// 原子地查找并标记 token 为已使用（WHERE used=false 确保并发请求中只有一个能成功）
+		result := tx.Model(&domain.PasswordResetToken{}).
+			Where("token = ? AND used = ? AND expire > ?", token, false, time.Now()).
+			Update("used", true)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return errors.New("重置链接无效或已过期")
+		}
 
-	// 更新用户密码
-	hashedPassword, err := password.Hash(newPassword)
-	if err != nil {
-		return err
-	}
+		// 查找 token 对应的用户ID
+		var resetToken domain.PasswordResetToken
+		if err := tx.Where("token = ?", token).First(&resetToken).Error; err != nil {
+			return errors.New("重置链接无效或已过期")
+		}
 
-	if err := db.Model(&domain.User{}).Where("id = ?", resetToken.UserID).Update("password_hash", hashedPassword).Error; err != nil {
-		return errors.New("密码重置失败")
-	}
+		// 更新用户密码
+		hashedPassword, err := password.Hash(newPassword)
+		if err != nil {
+			return err
+		}
+		if err := tx.Model(&domain.User{}).Where("id = ?", resetToken.UserID).Update("password_hash", hashedPassword).Error; err != nil {
+			return errors.New("密码重置失败")
+		}
 
-	return nil
+		return nil
+	})
 }
 
 // AdminCreateUser 管理员创建用户（可指定角色）

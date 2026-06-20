@@ -62,3 +62,9 @@ func CaptchaRateLimit() gin.HandlerFunc {
 func RestartRateLimit() gin.HandlerFunc {
 	return RateLimit(1, 2*time.Minute)
 }
+
+// ForgotPasswordRateLimit 忘记密码接口限流：同一 IP 每小时最多 5 次
+// 防止邮件轰炸和用户枚举攻击
+func ForgotPasswordRateLimit() gin.HandlerFunc {
+	return RateLimit(5, 1*time.Hour)
+}

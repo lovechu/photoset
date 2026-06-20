@@ -1,9 +1,10 @@
 package service
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"photoset/internal/database"
 	"photoset/internal/domain"
 	"photoset/internal/pkg/email"
@@ -26,9 +27,15 @@ func NewEmailVerificationService(siteSettingRepo interface {
 }
 
 // GenerateCode 生成6位随机数字验证码
+// 使用 crypto/rand 确保密码学安全，防止可预测攻击
 func GenerateCode() string {
-	code := rand.Intn(900000) + 100000
-	return fmt.Sprintf("%d", code)
+	max := big.NewInt(900000)
+	n, err := rand.Int(rand.Reader, max)
+	if err != nil {
+		// crypto/rand 极少失败；若失败则用时间戳兜底（仍比 math/rand 安全）
+		n = big.NewInt(time.Now().UnixNano() % 900000)
+	}
+	return fmt.Sprintf("%06d", n.Int64()+100000)
 }
 
 // SendVerificationCode 发送邮箱验证码
@@ -51,6 +58,11 @@ func (s *EmailVerificationService) SendVerificationCode(toEmail string, purpose 
 	if todayCount >= 10 {
 		return errors.New("今日发送次数已达上限，请明天再试")
 	}
+
+	// 将该邮箱之前未使用的验证码全部标记为已使用（确保同时只有一个有效验证码）
+	db.Model(&domain.EmailVerificationCode{}).
+		Where("email = ? AND purpose = ? AND used = ?", toEmail, purpose, false).
+		Update("used", true)
 
 	// 生成验证码
 	code := GenerateCode()
@@ -94,17 +106,33 @@ func (s *EmailVerificationService) SendVerificationCode(toEmail string, purpose 
 }
 
 // VerifyCode 验证邮箱验证码
+// 包含暴力破解保护：同一验证码最多尝试 5 次，超过后自动失效
 func (s *EmailVerificationService) VerifyCode(email, code, purpose string) error {
 	db := database.GetMySQL()
 
+	// 查询该邮箱+用途最近一条未使用、未过期的验证码
 	var verificationCode domain.EmailVerificationCode
-	err := db.Where("email = ? AND code = ? AND purpose = ? AND used = ? AND expire > ?",
-		email, code, purpose, false, time.Now()).First(&verificationCode).Error
+	err := db.Where("email = ? AND purpose = ? AND used = ? AND expire > ?",
+		email, purpose, false, time.Now()).
+		Order("created_at DESC").
+		First(&verificationCode).Error
 	if err != nil {
 		return errors.New("验证码错误或已过期")
 	}
 
-	// 标记为已使用
+	// 暴力破解保护：超过最大尝试次数则失效
+	if verificationCode.Attempts >= 5 {
+		db.Model(&verificationCode).Update("used", true)
+		return errors.New("尝试次数过多，请重新获取验证码")
+	}
+
+	// 验证码不匹配，增加尝试次数
+	if verificationCode.Code != code {
+		db.Model(&verificationCode).Update("attempts", verificationCode.Attempts+1)
+		return errors.New("验证码错误或已过期")
+	}
+
+	// 验证成功，标记为已使用
 	db.Model(&verificationCode).Update("used", true)
 
 	return nil
