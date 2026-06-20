@@ -6,10 +6,32 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"photoset/internal/config"
 )
+
+// validateBackupConfig 校验 DB 配置值，防止以 "-" 开头的可疑值被当作 mysqldump 选项
+// （exec.Command 不走 shell，但仍是防御性编程，避免被工具误用）
+func validateBackupConfig(cfg config.DBConfig) error {
+	// 检查 Host / Port / User / Name 是否包含可疑的选项前缀
+	fields := []struct {
+		name  string
+		value string
+	}{
+		{"host", cfg.Host},
+		{"port", cfg.Port},
+		{"user", cfg.User},
+		{"name", cfg.Name},
+	}
+	for _, f := range fields {
+		if strings.HasPrefix(f.value, "-") {
+			return fmt.Errorf("数据库配置 %s 不能以 '-' 开头（防止参数注入）", f.name)
+		}
+	}
+	return nil
+}
 
 type BackupService struct {
 	cfg       *config.Config
@@ -40,17 +62,29 @@ func (s *BackupService) CreateBackup() (*BackupInfo, error) {
 	filename := fmt.Sprintf("photoset_%s.sql", timestamp)
 	filepath := filepath.Join(s.backupDir, filename)
 
+	// 防御性校验：拒绝以 '-' 开头的配置值，防止被当作 mysqldump 选项
+	if err := validateBackupConfig(s.cfg.DB); err != nil {
+		return nil, fmt.Errorf("备份配置校验失败: %w", err)
+	}
+
 	// 构建 mysqldump 命令
+	// 注意：不使用 -p 或 --password 参数传递密码，原因：
+	//  1) -pPASSWORD 会在进程列表(ps)中暴露密码
+	//  2) 空密码时 -p 会让 mysqldump 阻塞在 stdin 等待输入，导致服务挂起
+	// 改用 MYSQL_PWD 环境变量（仅作用于子进程），mysqldump 5.6+ 原生支持
 	cmd := exec.Command("mysqldump",
 		"-h", s.cfg.DB.Host,
 		"-P", s.cfg.DB.Port,
 		"-u", s.cfg.DB.User,
-		"-p"+s.cfg.DB.Password,
 		"--single-transaction",
 		"--routines",
 		"--triggers",
 		s.cfg.DB.Name,
 	)
+
+	// 通过环境变量传递密码，避免出现在进程参数中
+	// MYSQL_PWD 仅对当前子进程及其后代生效，不会污染主进程环境
+	cmd.Env = append(os.Environ(), "MYSQL_PWD="+s.cfg.DB.Password)
 
 	// 创建输出文件
 	outFile, err := os.Create(filepath)

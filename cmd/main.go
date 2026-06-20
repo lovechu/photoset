@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"log"
 	"photoset/internal/config"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-sql-driver/mysql"
+	"gorm.io/gorm"
 
 	_ "photoset/docs" // Swagger docs
 )
@@ -221,6 +224,9 @@ func main() {
 	defer database.CloseRedis()
 
 	// 初始化 JWT
+	// 注意：ensureSecrets 必须在 jwt.Init 之前执行，确保 cfg.JWT.Secret / cfg.Storage.SignSecret
+	// 已通过三级回退（环境变量 > site_settings > 自动生成）赋值完成
+	ensureSecrets(cfg)
 	jwt.Init(cfg)
 
 	// 设置 Gin 模式
@@ -256,5 +262,81 @@ func isMultiplePrimaryKeyError(err error) bool {
 		return mysqlErr.Number == 1068 // ER_DUP_KEYNAME
 	}
 	return false
+}
+
+// ensureSecrets 确保 JWT_SECRET 和 SIGN_SECRET 已配置，三级回退：
+//  1. 环境变量（最高优先级，已有部署不受影响）
+//  2. site_settings 表（重启后复用之前自动生成的值，多实例共享同一 DB 时密钥一致）
+//  3. 首次部署：用 crypto/rand 生成 256bit 随机密钥，写入 site_settings 持久化
+//
+// 必须在 database.InitMySQL + AutoMigrate 之后、jwt.Init 之前调用。
+// 这样既杜绝了使用公开已知弱默认值的风险，又让新部署完全零配置。
+func ensureSecrets(cfg *config.Config) {
+	db := database.GetMySQL()
+
+	ensureOne := func(envKey, settingKey, label string, target *string) {
+		// 第 1 级：环境变量已设置（config.Load 已读入），直接用
+		if *target != "" {
+			logger.Info("Secret loaded from environment variable", "key", envKey)
+			return
+		}
+		// 第 2 级：从 site_settings 表加载（之前部署自动生成并持久化的值）
+		if v, ok := getSetting(db, settingKey); ok {
+			*target = v
+			logger.Info("Secret loaded from site_settings", "key", settingKey)
+			return
+		}
+		// 第 3 级：首次部署，自动生成并写入 DB
+		secret := generateSecret()
+		setSetting(db, settingKey, secret)
+		*target = secret
+		logger.Info("Secret auto-generated and persisted to site_settings", "key", settingKey)
+	}
+
+	ensureOne("JWT_SECRET", "jwt_secret", "JWT", &cfg.JWT.Secret)
+	ensureOne("SIGN_SECRET", "sign_secret", "Sign", &cfg.Storage.SignSecret)
+
+	// 最终兜底：理论上不会走到，防御性编程
+	if cfg.JWT.Secret == "" {
+		log.Fatal("FATAL: failed to initialize JWT_SECRET")
+	}
+	if cfg.Storage.SignSecret == "" {
+		log.Fatal("FATAL: failed to initialize SIGN_SECRET")
+	}
+}
+
+// generateSecret 使用 crypto/rand 生成 256bit 随机密钥（64 字符 hex）
+// crypto/rand 走操作系统熵源，比 math/rand 更安全，适合生成密钥
+func generateSecret() string {
+	b := make([]byte, 32) // 256-bit
+	if _, err := rand.Read(b); err != nil {
+		log.Fatalf("FATAL: failed to generate secret: %v", err)
+	}
+	return hex.EncodeToString(b)
+}
+
+// getSetting 从 site_settings 表按 key 读取单个值
+// 返回 (value, found)；未找到或出错时 found=false
+func getSetting(db *gorm.DB, key string) (string, bool) {
+	var s domain.SiteSetting
+	err := db.Where("`key` = ?", key).First(&s).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", false
+		}
+		logger.Error("Failed to load secret from site_settings", "key", key, "error", err)
+		return "", false
+	}
+	return s.Value, true
+}
+
+// setSetting 将密钥写入 site_settings 表（INSERT 或 UPDATE）
+// 使用原生 SQL 的 ON DUPLICATE KEY UPDATE，避免 key 是 MySQL 保留字导致的语法错误
+// 写入失败直接 fatal，因为这意味着后续 JWT 签发/验签会失败，无法安全运行
+func setSetting(db *gorm.DB, key, value string) {
+	sql := "INSERT INTO site_settings (`key`, `value`, `group`, created_at, updated_at) VALUES (?, ?, 'system', NOW(), NOW()) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = NOW()"
+	if err := db.Exec(sql, key, value).Error; err != nil {
+		log.Fatalf("FATAL: failed to persist secret to site_settings (key=%s): %v", key, err)
+	}
 }
 

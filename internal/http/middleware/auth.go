@@ -44,8 +44,10 @@ func Auth() gin.HandlerFunc {
 	}
 }
 
-// extractToken extracts JWT token from Authorization header or query parameter
-// WebSocket connections use query parameter since custom headers are not supported
+// extractToken extracts JWT token from Authorization header or query parameter.
+// 查询参数仅对 WebSocket 升级请求放行（WebSocket 握手时无法携带自定义 header，
+// 只能用 URL 传 token），普通 HTTP 请求一律拒绝查询参数中的 token，
+// 避免 token 泄露到服务器日志、代理日志、CDN 日志、Referer header 中。
 func extractToken(c *gin.Context) string {
 	// First try Authorization header
 	authHeader := c.GetHeader("Authorization")
@@ -55,8 +57,11 @@ func extractToken(c *gin.Context) string {
 			return parts[1]
 		}
 	}
-	// Fallback to query parameter (for WebSocket connections)
-	return c.Query("token")
+	// 查询参数仅对 WebSocket 升级请求放行（修复 AUTH-003）
+	if strings.EqualFold(c.GetHeader("Upgrade"), "websocket") {
+		return c.Query("token")
+	}
+	return ""
 }
 
 // OptionalAuth 可选鉴权中间件 - 没有按游客处理,有则解析

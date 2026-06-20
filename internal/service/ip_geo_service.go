@@ -1,10 +1,12 @@
 package service
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +17,75 @@ import (
 
 	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
 )
+
+// maxXDBFileSize 下载文件大小上限（200MB）
+const maxXDBFileSize = 200 * 1024 * 1024
+
+// allowedDownloadURLs 合法的 ip2region 下载地址白名单（精确匹配，防止指向攻击者自己的仓库）
+var allowedDownloadURLs = map[string]bool{
+	// ip2region v4
+	"https://gitee.com/lionsoul/ip2region/raw/master/data/ip2region_v4.xdb":  true,
+	"https://github.com/lionsoul2014/ip2region/raw/master/data/ip2region_v4.xdb": true,
+	// ip2region v6
+	"https://gitee.com/lionsoul/ip2region/raw/master/data/ip2region_v6.xdb":  true,
+	"https://github.com/lionsoul2014/ip2region/raw/master/data/ip2region_v6.xdb": true,
+}
+
+// validateDownloadURL 校验下载 URL（多层防护：协议 + URL 路径白名单）
+func validateDownloadURL(rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("无效的URL格式: %v", err)
+	}
+
+	// 第 1 层：只允许 https（拒绝 http 明文、file、gopher、dict 等危险协议）
+	if u.Scheme != "https" {
+		return fmt.Errorf("不允许的协议: %s，只允许 https", u.Scheme)
+	}
+
+	// 第 2 层：URL 路径必须在白名单中（精确匹配，防止指向攻击者自己的仓库或恶意文件）
+	normalized := fmt.Sprintf("%s://%s%s", u.Scheme, u.Host, u.Path)
+	if !allowedDownloadURLs[normalized] {
+		return fmt.Errorf("不允许的下载地址: %s", normalized)
+	}
+
+	return nil
+}
+
+// validateDownloadedFile 校验下载后的文件是合法的 xdb 数据库（防止下载到恶意文件）
+func validateDownloadedFile(filePath string) error {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("无法打开文件: %v", err)
+	}
+	defer f.Close()
+
+	// 第 3 层：文件大小限制
+	stat, err := f.Stat()
+	if err != nil {
+		return fmt.Errorf("无法获取文件信息: %v", err)
+	}
+	if stat.Size() > maxXDBFileSize {
+		return fmt.Errorf("文件过大: %d bytes (上限 %d)", stat.Size(), maxXDBFileSize)
+	}
+	if stat.Size() < 1024 { // xdb 至少有几 KB
+		return fmt.Errorf("文件过小，不是合法的数据库文件: %d bytes", stat.Size())
+	}
+
+	// 第 4 层：读取文件头，尝试验证是合法 xdb 格式
+	// ip2region xdb 文件头包含 headerLength (2 bytes little-endian)
+	header := make([]byte, 2)
+	if _, err := io.ReadFull(f, header); err != nil {
+		return fmt.Errorf("读取文件头失败: %v", err)
+	}
+	headerLen := binary.LittleEndian.Uint16(header)
+	// header 长度通常在 256~65535 之间，不合理的值说明不是合法 xdb 文件
+	if headerLen < 256 || headerLen > 65535 {
+		return fmt.Errorf("文件格式不正确: header_length=%d", headerLen)
+	}
+
+	return nil
+}
 
 // IPGeoService IP地理位置服务
 type IPGeoService struct {
@@ -568,6 +639,11 @@ func (s *IPGeoService) UpdateDatabase() error {
 
 // downloadFile 下载文件
 func (s *IPGeoService) downloadFile(url, filePath string) error {
+	// === 下载前校验（SSRF 防护）===
+	if err := validateDownloadURL(url); err != nil {
+		return fmt.Errorf("下载地址校验失败: %v", err)
+	}
+
 	// 创建临时文件
 	tmpFile := filePath + ".tmp"
 	out, err := os.Create(tmpFile)
@@ -578,7 +654,7 @@ func (s *IPGeoService) downloadFile(url, filePath string) error {
 
 	// 使用自定义超时的 HTTP 客户端
 	client := &http.Client{
-		Timeout: 120 * time.Second,
+		Timeout: 300 * time.Second,
 	}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -599,15 +675,24 @@ func (s *IPGeoService) downloadFile(url, filePath string) error {
 		return fmt.Errorf("下载失败，状态码: %d", resp.StatusCode)
 	}
 
-	// 写入文件
-	_, err = io.Copy(out, resp.Body)
+	// 限制读取大小（防止 zip bomb / 资源耗尽）
+	limitedReader := io.LimitReader(resp.Body, maxXDBFileSize+1024*1024)
+	written, err := io.Copy(out, limitedReader)
+	out.Close()
 	if err != nil {
 		os.Remove(tmpFile)
 		return err
 	}
+	if written > maxXDBFileSize {
+		os.Remove(tmpFile)
+		return fmt.Errorf("文件超过大小限制: %d bytes", written)
+	}
 
-	// 关闭文件
-	out.Close()
+	// === 下载后校验（防止下载到恶意文件）===
+	if err := validateDownloadedFile(tmpFile); err != nil {
+		os.Remove(tmpFile) // 校验失败，删除恶意文件
+		return fmt.Errorf("文件校验失败（可能不是合法数据库）: %v", err)
+	}
 
 	// 替换原文件
 	if err := os.Rename(tmpFile, filePath); err != nil {
@@ -676,6 +761,18 @@ func (s *IPGeoService) GetConfig() IPGeoConfig {
 
 // UpdateConfig 更新配置
 func (s *IPGeoService) UpdateConfig(config IPGeoConfig) error {
+	// === 前置校验（SSRF 防护）：保存前校验下载地址 ===
+	if config.DownloadURLV4 != "" {
+		if err := validateDownloadURL(config.DownloadURLV4); err != nil {
+			return fmt.Errorf("IPv4下载地址不安全: %v", err)
+		}
+	}
+	if config.DownloadURLV6 != "" {
+		if err := validateDownloadURL(config.DownloadURLV6); err != nil {
+			return fmt.Errorf("IPv6下载地址不安全: %v", err)
+		}
+	}
+
 	// 保存配置
 	if err := s.saveConfig(config); err != nil {
 		return err

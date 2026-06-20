@@ -106,7 +106,9 @@ func Load() *Config {
 			DB:       getEnvAsInt("REDIS_DB", 0),
 		},
 		JWT: JWTConfig{
-			Secret:     getEnv("JWT_SECRET", "default-secret-key"),
+			// 默认空字符串：由 main.go 的 ensureSecrets 在 DB 初始化后做三级回退
+			// （环境变量 > site_settings > 自动生成），避免使用公开已知的弱默认值
+			Secret:     getEnv("JWT_SECRET", ""),
 			ExpireHour: getEnvAsInt("JWT_EXPIRE_HOURS", 24),
 		},
 		Storage: StorageConfig{
@@ -119,7 +121,8 @@ func Load() *Config {
 			S3Region:    getEnv("S3_REGION", ""),
 			R2AccountID: getEnv("R2_ACCOUNT_ID", ""),
 			R2PublicURL: getEnv("R2_PUBLIC_URL", ""),
-			SignSecret:  getEnv("SIGN_SECRET", "default-sign-secret-change-me"),
+			// 默认空字符串：由 main.go 的 ensureSecrets 在 DB 初始化后做三级回退
+			SignSecret:  getEnv("SIGN_SECRET", ""),
 			SignExpire:  getEnvAsInt("SIGN_EXPIRE", 7200),
 		},
 		Log: LogConfig{
@@ -143,13 +146,9 @@ func Load() *Config {
 		},
 	}
 
-	// ⚠️ 生产环境必须配置强密钥，默认值直接 panic
-	if cfg.JWT.Secret == "default-secret-key" {
-		log.Fatal("FATAL: JWT_SECRET is not configured. Set a strong random secret in .env or environment variable.")
-	}
-	if cfg.Storage.SignSecret == "default-sign-secret-change-me" {
-		log.Fatal("FATAL: SIGN_SECRET is not configured. Set a strong random secret in .env or environment variable.")
-	}
+	// 密钥校验已移至 main.go 的 ensureSecrets：
+	// 在 DB 初始化后做三级回退（环境变量 > site_settings > 自动生成），
+	// 最终仍为空才 panic，避免 config.Load 阶段无法访问 DB 的限制。
 
 	return cfg
 }
