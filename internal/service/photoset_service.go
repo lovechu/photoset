@@ -410,6 +410,11 @@ func (s *PhotoSetService) GetTrashList(userID uint) ([]domain.PhotoSet, error) {
 	return s.repo.GetTrash(userID)
 }
 
+// AdminGetTrashList 管理员获取回收站列表（全站，支持分页）
+func (s *PhotoSetService) AdminGetTrashList(page, pageSize int) ([]domain.PhotoSet, int64, error) {
+	return s.repo.AdminGetTrash(page, pageSize)
+}
+
 // RestorePhotoSet 恢复已删除的套图
 func (s *PhotoSetService) RestorePhotoSet(id uint, userID uint) error {
 	// 验证所有权
@@ -421,6 +426,16 @@ func (s *PhotoSetService) RestorePhotoSet(id uint, userID uint) error {
 		return errors.New("无权恢复此套图")
 	}
 
+	if err := s.repo.Restore(id); err != nil {
+		return err
+	}
+
+	s.InvalidateAllPhotosetListCache()
+	return nil
+}
+
+// AdminRestorePhotoSet 管理员恢复套图（无需验证所有权）
+func (s *PhotoSetService) AdminRestorePhotoSet(id uint) error {
 	if err := s.repo.Restore(id); err != nil {
 		return err
 	}

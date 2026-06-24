@@ -281,7 +281,7 @@ viewHistoryHandler := handlers.NewViewHistoryHandler(viewHistoryService)
 	orderHandler := handlers.NewOrderHandler(orderService, alipayService)
 
 	// 管理后台路由（需要在 api 和 v1 中使用）
-	adminHandler := handlers.NewAdminHandler(photosetRepo, orderRepo, orderService, cfg, alipayService, wechatPayService, database.GetMySQL())
+	adminHandler := handlers.NewAdminHandler(photosetRepo, photosetService, orderRepo, orderService, cfg, alipayService, wechatPayService, database.GetMySQL())
 	systemHandler := admin.NewSystemHandler()
 	backupService := service.NewBackupService(cfg)
 	backupHandler := admin.NewBackupHandler(backupService)
@@ -470,6 +470,11 @@ viewHistoryHandler := handlers.NewViewHistoryHandler(viewHistoryService)
 
 			// 套图导出
 			admin.GET("/photosets/export", adminHandler.ExportPhotoSets)
+
+			// 回收站管理
+			admin.GET("/photosets/trash", adminHandler.AdminGetTrash)
+			admin.POST("/photosets/:id/restore", adminHandler.AdminRestore)
+			admin.DELETE("/photosets/:id/permanent", adminHandler.AdminPermanentDelete)
 
 			// 标签管理 CRUD
 			admin.GET("/tags", tagHandler.AdminList)
@@ -787,6 +792,11 @@ viewHistoryHandler := handlers.NewViewHistoryHandler(viewHistoryService)
 			v1Admin.GET("/orders/export", adminHandler.ExportOrders)
 			v1Admin.POST("/orders/:id/refund", adminHandler.AdminRefund)
 			v1Admin.GET("/photosets/export", adminHandler.ExportPhotoSets)
+
+			// 回收站管理
+			v1Admin.GET("/photosets/trash", adminHandler.AdminGetTrash)
+			v1Admin.POST("/photosets/:id/restore", adminHandler.AdminRestore)
+			v1Admin.DELETE("/photosets/:id/permanent", adminHandler.AdminPermanentDelete)
 			v1Admin.GET("/tags", tagHandler.AdminList)
 			v1Admin.POST("/tags", tagHandler.Create)
 			v1Admin.PUT("/tags/:id", tagHandler.Update)

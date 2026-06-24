@@ -33,17 +33,19 @@
         </template>
         <el-descriptions :column="2" border size="small">
           <el-descriptions-item label="API 状态">
-            <el-tag :type="healthData?.status === 'ok' ? 'success' : 'danger'" size="small">正常</el-tag>
+            <el-tag :type="healthData?.status === 'ok' ? 'success' : 'danger'" size="small">
+              {{ healthData?.status === 'ok' ? '正常' : '异常' }}
+            </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="响应时间">{{ healthLatency }}ms</el-descriptions-item>
           <el-descriptions-item label="数据库">
-            <el-tag :type="healthData?.database === 'connected' ? 'success' : 'danger'" size="small">
-              {{ healthData?.database === 'connected' ? '正常' : '异常' }}
+            <el-tag :type="healthData?.database === 'ok' ? 'success' : 'danger'" size="small">
+              {{ healthData?.database === 'ok' ? '正常' : '异常' }}
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="Redis">
-            <el-tag :type="healthData?.redis === 'connected' ? 'success' : 'danger'" size="small">
-              {{ healthData?.redis === 'connected' ? '正常' : '异常' }}
+            <el-tag :type="healthData?.redis === 'ok' ? 'success' : 'danger'" size="small">
+              {{ healthData?.redis === 'ok' ? '正常' : '异常' }}
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="最后检查">{{ lastHealthCheck || '-' }}</el-descriptions-item>

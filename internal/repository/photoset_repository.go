@@ -375,23 +375,20 @@ func (r *PhotoSetRepository) ReplaceTags(photosetID uint, tagNames []string) err
 	return nil
 }
 
-// Delete 软删除套图（事务保护：级联删除关联 photos 和 tags 后再软删套图）
+// Delete 软删除套图（事务保护：软删 photos，保留 photoset_tags，软删套图本身）
 func (r *PhotoSetRepository) Delete(id uint) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		// 先删除关联的 photos
+		// 软删除关联的 photos（Photo 有 DeletedAt，GORM 会自动软删除）
 		if err := tx.Where("photoset_id = ?", id).Delete(&domain.Photo{}).Error; err != nil {
 			return err
 		}
-		// 删除关联的 photoset_tags
-		if err := tx.Exec("DELETE FROM photoset_tags WHERE photoset_id = ?", id).Error; err != nil {
-			return err
-		}
+		// 注意：photoset_tags 不删除，恢复套图时标签关联仍存在
 		// 软删除套图本身
 		return tx.Delete(&domain.PhotoSet{}, id).Error
 	})
 }
 
-// GetTrash 获取回收站列表（已软删除的套图）
+// GetTrash 获取回收站列表（已软删除的套图，按用户过滤）
 func (r *PhotoSetRepository) GetTrash(userID uint) ([]domain.PhotoSet, error) {
 	var photosets []domain.PhotoSet
 	err := r.db.Unscoped().
@@ -401,12 +398,44 @@ func (r *PhotoSetRepository) GetTrash(userID uint) ([]domain.PhotoSet, error) {
 	return photosets, err
 }
 
-// Restore 恢复已软删除的套图
+// AdminGetTrash 管理员获取回收站列表（全站，支持分页）
+func (r *PhotoSetRepository) AdminGetTrash(page, pageSize int) ([]domain.PhotoSet, int64, error) {
+	var photosets []domain.PhotoSet
+	var total int64
+
+	query := r.db.Unscoped().Model(&domain.PhotoSet{}).Where("deleted_at IS NOT NULL")
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	offset := (page - 1) * pageSize
+	err := query.
+		Preload("User").
+		Order("deleted_at DESC").
+		Offset(offset).
+		Limit(pageSize).
+		Find(&photosets).Error
+
+	return photosets, total, err
+}
+
+// Restore 恢复已软删除的套图（同时恢复关联的 photos）
 func (r *PhotoSetRepository) Restore(id uint) error {
-	return r.db.Unscoped().
-		Model(&domain.PhotoSet{}).
-		Where("id = ?", id).
-		Update("deleted_at", nil).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// 恢复关联的 photos
+		if err := tx.Unscoped().
+			Model(&domain.Photo{}).
+			Where("photoset_id = ? AND deleted_at IS NOT NULL", id).
+			Update("deleted_at", nil).Error; err != nil {
+			return err
+		}
+		// 恢复套图本身
+		return tx.Unscoped().
+			Model(&domain.PhotoSet{}).
+			Where("id = ?", id).
+			Update("deleted_at", nil).Error
+	})
 }
 
 // PermanentDelete 永久删除套图（包括关联数据）

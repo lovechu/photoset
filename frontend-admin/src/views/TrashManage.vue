@@ -96,7 +96,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { getTrashList, restorePhotoset, permanentDeletePhotoset } from '@/api'
+import { getAdminTrashList, adminRestorePhotoset, adminPermanentDeletePhotoset } from '@/api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 
@@ -111,14 +111,14 @@ const deletingId = ref(null)
 async function fetchList() {
   loading.value = true
   try {
-    const res = await getTrashList({ page: page.value, page_size: pageSize.value })
-    const data = res.data?.data || res.data
-    if (Array.isArray(data)) {
-      list.value = data
-      total.value = res.data?.total || data.length
-    } else if (data?.items) {
-      list.value = data.items
+    const res = await getAdminTrashList({ page: page.value, page_size: pageSize.value })
+    const data = res.data
+    if (data?.list) {
+      list.value = data.list
       total.value = data.total || 0
+    } else if (Array.isArray(data)) {
+      list.value = data
+      total.value = data.length
     } else {
       list.value = []
       total.value = 0
@@ -133,7 +133,7 @@ async function fetchList() {
 async function handleRestore(row) {
   restoringId.value = row.id
   try {
-    await restorePhotoset(row.id)
+    await adminRestorePhotoset(row.id)
     ElMessage.success('恢复成功')
     fetchList()
   } catch (err) {
@@ -146,7 +146,7 @@ async function handleRestore(row) {
 async function handlePermanentDelete(row) {
   deletingId.value = row.id
   try {
-    await permanentDeletePhotoset(row.id)
+    await adminPermanentDeletePhotoset(row.id)
     ElMessage.success('永久删除成功')
     fetchList()
   } catch (err) {
@@ -170,7 +170,7 @@ async function clearAll() {
   loading.value = true
   try {
     for (const item of list.value) {
-      await permanentDeletePhotoset(item.id)
+      await adminPermanentDeletePhotoset(item.id)
     }
     ElMessage.success('回收站已清空')
     fetchList()

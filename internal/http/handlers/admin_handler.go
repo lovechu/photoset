@@ -28,6 +28,7 @@ var isRestarting atomic.Bool
 
 type AdminHandler struct {
 	photosetRepo    *repository.PhotoSetRepository
+	photosetService *service.PhotoSetService
 	orderRepo       *repository.OrderRepository
 	orderService    *service.OrderService
 	settingRepo     *repository.SiteSettingRepository
@@ -44,10 +45,11 @@ type AdminHandler struct {
 	db              *gorm.DB
 }
 
-func NewAdminHandler(photosetRepo *repository.PhotoSetRepository, orderRepo *repository.OrderRepository, orderService *service.OrderService, cfg *config.Config, alipayService *service.AlipayService, wechatPayService *service.WechatPayService, db *gorm.DB) *AdminHandler {
+func NewAdminHandler(photosetRepo *repository.PhotoSetRepository, photosetService *service.PhotoSetService, orderRepo *repository.OrderRepository, orderService *service.OrderService, cfg *config.Config, alipayService *service.AlipayService, wechatPayService *service.WechatPayService, db *gorm.DB) *AdminHandler {
 	userRepo := repository.NewUserRepository()
 	return &AdminHandler{
 		photosetRepo:     photosetRepo,
+		photosetService:  photosetService,
 		orderRepo:        orderRepo,
 		orderService:     orderService,
 		settingRepo:      repository.NewSiteSettingRepository(),
@@ -704,6 +706,75 @@ func escapeCSV(s string) string {
 	return s
 }
 
+// ============ 管理员回收站 API ============
+
+// AdminGetTrash 管理员获取回收站列表（全站，支持分页）
+func (h *AdminHandler) AdminGetTrash(c *gin.Context) {
+	var req struct {
+		Page     int `form:"page"`
+		PageSize int `form:"page_size"`
+	}
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, "参数错误")
+		return
+	}
+	if req.Page == 0 {
+		req.Page = 1
+	}
+	if req.PageSize == 0 {
+		req.PageSize = 20
+	}
+
+	trash, total, err := h.photosetService.AdminGetTrashList(req.Page, req.PageSize)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, "获取回收站失败")
+		return
+	}
+
+	response.Success(c, gin.H{
+		"list":      trash,
+		"total":     total,
+		"page":      req.Page,
+		"page_size": req.PageSize,
+	})
+}
+
+// AdminRestore 管理员恢复套图（无需验证所有权）
+func (h *AdminHandler) AdminRestore(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "无效的套图ID")
+		return
+	}
+
+	if err := h.photosetService.AdminRestorePhotoSet(uint(id)); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{"message": "恢复成功"})
+	h.recordLog(c, "restore_photoset", "套图#"+idStr, "管理员恢复套图")
+}
+
+// AdminPermanentDelete 管理员永久删除套图
+func (h *AdminHandler) AdminPermanentDelete(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 32)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, "无效的套图ID")
+		return
+	}
+
+	if err := h.photosetService.AdminPermanentDeletePhotoSet(uint(id)); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{"message": "永久删除成功"})
+	h.recordLog(c, "permanent_delete", "套图#"+idStr, "管理员永久删除套图")
+}
+
 // RestartServer 安全重启后端服务（延迟退出，由 Docker restart policy 自动重启）
 func (h *AdminHandler) RestartServer(c *gin.Context) {
 	// 防止并发重启
@@ -720,6 +791,7 @@ func (h *AdminHandler) RestartServer(c *gin.Context) {
 		"username", username,
 		"ip", c.ClientIP(),
 	)
+	h.recordLog(c, "restart_server", "系统", "管理员触发后端重启")
 
 	// 先返回成功响应
 	response.Success(c, gin.H{

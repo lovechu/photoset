@@ -144,7 +144,7 @@ function escapeRegExp(str) {
 const handleDelete = async () => {
   try {
     await ElMessageBox.confirm(
-      '确定要删除这个套图吗？删除后无法恢复。',
+      '确定要删除这个套图吗？删除后可在回收站恢复。',
       '确认删除',
       {
         confirmButtonText: '确认删除',

@@ -371,6 +371,13 @@ export function getTrashList(params) {
 }
 
 /**
+ * 管理员获取回收站列表（全站，支持分页）
+ */
+export function getAdminTrashList(params) {
+  return request.get('/admin/photosets/trash', { params })
+}
+
+/**
  * 恢复软删除的套图
  */
 export function restorePhotoset(id) {
@@ -378,10 +385,24 @@ export function restorePhotoset(id) {
 }
 
 /**
+ * 管理员恢复套图（无需验证所有权）
+ */
+export function adminRestorePhotoset(id) {
+  return request.post(`/admin/photosets/${id}/restore`)
+}
+
+/**
  * 永久删除套图
  */
 export function permanentDeletePhotoset(id) {
   return request.delete(`/photosets/${id}/permanent`)
+}
+
+/**
+ * 管理员永久删除套图
+ */
+export function adminPermanentDeletePhotoset(id) {
+  return request.delete(`/admin/photosets/${id}/permanent`)
 }
 
 // ============ 用户管理增强 APIs ============
