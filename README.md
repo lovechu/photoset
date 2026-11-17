@@ -60,7 +60,7 @@
 | 组件 | 技术 | 说明 |
 |------|------|------|
 | 框架 | Vue 3 | Composition API |
-| UI 库 | Element Plus | 管理后台 |
+| UI 库 | Element Plus | 管理后台 + 用户端（社区 Discourse 风格） |
 | 状态 | Pinia | 状态管理 |
 | 构建 | Vite | 快速构建 |
 | 图表 | ECharts | Dashboard 统计 |
@@ -499,7 +499,7 @@ GET /api/photosets/advanced?
 - ✅ 操作日志
 
 ### Phase 7: 社区功能 ✅
-- ✅ 发帖/回帖（楼中楼）
+- ✅ 发帖/回帖（楼中楼），回帖支持图片（Markdown 内嵌）
 - ✅ 点赞 Toggle
 - ✅ 举报功能
 - ✅ 敏感词过滤（***替换）
@@ -514,6 +514,8 @@ GET /api/photosets/advanced?
 - ✅ 帖子分享
 - ✅ 话题/标签
 - ✅ 推荐服务
+- ✅ 社区 UI 采用 Discourse 风格（首页/详情/编辑器 + 带楼层号的回复时间线）
+- ✅ 探索发现、意见反馈、分享链接落地页
 
 ### Flutter App ✅
 - ✅ 图片浏览/个人中心/收藏功能
@@ -756,9 +758,11 @@ flutter run
 | Phase 3 | Web 前端完整实现 | ✅ |
 | Phase 4 | 会员支付系统 + 管理后台 | ✅ |
 | Phase 4 补齐 | Cloudflare R2 + 套图编辑 | ✅ |
+| Phase 4 前端 | 探索发现/意见反馈/分享落地页 + 用户等级/积分商城 | ✅ |
 | Phase 5 | Redis缓存/FULLTEXT/退款 | ✅ |
 | Phase 6 | 站点设置 + 页面管理 | ✅ |
 | Phase 7 | 社区功能（帖子/消息/等级/成就/积分商城） | ✅ |
+| 社区 UI 升级 | 首页/详情/编辑器 Discourse 风格 + 回帖图片 | ✅ |
 | Flutter App | 移动端完整实现 | ✅ |
 
 ---
@@ -771,4 +775,14 @@ flutter run
 
 ---
 
-*最后更新: 2026-05-31*
+## 最近更新
+
+### 2026-11-18
+- 社区首页、帖子详情、发帖编辑器统一改为 Discourse 风格，社区回帖支持图片
+- 修复发帖分类为空、发帖成功后返回编辑器等跳转问题
+- 新增探索发现、意见反馈、分享链接落地页，以及用户等级、积分商城等页面
+- 补齐 `post_favorites`、`user_point_logs`、`push_tokens` 等缺失数据库表迁移脚本
+
+---
+
+*最后更新: 2026-11-18*
