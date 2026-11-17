@@ -153,7 +153,7 @@ const handleDeleted = (deletedId) => {
     loadMyPhotosets()
   }
 
-  ElMessage.success('删除成功')
+  // 成功提示已由 PhotosetCard 内部弹出，此处不再重复
 }
 
 // 修改密码

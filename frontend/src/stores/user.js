@@ -3,7 +3,8 @@
  */
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getCurrentUser, login as apiLogin, register as apiRegister } from '@/api'
+import { getCurrentUser, login as apiLogin, register as apiRegister, updateProfile as apiUpdateProfile } from '@/api'
+import { useNotificationStore } from './notification'
 
 export const useUserStore = defineStore('user', () => {
   // 用户信息
@@ -60,6 +61,12 @@ export const useUserStore = defineStore('user', () => {
     return new Date(membershipExpires.value) > new Date()
   })
 
+  // 计算属性：用户头像
+  const avatar = computed(() => user.value?.avatar || '')
+
+  // 计算属性：用户等级（从社区资料读取，缺省为 1）
+  const level = computed(() => user.value?.level || 1)
+
   // 登录
   const login = async (data) => {
     const res = await apiLogin(data)
@@ -78,18 +85,29 @@ export const useUserStore = defineStore('user', () => {
     return res
   }
 
-  // 登出
+  // 登出（同时重置通知状态）
   const logout = () => {
     token.value = ''
     user.value = null
     localStorage.removeItem('photoset_token')
     localStorage.removeItem('photoset_user')
+    try {
+      useNotificationStore().reset()
+    } catch (e) { /* 通知 store 未初始化时忽略 */ }
   }
 
   // 更新用户信息
   const updateUser = (newUser) => {
     user.value = newUser
     localStorage.setItem('photoset_user', JSON.stringify(user.value))
+  }
+
+  // 更新用户资料（提交到后端后同步本地）
+  const updateUserProfile = async (data) => {
+    const res = await apiUpdateProfile(data)
+    const updatedUser = res.data?.user || res.data
+    if (updatedUser) updateUser(updatedUser)
+    return res
   }
 
   // 支付订单后更新用户状态（接收后端返回的新 token + 用户信息）
@@ -109,11 +127,14 @@ export const useUserStore = defineStore('user', () => {
     isMember,
     membershipExpires,
     isMembershipActive,
+    avatar,
+    level,
     init,
     login,
     register,
     logout,
     updateUser,
+    updateUserProfile,
     afterPayment
   }
 })

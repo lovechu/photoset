@@ -1,7 +1,21 @@
 /**
- * API 接口定义
+ * API 接口聚合入口
  * 基于后端已实现的接口
+ * 原有具名导出保持向后兼容，新模块从独立文件 re-export
  */
+
+// 新增业务模块统一从此处转出，现有页面可继续 import { xxx } from '@/api'
+export * from './community'
+export * from './comment'
+export * from './collection'
+export * from './notification'
+export * from './user'
+export * from './explore'
+export * from './creator'
+export * from './review'
+export * from './feedback'
+export * from './pages'
+
 import request from '@/utils/request'
 
 // ============ 认证模块 ============
@@ -274,4 +288,53 @@ export function getOAuthAuthorize(params) {
  */
 export function confirmOAuthAuthorize(data) {
   return request.post('/oauth/authorize', data)
+}
+
+// ============ 套图回收站 / 分享 / 下载 ============
+
+/** 回收站列表 */
+export function getTrashPhotosets(params) {
+  return request.get('/photosets/trash', { params })
+}
+
+/** 从回收站恢复 */
+export function restorePhotoset(id) {
+  return request.post(`/photosets/${id}/restore`)
+}
+
+/** 永久删除 */
+export function permanentDeletePhotoset(id) {
+  return request.delete(`/photosets/${id}/permanent`)
+}
+
+/** 下载套图 */
+export function downloadPhotoset(id) {
+  return request.get(`/photosets/${id}/download`)
+}
+
+/** 生成分享链接 */
+export function getShareLink(id, source = 'web') {
+  return request.get(`/photosets/${id}/share-link`, { params: { source } })
+}
+
+/** 验证分享链接（需携带 s/t/sig 签名参数） */
+export function verifyShareLink(id, params) {
+  return request.get(`/share/${id}`, { params })
+}
+
+// ============ 管理员套图审核 ============
+
+/** 按状态查询套图（admin） */
+export function getAdminPhotosets(params) {
+  return request.get('/admin/photosets', { params })
+}
+
+/** 审核通过（admin） */
+export function approvePhotoset(id) {
+  return request.post(`/admin/photosets/${id}/approve`)
+}
+
+/** 审核拒绝（admin） */
+export function rejectPhotoset(id, data) {
+  return request.post(`/admin/photosets/${id}/reject`, data)
 }

@@ -110,9 +110,9 @@ const emit = defineEmits(['deleted'])
 
 const userStore = useUserStore()
 
-// 判断是否显示删除按钮
+// 判断是否显示删除按钮（后端套图作者字段为 user_id）
 const isCreatorItem = computed(() => {
-  return userStore.isCreatorOrAdmin && props.data.creator_id === userStore.user?.id
+  return userStore.isCreatorOrAdmin && props.data.user_id === userStore.user?.id
 })
 
 // 关键词高亮功能

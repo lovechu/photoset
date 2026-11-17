@@ -106,6 +106,11 @@ photoset.db
 # MacOS specific
 .DS_Store
 
+# Local build artifacts & backups
+photoset-api-linux
+frontend-backups/
+frontend/design-preview/
+
 # Windows specific
 Thumbs.db
 

@@ -196,12 +196,13 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const store = useAdminStore()
 
-  if (store.token && !store.user) {
+  // 有 token 就向后端校验有效性（/auth/me 失效时返回 user:null，不会抛 401）
+  if (store.token) {
     try {
       await store.fetchUser()
     } catch {
       store.logout()
-      return next('/login')
+      if (!to.meta.public) return next('/login')
     }
   }
 

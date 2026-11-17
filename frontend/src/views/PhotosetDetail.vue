@@ -49,6 +49,12 @@
                 <Star v-else />
               </el-icon>
             </span>
+            <!-- 加入合集 -->
+            <el-button v-if="userStore.isLoggedIn" link size="small" :icon="FolderAdd" @click="openAddToCollection">
+              加入合集
+            </el-button>
+            <!-- 分享 -->
+            <el-button link size="small" :icon="Share" @click="handleShare">分享</el-button>
             <!-- 只对 creator 和 admin 显示编辑按钮 -->
             <el-button
               v-if="userStore.isCreatorOrAdmin && (detail.user_id === userStore.user?.id || userStore.user?.role === 'admin')"
@@ -167,17 +173,64 @@
         :initial-index="viewerIndex"
         @close="showViewer = false"
       />
+
+      <!-- 套图评价 -->
+      <ReviewSection :photoset-id="detail.id" />
+
+      <!-- 评论 -->
+      <CommentSection :photoset-id="detail.id" />
     </template>
+
+    <!-- 加入合集弹窗 -->
+    <el-dialog v-model="collectionDialogVisible" title="加入合集" width="440px">
+      <div v-if="collections.length" class="collection-options">
+        <el-checkbox-group v-model="selectedCollections">
+          <el-checkbox v-for="c in collections" :key="c.id" :value="c.id" border style="display:block;width:100%;margin-bottom:8px">
+            {{ c.name }} <span class="collection-count">({{ c.item_count || 0 }} 项)</span>
+          </el-checkbox>
+        </el-checkbox-group>
+      </div>
+      <el-empty v-else description="还没有合集" :image-size="50">
+        <el-button type="primary" size="small" @click="$router.push('/collections')">去创建合集</el-button>
+      </el-empty>
+      <template #footer>
+        <el-button @click="collectionDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="addingToCollection" @click="confirmAddToCollection">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 分享弹窗 -->
+    <el-dialog v-model="shareDialogVisible" title="分享套图" width="440px">
+      <div class="share-box">
+        <el-input readonly :model-value="shareUrl">
+          <template #append>
+            <el-button :icon="DocumentCopy" @click="copyShareUrl">复制</el-button>
+          </template>
+        </el-input>
+        <div class="share-qr" v-if="shareUrl">
+          <p>分享链接已生成，复制后发送给好友即可</p>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getPhotosetDetail, addFavorite, removeFavorite } from '@/api'
+import {
+  getPhotosetDetail, addFavorite, removeFavorite,
+  getShareLink, listCollections, addCollectionItem, removeCollectionItem,
+  getCollectionsForPhotoset, recordViewHistory
+} from '@/api'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, Picture, Lock, Star, StarFilled, Edit, Loading } from '@element-plus/icons-vue'
+import {
+  ArrowLeft, Picture, Lock, Star, StarFilled, Edit, Loading,
+  FolderAdd, Share, DocumentCopy
+} from '@element-plus/icons-vue'
+import CommentSection from '@/components/CommentSection.vue'
+import ReviewSection from '@/components/ReviewSection.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -191,6 +244,15 @@ const showViewer = ref(false)
 const viewerIndex = ref(0)
 const isFavorited = ref(false)
 const loadingMore = ref(false)
+
+// 合集相关
+const collectionDialogVisible = ref(false)
+const collections = ref([])
+const selectedCollections = ref([])
+const addingToCollection = ref(false)
+// 分享相关
+const shareDialogVisible = ref(false)
+const shareUrl = ref('')
 
 // 分页加载相关
 const PAGE_SIZE = 20 // 每页加载数量
@@ -257,6 +319,11 @@ const loadDetail = async () => {
     detail.value = res.data
     isFavorited.value = res.data.is_favorited || false
 
+    // 登录后自动上报浏览历史（失败不影响主流程）
+    if (userStore.isLoggedIn) {
+      recordViewHistory(Number(id)).catch(() => {})
+    }
+
     // 根据返回数据判断是否可以看到完整图片
     if (!detail.value.is_free && (!photos.value || photos.value.length === 0)) {
       // 说明是付费套图且当前用户无权查看
@@ -302,6 +369,88 @@ const handleToggleFavorite = () => {
     }).catch(() => {
       ElMessage.error('操作失败')
     })
+  }
+}
+
+// ============ 加入合集 ============
+async function openAddToCollection() {
+  if (!userStore.isLoggedIn) {
+    ElMessage.info('请先登录')
+    router.push({ name: 'Login', query: { redirect: route.fullPath } })
+    return
+  }
+  collectionDialogVisible.value = true
+  try {
+    const [allRes, forPhotosetRes] = await Promise.all([
+      listCollections({ page: 1, page_size: 100 }),
+      getCollectionsForPhotoset(detail.value.id)
+    ])
+    collections.value = allRes?.data?.list || []
+    const alreadyIn = (forPhotosetRes?.data || []) // 返回值可能是数组或 {list}
+    const ids = Array.isArray(alreadyIn)
+      ? alreadyIn.map(c => c.id)
+      : (alreadyIn.list || []).map(c => c.id)
+    selectedCollections.value = ids
+  } catch (e) {
+    console.warn('加载合集失败:', e.message)
+    collections.value = []
+  }
+}
+
+async function confirmAddToCollection() {
+  addingToCollection.value = true
+  try {
+    const photosetId = detail.value.id
+    // 计算差异：新增的 + 移除的
+    const current = await getCollectionsForPhotoset(photosetId)
+    const currentList = Array.isArray(current?.data) ? current.data : (current?.data?.list || [])
+    const currentIds = new Set(currentList.map(c => c.id))
+    const selected = new Set(selectedCollections.value)
+
+    for (const id of selected) {
+      if (!currentIds.has(id)) {
+        await addCollectionItem(id, { photoset_id: photosetId })
+      }
+    }
+    for (const id of currentIds) {
+      if (!selected.has(id)) {
+        await removeCollectionItem(id, photosetId)
+      }
+    }
+    collectionDialogVisible.value = false
+    ElMessage.success('合集已更新')
+  } catch (e) {
+    ElMessage.error('操作失败')
+  } finally {
+    addingToCollection.value = false
+  }
+}
+
+// ============ 分享 ============
+async function handleShare() {
+  shareDialogVisible.value = true
+  shareUrl.value = ''
+  try {
+    const res = await getShareLink(detail.value.id)
+    const data = res?.data || {}
+    const link = data.share_link || data.share_url || data.url || data.link
+    if (link) {
+      shareUrl.value = link.startsWith('http') ? link : `${window.location.origin}${link}`
+    } else {
+      shareUrl.value = `${window.location.origin}/share/${detail.value.id}`
+    }
+  } catch (e) {
+    // 失败时降级为普通详情链接
+    shareUrl.value = `${window.location.origin}/photoset/${detail.value.id}`
+  }
+}
+
+async function copyShareUrl() {
+  try {
+    await navigator.clipboard.writeText(shareUrl.value)
+    ElMessage.success('链接已复制')
+  } catch (e) {
+    ElMessage.warning('复制失败，请手动复制')
   }
 }
 
@@ -624,6 +773,13 @@ onUnmounted(() => {
 
   .paywall-actions .el-button {
     width: 100%;
+    }
   }
-}
+
+  /* 合集与分享 */
+  .collection-count { color: #999; font-size: 12px; }
+  .collection-options { max-height: 320px; overflow-y: auto; }
+  .share-box .share-qr { margin-top: 16px; text-align: center; color: #999; font-size: 13px; }
+  .share-box .share-qr p { margin: 0; }
+
 </style>

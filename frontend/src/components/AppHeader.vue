@@ -10,6 +10,8 @@
       <!-- 导航 -->
       <nav class="nav-links">
         <router-link to="/" class="nav-item">首页</router-link>
+        <router-link to="/community" class="nav-item">社区</router-link>
+        <router-link to="/explore" class="nav-item">发现</router-link>
         <!-- 分类平铺导航 -->
         <router-link
           v-for="cat in navCategories"
@@ -35,9 +37,13 @@
       <!-- 用户状态 -->
       <div class="user-area">
         <template v-if="userStore.isLoggedIn">
+          <!-- 通知入口（未读红点） -->
+          <el-badge :value="notificationStore.unreadCount" :hidden="!notificationStore.hasUnread" class="header-badge">
+            <el-icon class="header-icon" :size="22" @click="router.push('/notifications')"><Bell /></el-icon>
+          </el-badge>
           <el-dropdown @command="handleCommand">
             <span class="user-info">
-              <el-avatar :size="32" :src="defaultAvatar">
+              <el-avatar :size="32" :src="userStore.avatar || defaultAvatar">
                 {{ userStore.user?.nickname?.charAt(0) }}
               </el-avatar>
               <span class="username">{{ userStore.user?.nickname }}</span>
@@ -50,11 +56,26 @@
                 <el-dropdown-item command="profile">
                   <el-icon><User /></el-icon>个人中心
                 </el-dropdown-item>
-                <el-dropdown-item command="membership" v-if="userStore.isLoggedIn">
+                <el-dropdown-item command="collections">
+                  <el-icon><Folder /></el-icon>我的合集
+                </el-dropdown-item>
+                <el-dropdown-item command="history">
+                  <el-icon><Clock /></el-icon>浏览历史
+                </el-dropdown-item>
+                <el-dropdown-item command="user-level">
+                  <el-icon><Star /></el-icon>我的等级
+                </el-dropdown-item>
+                <el-dropdown-item command="creator-dashboard" divided>
+                  <el-icon><DataAnalysis /></el-icon>创作者中心
+                </el-dropdown-item>
+                <el-dropdown-item command="membership">
                   <el-icon><Medal /></el-icon>会员中心
                 </el-dropdown-item>
-                <el-dropdown-item command="orders" v-if="userStore.isLoggedIn">
+                <el-dropdown-item command="orders">
                   <el-icon><Document /></el-icon>我的订单
+                </el-dropdown-item>
+                <el-dropdown-item command="settings">
+                  <el-icon><Setting /></el-icon>账号设置
                 </el-dropdown-item>
                 <el-dropdown-item divided command="logout">
                   <el-icon><SwitchButton /></el-icon>退出登录
@@ -84,6 +105,8 @@
     <transition name="slide-down">
       <div v-if="mobileMenuVisible" class="mobile-menu-panel">
         <router-link to="/" @click="mobileMenuVisible = false">首页</router-link>
+        <router-link to="/community" @click="mobileMenuVisible = false">社区</router-link>
+        <router-link to="/explore" @click="mobileMenuVisible = false">发现</router-link>
         <!-- 移动端分类导航 -->
         <router-link
           v-for="cat in navCategories"
@@ -99,6 +122,11 @@
         </router-link>
         <template v-if="userStore.isLoggedIn">
           <a @click="router.push('/profile'); mobileMenuVisible = false">个人中心</a>
+          <a @click="router.push('/notifications'); mobileMenuVisible = false">通知中心</a>
+          <a @click="router.push('/collections'); mobileMenuVisible = false">我的合集</a>
+          <a @click="router.push('/history'); mobileMenuVisible = false">浏览历史</a>
+          <a @click="router.push('/user-level'); mobileMenuVisible = false">我的等级</a>
+          <a @click="router.push('/creator-dashboard'); mobileMenuVisible = false">创作者中心</a>
           <a v-if="!userStore.isMember" @click="router.push('/membership'); mobileMenuVisible = false">开通会员</a>
           <a @click="router.push('/orders'); mobileMenuVisible = false">我的订单</a>
           <a @click="handleCommand('logout'); mobileMenuVisible = false">退出登录</a>
@@ -113,18 +141,27 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useSiteStore } from '@/stores/site'
-import { Camera, Plus, User, SwitchButton, Menu, Close, Medal, Document } from '@element-plus/icons-vue'
+import { useNotificationStore } from '@/stores/notification'
+import {
+  Camera, Plus, User, SwitchButton, Menu, Close, Medal, Document,
+  Bell, Folder, Clock, Star, DataAnalysis, Setting
+} from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getSettings, getCategories } from '@/api'
+import {
+  connectWebSocket, disconnectWebSocket, onMessage, getWebSocketState
+} from '@/utils/websocket'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 const siteStore = useSiteStore()
+const notificationStore = useNotificationStore()
+let unsubscribes = []
 const mobileMenuVisible = ref(false)
 const defaultAvatar = ''
 const navCategories = ref([])
@@ -134,7 +171,46 @@ onMounted(() => {
   siteStore.fetchSettings()
   loadNavMenu()
   loadAllCategories()
+  if (userStore.isLoggedIn) {
+    initRealtime()
+  }
 })
+
+onUnmounted(() => {
+  unsubscribes.forEach(fn => fn())
+  unsubscribes = []
+})
+
+// 登录态变化时连接/断开 WebSocket
+watch(() => userStore.isLoggedIn, (loggedIn) => {
+  if (loggedIn) {
+    initRealtime()
+  } else {
+    disconnectWebSocket()
+    unsubscribes.forEach(fn => fn())
+    unsubscribes = []
+  }
+})
+
+function initRealtime() {
+  if (getWebSocketState() === 'open' || getWebSocketState() === 'connecting') return
+  notificationStore.fetchUnreadCount()
+
+  unsubscribes.push(onMessage('notification', (payload) => {
+    notificationStore.pushNewNotification(payload?.notification || payload || {})
+    ElMessage.info(payload?.title || '收到一条新通知')
+  }))
+  unsubscribes.push(onMessage('unread_count', (payload) => {
+    const count = payload?.unread_count ?? payload?.count
+    if (typeof count === 'number') {
+      notificationStore.unreadCount = count
+    }
+  }))
+  unsubscribes.push(onMessage('message', () => {
+    // 私信消息由聊天页自行订阅处理，这里仅可提示
+  }))
+  connectWebSocket()
+}
 
 async function loadNavMenu() {
   try {
@@ -202,6 +278,21 @@ const handleCommand = (command) => {
       break
     case 'orders':
       router.push('/orders')
+      break
+    case 'collections':
+      router.push('/collections')
+      break
+    case 'history':
+      router.push('/history')
+      break
+    case 'user-level':
+      router.push('/user-level')
+      break
+    case 'creator-dashboard':
+      router.push('/creator-dashboard')
+      break
+    case 'settings':
+      router.push('/account-security')
       break
   }
 }
@@ -286,6 +377,21 @@ const handleCommand = (command) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.header-badge {
+  display: flex;
+  align-items: center;
+}
+
+.header-icon {
+  cursor: pointer;
+  color: #606266;
+  transition: color 0.2s;
+}
+
+.header-icon:hover {
+  color: #409eff;
 }
 
 .mobile-menu {

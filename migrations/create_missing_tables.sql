@@ -1,32 +1,44 @@
--- 创建 site_settings 表
-CREATE TABLE IF NOT EXISTS site_settings (
-    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    `key` VARCHAR(100) NOT NULL,
-    value TEXT,
-    `group` VARCHAR(50) NOT NULL DEFAULT 'general',
-    UNIQUE KEY uk_key (`key`),
-    KEY idx_group (`group`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- 补齐后端代码已实现但缺少迁移脚本的表
+-- 修复：这些表缺失导致对应接口返回 500（如发帖后收藏检查 /community/posts/:id/favorite/check）
 
--- 插入默认配置
-INSERT INTO site_settings (`key`, value, `group`) VALUES
-('site_name', 'PhotoSet', 'general'),
-('site_description', '精美套图分享平台', 'general'),
-('contact_email', 'admin@photoset.com', 'general'),
-('footer_text', '© 2024 PhotoSet. All rights reserved.', 'general')
-ON DUPLICATE KEY UPDATE value = VALUES(value);
+-- 1. 帖子收藏表
+CREATE TABLE IF NOT EXISTS `post_favorites` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` bigint unsigned NOT NULL,
+  `post_id` bigint unsigned NOT NULL,
+  `created_at` datetime(3) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_user_post` (`user_id`,`post_id`),
+  KEY `idx_post_id` (`post_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='帖子收藏表';
 
--- 创建 categories 表
-CREATE TABLE IF NOT EXISTS categories (
-    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    name VARCHAR(50) NOT NULL,
-    slug VARCHAR(50) NOT NULL,
-    description VARCHAR(200) DEFAULT '',
-    sort_order INT DEFAULT 0,
-    UNIQUE KEY uk_name (name),
-    UNIQUE KEY uk_slug (slug)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- 2. 用户积分日志表
+CREATE TABLE IF NOT EXISTS `user_point_logs` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `points` int NOT NULL,
+  `action` varchar(50) NOT NULL,
+  `related_id` bigint unsigned DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户积分变动日志表';
+
+-- 3. 推送 Token 表
+CREATE TABLE IF NOT EXISTS `push_tokens` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `created_at` datetime(3) DEFAULT NULL,
+  `updated_at` datetime(3) DEFAULT NULL,
+  `deleted_at` datetime(3) DEFAULT NULL,
+  `user_id` bigint unsigned NOT NULL,
+  `token` varchar(500) NOT NULL,
+  `platform` varchar(20) NOT NULL,
+  `device_id` varchar(100) NOT NULL DEFAULT '',
+  `device_name` varchar(100) NOT NULL DEFAULT '',
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `last_used_at` datetime(3) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `token` (`token`),
+  KEY `idx_user_platform` (`user_id`,`platform`),
+  KEY `idx_deleted_at` (`deleted_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='推送Token表';

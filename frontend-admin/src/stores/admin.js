@@ -21,9 +21,15 @@ export const useAdminStore = defineStore('admin', () => {
 
   async function fetchUser() {
     const res = await getCurrentUser()
-    user.value = res.data
-    localStorage.setItem('photoset_admin_user', JSON.stringify(res.data))
-    return res.data
+    // /auth/me 使用 OptionalAuth：token 失效时返回 200 + user:null，不会抛 401
+    const profile = res.data?.user
+    if (!profile) {
+      logout()
+      throw new Error('登录已失效')
+    }
+    user.value = profile
+    localStorage.setItem('photoset_admin_user', JSON.stringify(profile))
+    return profile
   }
 
   function logout() {

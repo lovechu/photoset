@@ -31,6 +31,9 @@ npm run preview      # 预览构建结果
 - 套图列表审核
 - 通过 / 拒绝 / 删除（支持批量操作）
 - 状态筛选
+- 编辑套图（标题/封面/图片/标签/分类/收费方式/状态）
+- 回收站：恢复 / 永久删除（含批量）
+- 导出 CSV
 
 ### 用户管理 (UserManage)
 - 用户列表 + 搜索（昵称/邮箱）
@@ -51,13 +54,24 @@ npm run preview      # 预览构建结果
 ### 分类管理 (CategoryManage)
 - 分类 CRUD + 排序
 
-### 社区管理 (CommunityManage)
+### 社区管理（按独立页面拆分）
 - 帖子管理（审核/置顶/加精/删除）
 - 回帖管理（删除）
 - 敏感词管理（CRUD + 热加载）
+- 分类管理
 - 举报处理（通过/警告/忽略）
 - 用户积分管理（调整积分）
-- 社区统计面板
+- 等级 / 成就 / 积分商城 / 通知管理
+
+### 会员管理 (MembershipManage)
+- 会员套餐 CRUD（价格 / 时长 / 权益）
+
+### 开发者中心 (DeveloperCenter)
+- API Key 管理
+- API 文档 / 签名 URL 文档
+
+### OAuth 应用管理 (OAuthManage)
+- OAuth2 Client CRUD
 
 ### 站点设置 (SiteSettings)
 - **基本信息**：站点名称、描述、Logo、备案号
@@ -66,6 +80,17 @@ npm run preview      # 预览构建结果
 - **邮件设置**：SMTP 配置
 - **水印设置**：文字/图片水印
 - **存储与 CDN**：存储类型切换（本地/S3/R2）、S3 配置、CDN 域名、测试连接
+- **支付配置**：支付宝 / 微信支付连通性测试
+
+### 系统监控 (SystemMonitor / PerformanceMonitor)
+- 系统状态 / 健康检查 / 性能指标 / Goroutine 堆栈
+- CPU / Heap Profile 下载
+- 后端服务重启
+
+### 回收站 (TrashManage) / 数据备份 (DataBackup) / IP 地理位置 (IPGeoManage)
+- 软删除套图恢复 / 永久删除
+- 数据库备份的创建 / 下载 / 删除
+- IP 地理位置查询
 
 ### 页面管理 (Pages)
 - 自定义静态页面 CRUD
@@ -94,15 +119,22 @@ frontend-admin/
 │   │   ├── Login.vue           # 登录
 │   │   ├── Dashboard.vue       # 仪表盘
 │   │   ├── ContentReview.vue   # 内容审核
+│   │   ├── EditPhotoset.vue    # 编辑套图
 │   │   ├── UserManage.vue      # 用户管理
 │   │   ├── OrderManage.vue     # 订单管理
 │   │   ├── TagManage.vue       # 标签管理
 │   │   ├── CategoryManage.vue  # 分类管理
-│   │   ├── CommunityManage.vue # 社区管理
+│   │   ├── MembershipManage.vue # 会员套餐
 │   │   ├── SiteSettings.vue    # 站点设置
 │   │   ├── Pages.vue           # 页面管理
-│   │   ├── EditPhotoset.vue    # 编辑套图
-│   │   └── AdminLogs.vue       # 操作日志
+│   │   ├── DeveloperCenter.vue # 开发者中心
+│   │   ├── OAuthManage.vue     # OAuth 应用
+│   │   ├── AdminLogs.vue       # 操作日志
+│   │   ├── SystemMonitor.vue / PerformanceMonitor.vue  # 系统监控
+│   │   ├── TrashManage.vue / DataBackup.vue / IPGeoManage.vue  # 回收站/备份/IP
+│   │   ├── LevelManage.vue / AchievementManage.vue / PointsMallManage.vue / NotificationManage.vue  # 社区增强
+│   │   └── CommunityPosts.vue / CommunityReplies.vue / CommunityKeywords.vue
+│   │       / CommunityCategories.vue / CommunityReports.vue / CommunityUsers.vue  # 社区管理
 │   └── App.vue
 ├── package.json
 ├── vite.config.js
@@ -134,6 +166,17 @@ frontend-admin/
 | GET | `/admin/storage/status` | 存储状态 |
 | GET/POST/PUT/DELETE | `/admin/pages` | 页面管理 |
 | GET | `/admin/logs` | 操作日志 |
+| GET/PUT | `/photosets/:id` | 套图详情 / 编辑（管理端复用公开接口） |
+| GET | `/tags` / `/categories` | 标签 / 分类（编辑页选项） |
+| POST | `/upload/image` | 图片上传（编辑页） |
+| GET/POST/PUT/DELETE | `/admin/memberships` | 会员套餐管理 |
+| GET/POST/DELETE | `/admin/dev/api-keys` | 开发者 API Key |
+| GET | `/admin/dev/api-docs` / `/admin/dev/sign-url-docs` | API 文档 |
+| GET/POST/PUT/DELETE | `/admin/oauth/clients` | OAuth 应用管理 |
+| GET | `/admin/system/{status,health,metrics,goroutines}` | 系统监控 |
+| POST | `/admin/system/restart` | 重启服务 |
+| GET | `/admin/system/profile/{cpu,heap}` | Profile 下载 |
+| GET/POST/DELETE | `/admin/backups` | 数据备份 |
 
 ### 社区管理接口
 
@@ -154,5 +197,5 @@ frontend-admin/
 
 ---
 
-**最后更新**: 2026-05-31
-**状态**: ✅ 生产就绪
+**最后更新**: 2026-11-17
+**状态**: ✅ 生产就绪（两个前端 `npm run build` 均通过）
