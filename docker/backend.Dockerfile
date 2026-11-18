@@ -24,20 +24,24 @@ RUN if [ "$APK_MIRROR" = "auto" ]; then \
     fi && \
     apk add --no-cache git ca-certificates tzdata
 
-# Go 依赖代理：构建时自动探测，选择当前网络最快的源。
+# Go 依赖代理：构建时自动探测，选择当前网络可达的源。
 #   默认 auto：5 秒内可访问官方 proxy.golang.org 就用它（海外直连最快），
 #             否则自动回退 goproxy.cn（国内可用）。
-#   强制指定：--build-arg GOPROXY=https://goproxy.cn,direct
+#   强制指定：--build-arg GO_PROXY=https://goproxy.cn,direct
+# 注意：ARG 名不能叫 GOPROXY——ARG 会在每个 RUN 层作为环境变量注入，
+#       同名环境变量会覆盖 go env -w 的写入值，导致 go 读到字面量 "auto"。
 # 校验保持默认 sum.golang.org（goproxy.cn 会代理 sumdb），确保依赖完整性可验证。
-ARG GOPROXY=auto
-RUN if [ "$GOPROXY" = "auto" ]; then \
+ARG GO_PROXY=auto
+RUN if [ "$GO_PROXY" = "auto" ]; then \
       if wget -q -O /dev/null -T 5 -t 1 https://proxy.golang.org/github.com/gin-gonic/gin/@v/list 2>/dev/null; then \
-        GOPROXY="https://proxy.golang.org,direct"; echo ">>> Go proxy: official (proxy.golang.org)"; \
+        SELECTED="https://proxy.golang.org,direct"; echo ">>> Go proxy: official (proxy.golang.org)"; \
       else \
-        GOPROXY="https://goproxy.cn,direct"; echo ">>> Go proxy: China mirror (goproxy.cn)"; \
+        SELECTED="https://goproxy.cn,direct"; echo ">>> Go proxy: China mirror (goproxy.cn)"; \
       fi; \
+    else \
+      SELECTED="$GO_PROXY"; \
     fi; \
-    echo ">>> GOPROXY=$GOPROXY"; go env -w GOPROXY="$GOPROXY"
+    echo ">>> GOPROXY=$SELECTED"; go env -w GOPROXY="$SELECTED"
 
 # 复制 go.mod 和 go.sum 并下载依赖
 COPY go.mod go.sum ./
