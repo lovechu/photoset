@@ -70,18 +70,12 @@ function reload() {
 async function load() {
   loading.value = true
   try {
-    if (activeTab.value === 'hot') {
-      const res = await getHotPhotosets({ page: page.value, page_size: 20 })
-      const data = res?.data || {}
-      items.value = data.items || []
-      hasMore.value = false // 热门接口当前为占位实现
-    } else {
-      const res = await getExploreFeed({ page: page.value, page_size: 20 })
-      const data = res?.data || {}
-      const list = data.items || []
-      items.value = page.value === 1 ? list : [...items.value, ...list]
-      hasMore.value = !!data.has_more
-    }
+    const api = activeTab.value === 'hot' ? getHotPhotosets : getExploreFeed
+    const res = await api({ page: page.value, page_size: 20 })
+    const data = res?.data || {}
+    const list = data.items || []
+    items.value = page.value === 1 ? list : [...items.value, ...list]
+    hasMore.value = !!data.has_more
   } catch (e) {
     console.warn('加载探索内容失败:', e.message)
   } finally {
@@ -90,8 +84,10 @@ async function load() {
 }
 
 function loadMore() {
+  if (loadingMore.value) return
+  loadingMore.value = true
   page.value++
-  load()
+  load().finally(() => { loadingMore.value = false })
 }
 
 function goDetail(item) {

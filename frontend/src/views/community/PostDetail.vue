@@ -224,7 +224,8 @@ async function loadReplies() {
   try {
     const res = await getReplies(postId, { page: pagination.value.page, page_size: 20 })
     const data = res?.data || {}
-    replies.value = data.replies || []
+    const items = data.replies || []
+    replies.value = pagination.value.page === 1 ? items : [...replies.value, ...items]
     pagination.value = data.pagination || { total: 0, page: 1, page_size: 20 }
   } catch (e) {
     console.warn('加载回复失败:', e.message)
@@ -383,6 +384,7 @@ async function submitReply() {
     replyContent.value = ''
     replyImages.value = []
     post.value.reply_count = (post.value.reply_count || 0) + 1
+    pagination.value.total = (pagination.value.total || 0) + 1
     ElMessage.success('回复成功')
   } catch (e) { ElMessage.error('回复失败') }
   finally { submitting.value = false }

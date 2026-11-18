@@ -144,10 +144,9 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import { useCommunityStore } from '@/stores/community'
 import { useUserStore } from '@/stores/user'
-import { getPosts, togglePostLike } from '@/api'
+import { getPosts } from '@/api'
 import { toPlainText } from '@/utils/post'
 
 const router = useRouter()
@@ -215,8 +214,10 @@ async function loadPosts() {
 }
 
 function loadMore() {
+  if (loadingMore.value) return
+  loadingMore.value = true
   page.value++
-  loadPosts()
+  loadPosts().finally(() => { loadingMore.value = false })
 }
 
 function goPost(post) {
@@ -229,20 +230,6 @@ function goCreate() {
     return
   }
   router.push('/community/create')
-}
-
-async function toggleLike(post) {
-  if (!userStore.isLoggedIn) {
-    ElMessage.info('请先登录')
-    return
-  }
-  try {
-    await togglePostLike(post.id)
-    post.is_liked = !post.is_liked
-    post.like_count = (post.like_count || 0) + (post.is_liked ? 1 : -1)
-  } catch (e) {
-    ElMessage.error('操作失败')
-  }
 }
 
 function plainText(content, len = 180) {

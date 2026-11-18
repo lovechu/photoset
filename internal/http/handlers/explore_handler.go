@@ -85,23 +85,31 @@ func (h *ExploreHandler) GetExploreFeed(c *gin.Context) {
 func (h *ExploreHandler) GetHotPhotosets(c *gin.Context) {
 	page := 1
 	pageSize := 20
-	
+
 	if p := c.Query("page"); p != "" {
 		fmt.Sscanf(p, "%d", &page)
 	}
 	if ps := c.Query("page_size"); ps != "" {
 		fmt.Sscanf(ps, "%d", &pageSize)
 	}
-
+	if page < 1 {
+		page = 1
+	}
 	if pageSize > 50 {
 		pageSize = 50
 	}
 
+	feed, err := h.exploreService.GetHotPhotosets(page, pageSize)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code":    500,
+			"message": "获取热门套图失败",
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"code": 0,
-		"data": gin.H{
-			"page": page,
-			"page_size": pageSize,
-		},
+		"data": feed,
 	})
 }

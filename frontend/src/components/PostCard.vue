@@ -1,5 +1,6 @@
 <template>
   <article class="post-card" @click="goDetail">
+    <span v-if="rank" class="rank-badge" :class="{ top3: rank <= 3 }">{{ rank }}</span>
     <div class="topic-main">
       <div class="topic-tags" v-if="post.category || post.topics?.length || post.tags?.length || post.is_pinned || post.is_essence">
         <span v-if="post.category" :class="['tlabel', tagColor(post.category)]">{{ post.category }}</span>
@@ -69,7 +70,8 @@ import { togglePostLike, recordShare } from '@/api'
 import { useUserStore } from '@/stores/user'
 
 const props = defineProps({
-  post: { type: Object, required: true }
+  post: { type: Object, required: true },
+  rank: { type: Number, default: 0 }
 })
 const emit = defineEmits(['like'])
 
@@ -165,6 +167,12 @@ function avatarColor(name) {
   line-height: 1.5;
 }
 .post-card:hover { background: #f8fafc; border-color: #cdd5e0; }
+.rank-badge {
+  flex-shrink: 0; width: 24px; height: 24px; border-radius: 4px;
+  background: #eef1f5; color: #6b7280; font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.rank-badge.top3 { background: #f5a623; color: #fff; }
 .topic-main { flex: 1; min-width: 0; }
 .topic-tags { display: flex; gap: 5px; margin-bottom: 5px; flex-wrap: wrap; }
 .tlabel { padding: 1px 7px; border-radius: 3px; font-size: 10px; font-weight: 700; color: #fff; cursor: default; }
