@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"photoset/internal/database"
@@ -121,6 +122,13 @@ func ImagePaidStatus(imageURL string) (isPaid bool, exists bool, err error) {
 			return false, false, fmt.Errorf("查询封面存在性失败: %w", err)
 		}
 		if coverCount == 0 {
+			// 社区帖子/回复正文里引用的图片（App 发帖把图片裸 URL 放进 content）
+			// 属于公开内容，不绑定任何付费套图，应放行显示。
+			// 若走到这里仍未命中 photos / cover，再查是否被社区内容引用。
+			if isCommunityImage(imageURL) {
+				_ = cache.Set(ctx, key, "0", PaidStatusTTL)
+				return false, true, nil
+			}
 			_ = cache.Set(ctx, key, "missing", PaidStatusTTL)
 			return false, false, nil
 		}
@@ -140,6 +148,35 @@ func ImagePaidStatus(imageURL string) (isPaid bool, exists bool, err error) {
 	}
 	_ = cache.Set(ctx, key, val, PaidStatusTTL)
 	return isPaid, true, nil
+}
+
+// isCommunityImage 判断图片 URL 是否被社区帖子/回复正文引用。
+// App 发帖把上传后的图片裸 URL 直接写入 content（如 https://域名/uploads/photos/...），
+// 这些图片不绑定任何套图，属于公开社区内容，必须放行，否则会被付费签名策略误杀返回 403。
+// 调用方已做 30 分钟缓存，这里的两条 LIKE 查询只在缓存 miss 且非套图图片时执行。
+func isCommunityImage(imageURL string) bool {
+	if imageURL == "" {
+		return false
+	}
+	// 兼容绝对 URL 与相对路径两种存储形式
+	needles := []string{imageURL}
+	if idx := strings.Index(imageURL, "/uploads/"); idx >= 0 {
+		needles = append(needles, imageURL[idx:])
+	}
+
+	db := database.GetMySQL()
+	for _, needle := range needles {
+		for _, table := range []string{"posts", "post_replies"} {
+			var count int64
+			if err := db.Table(table).
+				Where("content LIKE ?", "%"+needle+"%").
+				Limit(1).
+				Count(&count).Error; err == nil && count > 0 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // SetPaidStatus 主动写入付费状态缓存（套图改价/创建时调用）
