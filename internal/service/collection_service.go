@@ -86,13 +86,17 @@ func (s *CollectionService) DeleteCollection(userID, collectionID uint) error {
 }
 
 // GetCollection 获取合集详情
-func (s *CollectionService) GetCollection(collectionID uint) (*domain.UserCollection, error) {
+// viewerID 为当前登录用户；私有合集仅本人可见，公开合集所有人可见。
+func (s *CollectionService) GetCollection(viewerID, collectionID uint) (*domain.UserCollection, error) {
 	collection, err := s.repo.GetByID(collectionID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("合集不存在")
 		}
 		return nil, err
+	}
+	if !collection.IsPublic && collection.UserID != viewerID {
+		return nil, errors.New("无权查看此合集")
 	}
 	return collection, nil
 }

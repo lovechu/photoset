@@ -55,6 +55,23 @@ export function toPlainText(content, maxLen = 200) {
   return text
 }
 
+// 转义 HTML 属性中的特殊字符，防止 Markdown alt/url 注入事件处理器
+function escapeAttr(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+// 仅允许安全的图片协议（http/https 或相对路径），阻断 javascript: 等伪协议
+function safeImageUrl(url) {
+  const u = String(url).trim()
+  if (/^(https?:\/\/|\/|\.\/|\.\.\/)/i.test(u)) return u
+  return ''
+}
+
 // 把内容里的图片/视频标记渲染为简单可点击的 HTML（用于详情页）
 export function renderContent(content) {
   if (!content || typeof content !== 'string') return ''
@@ -62,9 +79,14 @@ export function renderContent(content) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    // Markdown 图片 -> img
-    .replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (_, alt, url) =>
-      `<img src="${url}" alt="${alt}" class="post-content-img" />`)
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    // Markdown 图片 -> img（alt/url 已转义，url 经协议白名单校验）
+    .replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (_, alt, url) => {
+      const safeUrl = safeImageUrl(url)
+      if (!safeUrl) return ''
+      return `<img src="${escapeAttr(safeUrl)}" alt="${escapeAttr(alt)}" class="post-content-img" />`
+    })
     // 换行 -> br
     .replace(/\n/g, '<br/>')
   return html

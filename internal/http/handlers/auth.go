@@ -78,7 +78,12 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	user, err := h.userService.Register(req.Nickname, req.Email, req.Password)
 	if err != nil {
 		logger.Warn("User registration failed", "email", req.Email, "error", err)
-		response.ServerError(c, err.Error())
+		// 统一文案，避免通过错误差异枚举已注册邮箱
+		if strings.Contains(err.Error(), "already exists") || strings.Contains(err.Error(), "已存在") {
+			response.BadRequest(c, "注册失败，请检查填写信息")
+			return
+		}
+		response.ServerError(c, "注册失败，请稍后重试")
 		return
 	}
 
@@ -100,17 +105,17 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	response.Success(c, gin.H{
 		"user": gin.H{
-			"id":              user.ID,
-			"nickname":        user.Nickname,
-			"email":           user.Email,
-			"avatar":          user.Avatar,
-			"bio":             user.Bio,
-			"ip_location":     user.IPLocation,
-			"city_location":   cityLocation,
-			"level":           user.Level,
-			"exp":             user.Exp,
-			"role":            user.Role,
-			"created_at":      user.CreatedAt,
+			"id":            user.ID,
+			"nickname":      user.Nickname,
+			"email":         user.Email,
+			"avatar":        user.Avatar,
+			"bio":           user.Bio,
+			"ip_location":   user.IPLocation,
+			"city_location": cityLocation,
+			"level":         user.Level,
+			"exp":           user.Exp,
+			"role":          user.Role,
+			"created_at":    user.CreatedAt,
 		},
 	})
 }
@@ -142,7 +147,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	user, err := h.userService.Login(req.Email, req.Password)
 	if err != nil {
 		logger.Warn("User login failed", "email", req.Email, "error", err)
-		response.ServerError(c, err.Error())
+		// 统一文案：无论邮箱不存在、密码错误还是账号禁用，都返回相同提示，
+		// 防止攻击者据此枚举账号状态。
+		response.BadRequest(c, "邮箱或密码错误")
 		return
 	}
 
@@ -329,11 +336,11 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	}
 
 	var req struct {
-		Nickname    string `json:"nickname"`
-		Bio         string `json:"bio"`
-		Avatar      string `json:"avatar"`
-		CoverImage  string `json:"cover_image"`
-		IPLocation  string `json:"ip_location"`
+		Nickname   string `json:"nickname"`
+		Bio        string `json:"bio"`
+		Avatar     string `json:"avatar"`
+		CoverImage string `json:"cover_image"`
+		IPLocation string `json:"ip_location"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, http.StatusBadRequest, "参数错误")
@@ -355,23 +362,23 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 
 	response.Success(c, gin.H{
 		"user": gin.H{
-			"id":         user.ID,
-			"nickname":   user.Nickname,
-			"email":      user.Email,
-			"avatar":     user.Avatar,
-			"cover_image": user.CoverImage,
-			"bio":        user.Bio,
-			"ip_location": user.IPLocation,
-			"level":      user.Level,
-			"exp":        user.Exp,
-			"circle_count": user.CircleCount,
+			"id":              user.ID,
+			"nickname":        user.Nickname,
+			"email":           user.Email,
+			"avatar":          user.Avatar,
+			"cover_image":     user.CoverImage,
+			"bio":             user.Bio,
+			"ip_location":     user.IPLocation,
+			"level":           user.Level,
+			"exp":             user.Exp,
+			"circle_count":    user.CircleCount,
 			"following_count": user.FollowingCount,
-			"follower_count": user.FollowerCount,
-			"like_count": user.LikeCount,
-			"role":       user.Role,
-			"status":     user.Status,
-			"created_at": user.CreatedAt,
-			"updated_at": user.UpdatedAt,
+			"follower_count":  user.FollowerCount,
+			"like_count":      user.LikeCount,
+			"role":            user.Role,
+			"status":          user.Status,
+			"created_at":      user.CreatedAt,
+			"updated_at":      user.UpdatedAt,
 		},
 	})
 }
@@ -406,13 +413,9 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 	// 生成重置 token
 	token, err := h.userService.RequestPasswordReset(req.Email)
 	if err != nil {
-		// 不暴露具体原因（防止用户枚举）
-		// 但如果是"未注册"的错误还是要告知
-		if strings.Contains(err.Error(), "未注册") || strings.Contains(err.Error(), "禁用") {
-			response.Error(c, http.StatusBadRequest, err.Error())
-			return
-		}
-		response.Error(c, http.StatusInternalServerError, "发送重置邮件失败，请稍后重试")
+		// 无论邮箱是否注册/账号是否禁用，统一返回相同提示，防止账号枚举。
+		logger.Warn("password reset request rejected", "error", err.Error())
+		response.Success(c, gin.H{"message": "如果该邮箱已注册，重置链接已发送，请查收"})
 		return
 	}
 
@@ -422,13 +425,13 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 		siteName = "PhotoSet"
 	}
 
-	// 构建重置 URL
+	// 构建重置 URL：只使用服务端配置的 site_url，绝不使用客户端 Origin 头，
+	// 否则攻击者可伪造 Origin 让重置链接（含 token）指向自己的服务器导致账户接管。
 	siteURL := settings["site_url"]
 	if siteURL == "" {
-		siteURL = c.Request.Header.Get("Origin")
-	}
-	if siteURL == "" {
-		siteURL = "http://localhost:3000"
+		logger.Error("site_url not configured, refuse to send password reset email")
+		response.Error(c, http.StatusInternalServerError, "站点地址未配置，请联系管理员")
+		return
 	}
 	// 去掉末尾的斜杠
 	siteURL = strings.TrimRight(siteURL, "/")
@@ -584,8 +587,8 @@ func (h *AuthHandler) BindEmail(c *gin.Context) {
 	}
 
 	var req struct {
-		Email   string `json:"email" binding:"required,email"`
-		Code    string `json:"code" binding:"required"`
+		Email string `json:"email" binding:"required,email"`
+		Code  string `json:"code" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "参数错误："+err.Error())

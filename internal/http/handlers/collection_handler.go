@@ -131,9 +131,18 @@ func (h *CollectionHandler) Get(c *gin.Context) {
 		return
 	}
 
-	collection, err := h.service.GetCollection(uint(collectionID))
+	userIDVal, exists := c.Get("user_id")
+	if !exists {
+		response.Error(c, http.StatusUnauthorized, "请先登录")
+		return
+	}
+	collection, err := h.service.GetCollection(userIDVal.(uint), uint(collectionID))
 	if err != nil {
-		response.Error(c, http.StatusNotFound, err.Error())
+		status := http.StatusNotFound
+		if err.Error() == "无权查看此合集" {
+			status = http.StatusForbidden
+		}
+		response.Error(c, status, err.Error())
 		return
 	}
 	response.Success(c, collection)

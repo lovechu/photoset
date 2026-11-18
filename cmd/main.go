@@ -15,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 
 	_ "photoset/docs" // Swagger docs
 )
@@ -275,22 +276,35 @@ func ensureSecrets(cfg *config.Config) {
 	db := database.GetMySQL()
 
 	ensureOne := func(envKey, settingKey, label string, target *string) {
-		// 第 1 级：环境变量已设置（config.Load 已读入），直接用
+		// 第 1 级：环境变量已设置（config.Load 已读入），但先排除公开已知的弱默认值
 		if *target != "" {
-			logger.Info("Secret loaded from environment variable", "key", envKey)
-			return
+			if isWeakSecret(*target) {
+				logger.Warn("Weak or known default secret detected in environment, ignoring and regenerating; "+
+					"if this is a production rotation, set JWT_PREVIOUS_SECRET to the old key to keep existing sessions valid",
+					"key", envKey, "label", label)
+				*target = ""
+			} else {
+				logger.Info("Secret loaded from environment variable", "key", envKey)
+				return
+			}
 		}
 		// 第 2 级：从 site_settings 表加载（之前部署自动生成并持久化的值）
 		if v, ok := getSetting(db, settingKey); ok {
-			*target = v
-			logger.Info("Secret loaded from site_settings", "key", settingKey)
-			return
+			if isWeakSecret(v) {
+				logger.Warn("Weak or known default secret detected in site_settings, ignoring and regenerating; "+
+					"set JWT_PREVIOUS_SECRET to the old key if existing sessions must survive",
+					"key", settingKey, "label", label)
+			} else {
+				*target = v
+				logger.Info("Secret loaded from site_settings", "key", settingKey)
+				return
+			}
 		}
-		// 第 3 级：首次部署，自动生成并写入 DB
+		// 第 3 级：首次部署，或检测到弱值时，自动生成并写入 DB
 		secret := generateSecret()
 		setSetting(db, settingKey, secret)
 		*target = secret
-		logger.Info("Secret auto-generated and persisted to site_settings", "key", settingKey)
+		logger.Info("Secret auto-generated and persisted to site_settings", "key", settingKey, "label", label)
 	}
 
 	ensureOne("JWT_SECRET", "jwt_secret", "JWT", &cfg.JWT.Secret)
@@ -303,6 +317,27 @@ func ensureSecrets(cfg *config.Config) {
 	if cfg.Storage.SignSecret == "" {
 		log.Fatal("FATAL: failed to initialize SIGN_SECRET")
 	}
+}
+
+// knownWeakSecrets 是历史上出现在 .env / 文档 / 脚本中的公开弱默认值。
+// 命中这些值的密钥一旦用于 JWT 签名，攻击者可离线伪造任意身份（含 admin）的令牌，
+// 因此启动时必须强制丢弃并重新生成，不能因为"环境变量已设置"就信任。
+var knownWeakSecrets = map[string]struct{}{
+	"jwtSecretKey123456789012345678901234567890": {},
+	"urlSignSecret123456789012345678901234567":   {},
+	"photoSetSecretKey1234567890123456":          {},
+	"photoset-share-secret-2024":                 {},
+}
+
+// isWeakSecret 判断密钥是否为公开已知弱默认值或长度过短。
+// 自动生成的值为 32 字节 hex（64 字符），这里用 32 作为下限，
+// 既能挡住弱值，也不会误伤正常部署注入的强随机值。
+func isWeakSecret(s string) bool {
+	if len(s) < 32 {
+		return true
+	}
+	_, known := knownWeakSecrets[s]
+	return known
 }
 
 // generateSecret 使用 crypto/rand 生成 256bit 随机密钥（64 字符 hex）
@@ -333,10 +368,16 @@ func getSetting(db *gorm.DB, key string) (string, bool) {
 // setSetting 将密钥写入 site_settings 表（INSERT 或 UPDATE）
 // 使用原生 SQL 的 ON DUPLICATE KEY UPDATE，避免 key 是 MySQL 保留字导致的语法错误
 // 写入失败直接 fatal，因为这意味着后续 JWT 签发/验签会失败，无法安全运行
+//
+// 安全要点：value 是 JWT/Sign 密钥明文，绝不能进入日志。
+// GORM 在 debug 模式（logger.Info）会把带参数的 SQL 整条打印，
+// 在 release 模式写入失败时错误日志同样会带出 SQL。
+// 因此这里用 Session 将该操作的 logger 强制降为 Silent。
 func setSetting(db *gorm.DB, key, value string) {
 	sql := "INSERT INTO site_settings (`key`, `value`, `group`, created_at, updated_at) VALUES (?, ?, 'system', NOW(), NOW()) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = NOW()"
-	if err := db.Exec(sql, key, value).Error; err != nil {
+	silentDB := db.Session(&gorm.Session{Logger: gormlogger.Default.LogMode(gormlogger.Silent)})
+	if err := silentDB.Exec(sql, key, value).Error; err != nil {
+		// 只记录 key 名与错误，不打印 value，也不打印可能被 GORM 拼进错误里的 SQL
 		log.Fatalf("FATAL: failed to persist secret to site_settings (key=%s): %v", key, err)
 	}
 }
-

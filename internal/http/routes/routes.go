@@ -29,6 +29,7 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	healthHandler := handlers.NewHealthHandler()
 	performanceHandler := handlers.NewPerformanceHandler()
 
+	r.Use(middleware.SecurityHeaders())
 	r.Use(middleware.CORS())
 	r.Use(middleware.RequestID())
 	r.Use(middleware.Metrics()) // 性能指标追踪
@@ -42,8 +43,10 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	r.GET("/api/health", healthHandler.Check)
 	r.GET("/api/v1/health", healthHandler.Check) // 兼容新版本
 
-	// Swagger API 文档
-	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	// Swagger API 文档：生产环境关闭，避免泄露全部 API 结构
+	if cfg.Server.Mode != "release" && cfg.Server.Mode != "production" {
+		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	}
 
 	// 初始化服务和处理器
 	userRepo := repository.NewUserRepository()
@@ -165,7 +168,7 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	pushTokenRepo := repository.NewPushTokenRepository(database.GetMySQL())
 	pushNotificationService := service.NewPushNotificationService(pushTokenRepo)
 	pushNotificationHandler := handlers.NewPushNotificationHandler(pushNotificationService)
-	
+
 	// 将推送服务注入到通知服务中
 	notificationService.SetPushService(pushNotificationService)
 
@@ -193,20 +196,20 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 		logger.Warn("敏感词库加载失败，内容过滤可能不可用", "error", err)
 	}
 
-// 用户拉黑/屏蔽功能
-blockRepo := repository.NewUserBlockRepository(database.GetMySQL())
-blockService := service.NewUserBlockService(blockRepo)
-blockHandler := handlers.NewUserBlockHandler(blockService)
+	// 用户拉黑/屏蔽功能
+	blockRepo := repository.NewUserBlockRepository(database.GetMySQL())
+	blockService := service.NewUserBlockService(blockRepo)
+	blockHandler := handlers.NewUserBlockHandler(blockService)
 
-// 用户隐私设置功能
-privacyRepo := repository.NewUserPrivacyRepository(database.GetMySQL())
-privacyService := service.NewUserPrivacyService(privacyRepo)
-privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
+	// 用户隐私设置功能
+	privacyRepo := repository.NewUserPrivacyRepository(database.GetMySQL())
+	privacyService := service.NewUserPrivacyService(privacyRepo)
+	privacyHandler := handlers.NewUserPrivacyHandler(privacyService)
 
-// 浏览历史功能
-viewHistoryRepo := repository.NewViewHistoryRepository(database.GetMySQL())
-viewHistoryService := service.NewViewHistoryService(viewHistoryRepo)
-viewHistoryHandler := handlers.NewViewHistoryHandler(viewHistoryService)
+	// 浏览历史功能
+	viewHistoryRepo := repository.NewViewHistoryRepository(database.GetMySQL())
+	viewHistoryService := service.NewViewHistoryService(viewHistoryRepo)
+	viewHistoryHandler := handlers.NewViewHistoryHandler(viewHistoryService)
 
 	// 账号注销功能
 	accountDeletionService := service.NewAccountDeletionService()
@@ -231,7 +234,7 @@ viewHistoryHandler := handlers.NewViewHistoryHandler(viewHistoryService)
 	reviewService := service.NewReviewService(reviewRepo, photosetRepo)
 	reviewHandler := handlers.NewReviewHandler(reviewService)
 
-// OAuth2 第三方登录授权系统
+	// OAuth2 第三方登录授权系统
 	oauthClientRepo := repository.NewOAuthClientRepository()
 	oauthAuthorizationRepo := repository.NewOAuthAuthorizationRepository()
 	oauthTokenRepo := repository.NewOAuthTokenRepository()
@@ -304,8 +307,8 @@ viewHistoryHandler := handlers.NewViewHistoryHandler(viewHistoryService)
 			auth.POST("/reset-password", authHandler.ResetPasswordByToken)
 			auth.GET("/email-config", authHandler.CheckEmailConfig)
 			// 邮箱验证码和绑定邮箱
-			auth.POST("/send-email-code", authHandler.SendEmailCode)
-			auth.POST("/verify-email-code", authHandler.VerifyEmailCode)
+			auth.POST("/send-email-code", middleware.EmailCodeRateLimit(), authHandler.SendEmailCode)
+			auth.POST("/verify-email-code", middleware.VerifyEmailCodeRateLimit(), authHandler.VerifyEmailCode)
 			auth.PUT("/bind-email", middleware.Auth(), authHandler.BindEmail)
 			// 账号注销
 			auth.POST("/request-deletion", middleware.Auth(), accountDeletionHandler.RequestDeletion)
@@ -633,8 +636,8 @@ viewHistoryHandler := handlers.NewViewHistoryHandler(viewHistoryService)
 			v1Auth.POST("/reset-password", authHandler.ResetPasswordByToken)
 			v1Auth.GET("/email-config", authHandler.CheckEmailConfig)
 			// 邮箱验证码和绑定邮箱
-			v1Auth.POST("/send-email-code", authHandler.SendEmailCode)
-			v1Auth.POST("/verify-email-code", authHandler.VerifyEmailCode)
+			v1Auth.POST("/send-email-code", middleware.EmailCodeRateLimit(), authHandler.SendEmailCode)
+			v1Auth.POST("/verify-email-code", middleware.VerifyEmailCodeRateLimit(), authHandler.VerifyEmailCode)
 			v1Auth.PUT("/bind-email", middleware.Auth(), authHandler.BindEmail)
 			// 账号注销
 			v1Auth.POST("/request-deletion", middleware.Auth(), accountDeletionHandler.RequestDeletion)

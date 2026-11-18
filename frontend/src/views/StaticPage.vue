@@ -22,6 +22,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { marked } from 'marked'
 import { getPageBySlug } from '@/api/pages'
+import { sanitizeHtml } from '@/utils/sanitize'
 
 const route = useRoute()
 const pageSlug = computed(() => route.params.pageType || 'about')
@@ -40,11 +41,13 @@ const fetchPage = async (slug) => {
     
     if (rawContent && rawContent.trim()) {
       // 如果内容是 Markdown，转换为 HTML
+      let html
       if (rawContent.includes('#') || rawContent.includes('```') || rawContent.includes('- ')) {
-        contentHtml.value = marked.parse(rawContent)
+        html = marked.parse(rawContent)
       } else {
-        contentHtml.value = rawContent
+        html = rawContent
       }
+      contentHtml.value = sanitizeHtml(html)
     } else {
       contentHtml.value = ''
     }

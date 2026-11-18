@@ -105,6 +105,23 @@ func (h *OAuthHandler) AuthorizeConfirm(c *gin.Context) {
 		return
 	}
 
+	// 校验 redirect_uri 必须在该 client 注册的白名单中（与 GET /authorize 一致）。
+	// 缺失此校验会导致开放重定向，授权码被发送到攻击者控制的地址。
+	client, err := h.oauthService.GetClientByClientID(req.ClientID)
+	if err != nil {
+		response.BadRequest(c, "invalid client_id")
+		return
+	}
+	var redirectURIs []string
+	if err := json.Unmarshal([]byte(client.RedirectURIs), &redirectURIs); err != nil {
+		response.ServerError(c, "invalid redirect_uris format")
+		return
+	}
+	if !containsString(redirectURIs, req.RedirectURI) {
+		response.BadRequest(c, "invalid redirect_uri")
+		return
+	}
+
 	// 如果用户拒绝授权
 	if !req.Approved {
 		// 重定向回客户端，带错误参数

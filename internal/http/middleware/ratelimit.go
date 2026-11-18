@@ -68,3 +68,15 @@ func RestartRateLimit() gin.HandlerFunc {
 func ForgotPasswordRateLimit() gin.HandlerFunc {
 	return RateLimit(5, 1*time.Hour)
 }
+
+// EmailCodeRateLimit 邮件验证码发送限流：同一 IP 每小时最多 10 次
+// 防止攻击者轮换邮箱对 SMTP 进行邮件轰炸
+func EmailCodeRateLimit() gin.HandlerFunc {
+	return RateLimit(10, 1*time.Hour)
+}
+
+// VerifyEmailCodeRateLimit 邮箱验证码校验限流：同一 IP 每分钟最多 20 次
+// 防止暴力猜测 6 位验证码
+func VerifyEmailCodeRateLimit() gin.HandlerFunc {
+	return RateLimit(20, 1*time.Minute)
+}

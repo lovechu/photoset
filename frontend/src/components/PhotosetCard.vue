@@ -128,12 +128,24 @@ const descriptionHighlighted = computed(() => {
   return highlightText(props.data.description, keyword)
 })
 
-// 高亮文本函数
+// HTML 实体转义，防止 API 返回的文本通过 v-html 注入脚本
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+// 高亮文本函数：先整体转义，再基于转义后的文本做匹配，避免注入
 function highlightText(text, keyword) {
-  if (!text || !keyword) return text
-  
-  const regex = new RegExp(`(${escapeRegExp(keyword)})`, 'gi')
-  return text.replace(regex, '<span class="highlight">$1</span>')
+  if (!text || !keyword) return escapeHtml(text)
+  const safeText = escapeHtml(text)
+  const safeKeyword = escapeHtml(keyword.trim())
+  if (!safeKeyword) return safeText
+  const regex = new RegExp(`(${escapeRegExp(safeKeyword)})`, 'gi')
+  return safeText.replace(regex, '<span class="highlight">$1</span>')
 }
 
 // 转义正则表达式特殊字符

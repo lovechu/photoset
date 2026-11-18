@@ -100,10 +100,12 @@ func (s *LocalStorage) Delete(url string) error {
 	relPath = strings.TrimPrefix(relPath, "/uploads")
 	fullPath := filepath.Join(s.UploadDir, relPath)
 
-	// 安全检查：确保路径在 UploadDir 内
+	// 安全检查：确保路径在 UploadDir 内（使用 Rel 做边界判断，
+	// 避免 HasPrefix 把 /uploads_backup 这类同前缀兄弟目录误判为合法）
 	absUploadDir, _ := filepath.Abs(s.UploadDir)
 	absFullPath, _ := filepath.Abs(fullPath)
-	if !strings.HasPrefix(absFullPath, absUploadDir) {
+	rel, relErr := filepath.Rel(absUploadDir, absFullPath)
+	if relErr != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
 		return fmt.Errorf("路径越界: %s", url)
 	}
 

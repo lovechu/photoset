@@ -145,15 +145,13 @@ func (h *CommunityHandler) GetPostDetail(c *gin.Context) {
 		return
 	}
 
-	// Check visibility permission
+	// Check visibility / status permission
 	userRole, _ := middleware.GetUserRole(c)
-	if !h.canViewPost(post, userRole) {
+	userID, _ := middleware.GetUserID(c)
+	if !h.canViewPost(post, userRole, userID) {
 		response.Forbidden(c, "permission denied to view this post")
 		return
 	}
-
-	// Get user info for is_liked check
-	userID, _ := middleware.GetUserID(c)
 
 	response.Success(c, gin.H{"post": h.postToResponse(*post, userID)})
 }
@@ -659,6 +657,19 @@ func (h *CommunityHandler) GetReplies(c *gin.Context) {
 		return
 	}
 
+	// 校验父帖存在且当前用户可见（防止绕过审核状态/可见性读取回复）
+	parentPost, err := h.communityService.GetPostDetail(uint(postID))
+	if err != nil {
+		response.NotFound(c, "post not found")
+		return
+	}
+	parentRole, _ := middleware.GetUserRole(c)
+	parentUserID, _ := middleware.GetUserID(c)
+	if !h.canViewPost(parentPost, parentRole, parentUserID) {
+		response.Forbidden(c, "permission denied to view this post")
+		return
+	}
+
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 
@@ -726,27 +737,27 @@ func (h *CommunityHandler) postToResponse(post domain.Post, userID uint) gin.H {
 	}
 
 	return gin.H{
-		"id":                post.ID,
-		"title":             post.Title,
-		"content":           post.Content,
-		"category":          post.Category,
-		"post_type":         post.PostType,
-		"author_id":         post.UserID,
-		"author_name":       authorName,
-		"author_avatar":     authorAvatar,
+		"id":                 post.ID,
+		"title":              post.Title,
+		"content":            post.Content,
+		"category":           post.Category,
+		"post_type":          post.PostType,
+		"author_id":          post.UserID,
+		"author_name":        authorName,
+		"author_avatar":      authorAvatar,
 		"author_ip_location": authorIPLocation,
-		"reply_count":       post.ReplyCount,
-		"like_count":        post.LikeCount,
-		"share_count":       post.ShareCount,
-		"view_count":        post.ViewCount,
-		"is_pinned":         post.IsPinned,
-		"is_essence":        post.IsEssence,
-		"is_liked":          isLiked,
-		"is_following":      isFollowing,
-		"status":            post.Status,
-		"created_at":        post.CreatedAt,
-		"tags":              tags,
-		"topics":            topics,
+		"reply_count":        post.ReplyCount,
+		"like_count":         post.LikeCount,
+		"share_count":        post.ShareCount,
+		"view_count":         post.ViewCount,
+		"is_pinned":          post.IsPinned,
+		"is_essence":         post.IsEssence,
+		"is_liked":           isLiked,
+		"is_following":       isFollowing,
+		"status":             post.Status,
+		"created_at":         post.CreatedAt,
+		"tags":               tags,
+		"topics":             topics,
 	}
 }
 
@@ -759,9 +770,22 @@ func (h *CommunityHandler) postsToResponseList(posts []domain.Post, userID uint)
 	return result
 }
 
-// canViewPost checks if user can view the post based on visibility
-func (h *CommunityHandler) canViewPost(post *domain.Post, userRole string) bool {
-	if post.Visibility == "public" {
+// canViewPost checks if user can view the post based on status + visibility.
+// 状态规则：approved 对外可见；pending/rejected/其他状态仅作者本人和管理员可见。
+func (h *CommunityHandler) canViewPost(post *domain.Post, userRole string, userID uint) bool {
+	if post == nil {
+		return false
+	}
+	isOwner := userID > 0 && userID == post.UserID
+	isAdmin := userRole == "admin"
+
+	// 状态校验：未审核通过的帖子只有作者和管理员能看
+	if post.Status != "" && post.Status != "approved" {
+		return isOwner || isAdmin
+	}
+
+	// 可见性校验
+	if post.Visibility == "public" || post.Visibility == "" {
 		return true
 	}
 
@@ -1559,12 +1583,12 @@ func (h *CommunityHandler) GetHotTopics(c *gin.Context) {
 	result := make([]gin.H, len(topics))
 	for i, topic := range topics {
 		result[i] = gin.H{
-			"id":         topic.ID,
-			"name":       topic.Name,
-			"cover":      topic.Cover,
+			"id":          topic.ID,
+			"name":        topic.Name,
+			"cover":       topic.Cover,
 			"description": topic.Description,
-			"post_count": topic.PostCount,
-			"is_hot":     topic.IsHot,
+			"post_count":  topic.PostCount,
+			"is_hot":      topic.IsHot,
 		}
 	}
 
@@ -1600,12 +1624,12 @@ func (h *CommunityHandler) SearchTopics(c *gin.Context) {
 	result := make([]gin.H, len(topics))
 	for i, topic := range topics {
 		result[i] = gin.H{
-			"id":         topic.ID,
-			"name":       topic.Name,
-			"cover":      topic.Cover,
+			"id":          topic.ID,
+			"name":        topic.Name,
+			"cover":       topic.Cover,
 			"description": topic.Description,
-			"post_count": topic.PostCount,
-			"is_hot":     topic.IsHot,
+			"post_count":  topic.PostCount,
+			"is_hot":      topic.IsHot,
 		}
 	}
 
@@ -1754,11 +1778,11 @@ func (h *CommunityHandler) GetUserInterestProfile(c *gin.Context) {
 	topicResult := make([]gin.H, len(topics))
 	for i, topic := range topics {
 		topicResult[i] = gin.H{
-			"id":         topic.ID,
-			"name":       topic.Name,
-			"cover":      topic.Cover,
+			"id":          topic.ID,
+			"name":        topic.Name,
+			"cover":       topic.Cover,
 			"description": topic.Description,
-			"post_count": topic.PostCount,
+			"post_count":  topic.PostCount,
 		}
 	}
 

@@ -21,23 +21,44 @@ func NewPhotoSetHandler(service *service.PhotoSetService) *PhotoSetHandler {
 	return &PhotoSetHandler{service: service}
 }
 
+// restrictNonPublicStatus 限制非公开状态的查询范围，防止越权枚举未发布套图。
+// 规则：只有 admin 可查看任意用户的 draft/pending/rejected；
+// 其他用户请求非 published 状态时，强制限定为"仅自己的作品"；
+// 未登录游客一律重置为 published。
+// 返回处理后的 (status, onlyMine, filterUserID)。
+func restrictNonPublicStatus(status string, userID uint, role string, onlyMine bool, filterUserID uint) (string, bool, uint) {
+	if status == "" || status == "published" {
+		return status, onlyMine, filterUserID
+	}
+	// 非 published 状态
+	if role == "admin" {
+		return status, onlyMine, filterUserID
+	}
+	if userID == 0 {
+		// 游客不能看任何未发布内容
+		return "published", false, 0
+	}
+	// 登录用户：强制仅自己的，忽略传入的 user_id，防止窥探他人
+	return status, true, 0
+}
+
 // ListRequest 套图列表请求
 type ListRequest struct {
-	Page      int     `form:"page" binding:"min=1"`
-	PageSize  int     `form:"page_size" binding:"min=1,max=100"`
-	Tag       string  `form:"tag"`
-	Mine      bool    `form:"mine"`
-	Keyword   string  `form:"keyword"`
-	Status    string  `form:"status"` // draft/published/pending，空默认 published
-	
+	Page     int    `form:"page" binding:"min=1"`
+	PageSize int    `form:"page_size" binding:"min=1,max=100"`
+	Tag      string `form:"tag"`
+	Mine     bool   `form:"mine"`
+	Keyword  string `form:"keyword"`
+	Status   string `form:"status"` // draft/published/pending，空默认 published
+
 	// 高级筛选参数
-	Category   string   `form:"category"`
-	PriceMin   float64  `form:"price_min"`
-	PriceMax   float64  `form:"price_max"`
-	IsFree     *bool    `form:"is_free"`
-	SortBy     string   `form:"sort_by"`
-	TimeRange  string   `form:"time_range"`
-	UserID     uint     `form:"user_id"`
+	Category  string  `form:"category"`
+	PriceMin  float64 `form:"price_min"`
+	PriceMax  float64 `form:"price_max"`
+	IsFree    *bool   `form:"is_free"`
+	SortBy    string  `form:"sort_by"`
+	TimeRange string  `form:"time_range"`
+	UserID    uint    `form:"user_id"`
 }
 
 // CreateRequest 创建套图请求
@@ -90,20 +111,26 @@ func (h *PhotoSetHandler) List(c *gin.Context) {
 		req.PageSize = 20
 	}
 
-	// 获取当前用户ID（可选）
+	// 获取当前用户ID与角色（可选）
 	var userID uint
+	var role string
 	if uid, exists := c.Get("user_id"); exists {
 		userID = uid.(uint)
 	}
+	if r, exists := c.Get("user_role"); exists {
+		role, _ = r.(string)
+	}
+
+	status, onlyMine, _ := restrictNonPublicStatus(req.Status, userID, role, req.Mine, 0)
 
 	// 调用高级搜索，支持分类等参数
 	photosets, total, err := h.service.GetPhotoSetListAdvanced(
 		req.Page, req.PageSize,
 		req.Tag, req.Keyword,
-		userID, req.Mine,
+		userID, onlyMine,
 		req.Category, req.PriceMin, req.PriceMax, req.IsFree,
 		req.SortBy, req.TimeRange, 0,
-		req.Status,
+		status,
 	)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "获取套图列表失败")
@@ -154,6 +181,12 @@ func (h *PhotoSetHandler) Detail(c *gin.Context) {
 	// 获取套图基础信息
 	photoset, err := h.service.GetPhotoSetDetailBasic(uint(id))
 	if err != nil {
+		response.Error(c, http.StatusNotFound, "套图不存在")
+		return
+	}
+
+	// 发布状态与软删除校验：未发布/已删除套图仅作者本人和管理员可访问
+	if !h.service.CanAccessPhotoset(photoset, userRole, userID, isLoggedIn) {
 		response.Error(c, http.StatusNotFound, "套图不存在")
 		return
 	}
@@ -504,16 +537,20 @@ func (h *PhotoSetHandler) AdvancedList(c *gin.Context) {
 		req.PageSize = 20
 	}
 
-	// 获取当前用户ID（可选）
+	// 获取当前用户ID与角色（可选）
 	var userID uint
+	var role string
 	if uid, exists := c.Get("user_id"); exists {
 		userID = uid.(uint)
+	}
+	if r, exists := c.Get("user_role"); exists {
+		role, _ = r.(string)
 	}
 
 	// 对于"仅我的作品"筛选，需要使用当前用户ID
 	var filterUserID uint
 	var onlyMine bool
-	
+
 	if req.Mine && userID > 0 {
 		onlyMine = true
 	} else if req.UserID > 0 {
@@ -521,13 +558,16 @@ func (h *PhotoSetHandler) AdvancedList(c *gin.Context) {
 		onlyMine = true
 	}
 
+	// 非公开状态越权约束：非 admin 不能借 user_id 窥探他人未发布套图
+	status, onlyMine, filterUserID := restrictNonPublicStatus(req.Status, userID, role, onlyMine, filterUserID)
+
 	photosets, total, err := h.service.GetPhotoSetListAdvanced(
-		req.Page, req.PageSize, 
-		req.Tag, req.Keyword, 
+		req.Page, req.PageSize,
+		req.Tag, req.Keyword,
 		userID, onlyMine,
-		req.Category, req.PriceMin, req.PriceMax, req.IsFree, 
+		req.Category, req.PriceMin, req.PriceMax, req.IsFree,
 		req.SortBy, req.TimeRange, filterUserID,
-		req.Status,
+		status,
 	)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, "获取套图列表失败")
@@ -535,10 +575,10 @@ func (h *PhotoSetHandler) AdvancedList(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{
-		"list":      photosets,
-		"total":     total,
-		"page":      req.Page,
-		"page_size": req.PageSize,
+		"list":                 photosets,
+		"total":                total,
+		"page":                 req.Page,
+		"page_size":            req.PageSize,
 		"has_advanced_filters": hasAdvancedFilters(req),
 	})
 }
@@ -610,4 +650,3 @@ func (h *PhotoSetHandler) Create(c *gin.Context) {
 
 	response.Success(c, photoset)
 }
-

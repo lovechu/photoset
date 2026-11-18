@@ -46,17 +46,34 @@ func ParseToken(tokenString string) (*Claims, error) {
 		return nil, errors.New("JWT config not initialized")
 	}
 
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
-		return []byte(cfg.JWT.Secret), nil
-	})
-
-	if err != nil {
-		return nil, err
+	// 密钥轮换过渡：依次尝试当前密钥和旧密钥，让存量 token 在窗口期内继续有效。
+	// 签发始终只用 cfg.JWT.Secret（见 GenerateToken），旧密钥只用于验签。
+	secrets := make([]string, 0, 2)
+	if cfg.JWT.Secret != "" {
+		secrets = append(secrets, cfg.JWT.Secret)
+	}
+	if cfg.JWT.PreviousSecret != "" && cfg.JWT.PreviousSecret != cfg.JWT.Secret {
+		secrets = append(secrets, cfg.JWT.PreviousSecret)
+	}
+	if len(secrets) == 0 {
+		return nil, errors.New("no JWT secret configured")
 	}
 
-	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
-		return claims, nil
+	var lastErr error
+	for _, secret := range secrets {
+		token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+			return []byte(secret), nil
+		})
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+			return claims, nil
+		}
 	}
-
+	if lastErr != nil {
+		return nil, lastErr
+	}
 	return nil, errors.New("invalid token")
 }

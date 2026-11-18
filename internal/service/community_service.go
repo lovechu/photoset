@@ -19,23 +19,23 @@ import (
 
 // CommunityService provides community business logic
 type CommunityService struct {
-	postRepo      *repository.PostRepository
-	replyRepo     *repository.PostReplyRepository
-	likeRepo      *repository.PostLikeRepository
-	replyLikeRepo *repository.PostReplyLikeRepository
-	shareRepo     *repository.PostShareRepository
-	pointRepo     *repository.UserPointRepository
-	reportRepo    *repository.PostReportRepository
-	categoryRepo  *repository.PostCategoryRepository
-	draftRepo     *repository.DraftRepository
-	tagRepo       *repository.TagRepository
-	postTagRepo   *repository.PostTagRepository
-	topicRepo     *repository.TopicRepository
-	postTopicRepo *repository.PostTopicRepository
-	pointService  *PointService
-	filterService *SensitiveFilterService
+	postRepo       *repository.PostRepository
+	replyRepo      *repository.PostReplyRepository
+	likeRepo       *repository.PostLikeRepository
+	replyLikeRepo  *repository.PostReplyLikeRepository
+	shareRepo      *repository.PostShareRepository
+	pointRepo      *repository.UserPointRepository
+	reportRepo     *repository.PostReportRepository
+	categoryRepo   *repository.PostCategoryRepository
+	draftRepo      *repository.DraftRepository
+	tagRepo        *repository.TagRepository
+	postTagRepo    *repository.PostTagRepository
+	topicRepo      *repository.TopicRepository
+	postTopicRepo  *repository.PostTopicRepository
+	pointService   *PointService
+	filterService  *SensitiveFilterService
 	mentionService *MentionService
-	storage       storage.Storage
+	storage        storage.Storage
 }
 
 // NewCommunityService creates a new CommunityService
@@ -59,23 +59,23 @@ func NewCommunityService(
 	stor storage.Storage,
 ) *CommunityService {
 	return &CommunityService{
-		postRepo:      postRepo,
-		replyRepo:     replyRepo,
-		likeRepo:      likeRepo,
-		replyLikeRepo: replyLikeRepo,
-		shareRepo:     shareRepo,
-		pointRepo:     pointRepo,
-		reportRepo:    reportRepo,
-		categoryRepo:  categoryRepo,
-		draftRepo:     draftRepo,
-		tagRepo:       tagRepo,
-		postTagRepo:   postTagRepo,
-		topicRepo:     topicRepo,
-		postTopicRepo: postTopicRepo,
-		pointService:  pointService,
-		filterService: filterService,
+		postRepo:       postRepo,
+		replyRepo:      replyRepo,
+		likeRepo:       likeRepo,
+		replyLikeRepo:  replyLikeRepo,
+		shareRepo:      shareRepo,
+		pointRepo:      pointRepo,
+		reportRepo:     reportRepo,
+		categoryRepo:   categoryRepo,
+		draftRepo:      draftRepo,
+		tagRepo:        tagRepo,
+		postTagRepo:    postTagRepo,
+		topicRepo:      topicRepo,
+		postTopicRepo:  postTopicRepo,
+		pointService:   pointService,
+		filterService:  filterService,
 		mentionService: mentionService,
-		storage:       stor,
+		storage:        stor,
 	}
 }
 
@@ -83,16 +83,16 @@ func NewCommunityService(
 func (s *CommunityService) CreatePost(userID uint, req *CreatePostRequest, authorIPLocation string) (*domain.Post, error) {
 	// Validate request
 	post := &domain.Post{
-		UserID:            userID,
-		Title:             req.Title,
-		Content:           req.Content,
-		PhotosetID:        req.PhotosetID,
-		Category:          req.Category,
-		PostType:          req.PostType,
-		Visibility:        req.Visibility,
-		IsOriginal:        req.IsOriginal,
-		AuthorIPLocation:  authorIPLocation,
-		Status:            string(domain.PostStatusApproved), // Auto-approve on creation
+		UserID:           userID,
+		Title:            req.Title,
+		Content:          req.Content,
+		PhotosetID:       req.PhotosetID,
+		Category:         req.Category,
+		PostType:         req.PostType,
+		Visibility:       req.Visibility,
+		IsOriginal:       req.IsOriginal,
+		AuthorIPLocation: authorIPLocation,
+		Status:           string(domain.PostStatusApproved), // Auto-approve on creation
 	}
 
 	// 用户手动指定位置时覆盖 IP 定位
@@ -166,11 +166,11 @@ func (s *CommunityService) CreatePost(userID uint, req *CreatePostRequest, autho
 		if len(topicsToProcess) > 3 {
 			topicsToProcess = topicsToProcess[:3]
 		}
-		
+
 		// 过滤和验证话题名称
 		var validTopics []string
 		seenTopics := make(map[string]bool)
-		
+
 		for _, topicName := range topicsToProcess {
 			// 去除首尾空格和#
 			cleanName := topicName
@@ -181,42 +181,42 @@ func (s *CommunityService) CreatePost(userID uint, req *CreatePostRequest, autho
 				cleanName = cleanName[:len(cleanName)-1]
 			}
 			cleanName = strings.TrimSpace(cleanName)
-			
+
 			// 跳过空话题
 			if cleanName == "" {
 				continue
 			}
-			
+
 			// 长度验证：2-100个字符
 			if len([]rune(cleanName)) < 2 || len([]rune(cleanName)) > 100 {
 				continue
 			}
-			
+
 			// 格式验证：只允许中文、字母、数字、下划线
 			validPattern := regexp.MustCompile(`^[\p{Han}a-zA-Z0-9_]+$`)
 			if !validPattern.MatchString(cleanName) {
 				continue
 			}
-			
+
 			// 不能以数字开头
 			if len(cleanName) > 0 && cleanName[0] >= '0' && cleanName[0] <= '9' {
 				continue
 			}
-			
+
 			// 敏感词过滤
 			filteredName, _ := s.filterService.FilterTextAdvanced(cleanName)
 			if filteredName != cleanName {
 				// 包含敏感词，跳过
 				continue
 			}
-			
+
 			// 去重
 			if !seenTopics[cleanName] {
 				seenTopics[cleanName] = true
 				validTopics = append(validTopics, cleanName)
 			}
 		}
-		
+
 		// 处理有效的话题
 		if len(validTopics) > 0 {
 			topics, err := s.topicRepo.FindOrCreateBatch(validTopics)
@@ -260,11 +260,11 @@ func (s *CommunityService) CreateReply(userID, postID uint, req *CreateReplyRequ
 
 	// Validate request
 	reply := &domain.PostReply{
-		PostID:            postID,
-		UserID:            userID,
-		Content:           req.Content,
-		ParentReplyID:     req.ParentReplyID,
-		AuthorIPLocation:  authorIPLocation,
+		PostID:           postID,
+		UserID:           userID,
+		Content:          req.Content,
+		ParentReplyID:    req.ParentReplyID,
+		AuthorIPLocation: authorIPLocation,
 	}
 
 	if err := reply.Validate(); err != nil {
@@ -410,7 +410,7 @@ func (s *CommunityService) ToggleReplyLike(userID, replyID uint) (string, int, e
 		} else if errors.Is(likeErr, gorm.ErrRecordNotFound) {
 			// Not liked → like
 			like := &domain.PostReplyLike{
-				UserID: userID,
+				UserID:  userID,
 				ReplyID: replyID,
 			}
 			if err := tx.Create(like).Error; err != nil {
@@ -881,6 +881,8 @@ func (s *CommunityService) GetPostsByTagName(tagName string, page, pageSize int)
 	offset := (page - 1) * pageSize
 	err = s.postRepo.DB.
 		Where("id IN ?", postIDs).
+		Where("status = ?", "approved").
+		Where("visibility = ?", "public").
 		Preload("User").
 		Preload("Tags").
 		Order("created_at DESC").
@@ -894,6 +896,8 @@ func (s *CommunityService) GetPostsByTagName(tagName string, page, pageSize int)
 	err = s.postRepo.DB.
 		Model(&domain.Post{}).
 		Where("id IN ?", postIDs).
+		Where("status = ?", "approved").
+		Where("visibility = ?", "public").
 		Count(&total).Error
 	if err != nil {
 		return nil, 0, err
@@ -941,6 +945,8 @@ func (s *CommunityService) GetPostsByTopicName(topicName string, page, pageSize 
 	offset := (page - 1) * pageSize
 	err = s.postRepo.DB.
 		Where("id IN ?", postIDs).
+		Where("status = ?", "approved").
+		Where("visibility = ?", "public").
 		Preload("User").
 		Preload("Tags").
 		Preload("Topics").
@@ -955,6 +961,8 @@ func (s *CommunityService) GetPostsByTopicName(topicName string, page, pageSize 
 	err = s.postRepo.DB.
 		Model(&domain.Post{}).
 		Where("id IN ?", postIDs).
+		Where("status = ?", "approved").
+		Where("visibility = ?", "public").
 		Count(&total).Error
 	if err != nil {
 		return nil, 0, err
@@ -998,7 +1006,7 @@ type UpdateReplyRequest struct {
 }
 
 type SaveDraftRequest struct {
-	ID         *uint  `json:"id"`         // nil for create, non-nil for update
+	ID         *uint  `json:"id"` // nil for create, non-nil for update
 	Title      string `json:"title"`
 	Content    string `json:"content" binding:"required"`
 	Category   string `json:"category"`

@@ -125,7 +125,7 @@ func (s *PhotoSetService) GetPhotoSetListAdvanced(
 		page, pageSize, tag, keyword, userID, onlyMine,
 		category, priceMin, priceMax, isFree, sortBy, timeRange, filterUserID, status,
 	)
-	
+
 	// 只缓存非"我的"列表（mine=true 或指定了status都不缓存，数据个性化）
 	if !onlyMine && status == "" {
 		ctx := context.Background()
@@ -191,6 +191,27 @@ func (s *PhotoSetService) GetPhotoSetDetail(id uint) (*domain.PhotoSet, error) {
 	return photoset, nil
 }
 
+// CanAccessPhotoset 判断当前用户是否可访问该套图（发布状态 + 软删除校验）。
+// 规则：已软删除的套图仅 admin 可见；非 published 状态仅作者本人和 admin 可见。
+func (s *PhotoSetService) CanAccessPhotoset(photoset *domain.PhotoSet, userRole string, userID uint, isLoggedIn bool) bool {
+	if photoset == nil {
+		return false
+	}
+	// 软删除：仅管理员可访问
+	if photoset.DeletedAt != nil {
+		return userRole == "admin"
+	}
+	// 已发布：所有人可访问
+	if photoset.Status == "published" || photoset.Status == "" {
+		return true
+	}
+	// 未发布：仅作者本人和管理员
+	if isLoggedIn && (userID == photoset.UserID || userRole == "admin") {
+		return true
+	}
+	return false
+}
+
 // GetPhotoSetDetailBasic 获取套图基础信息（不含完整图片列表）
 func (s *PhotoSetService) GetPhotoSetDetailBasic(id uint) (*domain.PhotoSet, error) {
 	return s.repo.FindByIDWithoutPhotos(id)
@@ -201,6 +222,11 @@ func (s *PhotoSetService) GetPhotoSetDownload(id uint, userRole string, userID u
 	// 1. 获取套图基础信息
 	photoset, err := s.repo.FindByIDWithoutPhotos(id)
 	if err != nil {
+		return nil, errors.New("套图不存在")
+	}
+
+	// 1.5 发布状态与软删除校验：未发布/已删除套图仅作者本人和管理员可访问
+	if !s.CanAccessPhotoset(photoset, userRole, userID, isLoggedIn) {
 		return nil, errors.New("套图不存在")
 	}
 

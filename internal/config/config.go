@@ -9,14 +9,14 @@ import (
 )
 
 type Config struct {
-	Server     ServerConfig
-	DB         DBConfig
-	Redis      RedisConfig
-	JWT        JWTConfig
-	Storage    StorageConfig
-	Log        LogConfig
-	Alipay     AlipayConfig
-	WechatPay  WechatPayConfig
+	Server    ServerConfig
+	DB        DBConfig
+	Redis     RedisConfig
+	JWT       JWTConfig
+	Storage   StorageConfig
+	Log       LogConfig
+	Alipay    AlipayConfig
+	WechatPay WechatPayConfig
 }
 
 type LogConfig struct {
@@ -46,8 +46,9 @@ type RedisConfig struct {
 }
 
 type JWTConfig struct {
-	Secret     string
-	ExpireHour int
+	Secret         string
+	PreviousSecret string // 密钥轮换过渡期的旧密钥，仅用于验签；新 token 一律用 Secret 签发
+	ExpireHour     int
 }
 
 type StorageConfig struct {
@@ -74,10 +75,10 @@ type AlipayConfig struct {
 }
 
 type WechatPayConfig struct {
-	AppID    string // 微信开放平台 AppID
-	MchID    string // 微信支付商户号
-	APIKey   string // API 密钥 (APIv2)
-	CertPath string // 证书路径
+	AppID     string // 微信开放平台 AppID
+	MchID     string // 微信支付商户号
+	APIKey    string // API 密钥 (APIv2)
+	CertPath  string // 证书路径
 	NotifyURL string // 异步通知地址
 }
 
@@ -108,8 +109,9 @@ func Load() *Config {
 		JWT: JWTConfig{
 			// 默认空字符串：由 main.go 的 ensureSecrets 在 DB 初始化后做三级回退
 			// （环境变量 > site_settings > 自动生成），避免使用公开已知的弱默认值
-			Secret:     getEnv("JWT_SECRET", ""),
-			ExpireHour: getEnvAsInt("JWT_EXPIRE_HOURS", 24),
+			Secret:         getEnv("JWT_SECRET", ""),
+			PreviousSecret: getEnv("JWT_PREVIOUS_SECRET", ""), // 轮换过渡：旧密钥仅用于验签
+			ExpireHour:     getEnvAsInt("JWT_EXPIRE_HOURS", 24),
 		},
 		Storage: StorageConfig{
 			Type:        getEnv("STORAGE_TYPE", "local"),
@@ -122,8 +124,8 @@ func Load() *Config {
 			R2AccountID: getEnv("R2_ACCOUNT_ID", ""),
 			R2PublicURL: getEnv("R2_PUBLIC_URL", ""),
 			// 默认空字符串：由 main.go 的 ensureSecrets 在 DB 初始化后做三级回退
-			SignSecret:  getEnv("SIGN_SECRET", ""),
-			SignExpire:  getEnvAsInt("SIGN_EXPIRE", 7200),
+			SignSecret: getEnv("SIGN_SECRET", ""),
+			SignExpire: getEnvAsInt("SIGN_EXPIRE", 7200),
 		},
 		Log: LogConfig{
 			Level:  getEnv("LOG_LEVEL", "info"),
