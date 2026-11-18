@@ -28,7 +28,7 @@ func (h *ViewHistoryHandler) Record(c *gin.Context) {
 
 	var req struct {
 		PhotosetID uint    `json:"photoset_id" binding:"required"`
-		Title      string  `json:"title" binding:"required"`
+		Title      string  `json:"title"`
 		CoverImage string  `json:"cover_image"`
 		PhotoCount int     `json:"photo_count"`
 		IsVip      bool    `json:"is_vip"`
