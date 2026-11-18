@@ -188,7 +188,9 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 	adminLevelHandler := admin.NewAdminLevelHandler(database.GetMySQL())
 
 	// 加载敏感词到内存
-	service.InitSensitiveWords(wordRepo)
+	if err := service.InitSensitiveWords(wordRepo); err != nil {
+		logger.Warn("敏感词库加载失败，内容过滤可能不可用", "error", err)
+	}
 
 // 用户拉黑/屏蔽功能
 blockRepo := repository.NewUserBlockRepository(database.GetMySQL())

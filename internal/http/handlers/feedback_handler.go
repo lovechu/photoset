@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -147,9 +148,9 @@ func (h *FeedbackHandler) UploadFeedbackImage(c *gin.Context) {
 		return
 	}
 
-	// 读取文件内容
+	// 读取文件内容（ReadFull 避免短读导致保存不完整文件）
 	buf := make([]byte, header.Size)
-	if _, err := file.Read(buf); err != nil {
+	if _, err := io.ReadFull(file, buf); err != nil {
 		response.Error(c, http.StatusInternalServerError, "读取文件失败")
 		return
 	}

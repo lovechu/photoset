@@ -37,8 +37,8 @@ func (s *SensitiveFilterService) LoadSensitiveWords() error {
 		return err
 	}
 
-	// Clear existing map by creating a new map (Range+Delete can miss entries)
-	SensitiveWordsMap = sync.Map{}
+	// 清空已有词条（不可对 sync.Map 整体赋值，会与并发 Range 产生数据竞争）
+	ClearSensitiveWordsMap()
 
 	// Load new words (store lowercase)
 	for _, w := range words {

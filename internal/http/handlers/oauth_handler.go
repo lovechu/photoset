@@ -98,8 +98,8 @@ func (h *OAuthHandler) AuthorizeConfirm(c *gin.Context) {
 		return
 	}
 
-	// 获取当前用户ID
-	userID, exists := middleware.GetOAuthUserID(c)
+	// 获取当前用户ID（授权确认走用户会话 OptionalAuth，写入的是 UserKey）
+	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		response.Unauthorized(c, "user not authenticated")
 		return
@@ -121,7 +121,7 @@ func (h *OAuthHandler) AuthorizeConfirm(c *gin.Context) {
 	// 创建授权记录
 	auth, err := h.oauthService.CreateAuthorization(userID, req.ClientID, req.Scope, req.RedirectURI)
 	if err != nil {
-		response.Error(c, -1, err.Error())
+		response.ServerError(c, err.Error())
 		return
 	}
 
@@ -156,7 +156,7 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 		// 用授权码换取访问令牌
 		token, err := h.oauthService.ExchangeCode(req.Code, req.ClientID, req.ClientSecret, req.RedirectURI)
 		if err != nil {
-			response.Error(c, -1, err.Error())
+			response.ServerError(c, err.Error())
 			return
 		}
 		response.Success(c, gin.H{
@@ -171,7 +171,7 @@ func (h *OAuthHandler) Token(c *gin.Context) {
 		// 刷新访问令牌
 		token, err := h.oauthService.RefreshToken(req.RefreshToken, req.ClientID, req.ClientSecret)
 		if err != nil {
-			response.Error(c, -1, err.Error())
+			response.ServerError(c, err.Error())
 			return
 		}
 		response.Success(c, gin.H{
@@ -208,7 +208,7 @@ func (h *OAuthHandler) Revoke(c *gin.Context) {
 	}
 
 	if err := h.oauthService.RevokeToken(req.Token); err != nil {
-		response.Error(c, -1, err.Error())
+		response.ServerError(c, err.Error())
 		return
 	}
 
@@ -234,7 +234,7 @@ func (h *OAuthHandler) UserInfo(c *gin.Context) {
 
 	userInfo, err := h.oauthService.GetUserInfo(token)
 	if err != nil {
-		response.Error(c, -1, err.Error())
+		response.ServerError(c, err.Error())
 		return
 	}
 

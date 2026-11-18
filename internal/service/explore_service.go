@@ -1,7 +1,6 @@
 package service
 
 import (
-	"math/rand"
 	"time"
 
 	"photoset/internal/domain"
@@ -48,73 +47,63 @@ type ExploreFeedResponse struct {
 	HasMore bool        `json:"has_more"`
 }
 
-// GetExploreFeed gets mixed explore feed
+// GetExploreFeed 获取探索发现 feed（真实分页，混合热度与时间排序）
 func (s *ExploreService) GetExploreFeed(userID uint, page, pageSize int) (*ExploreFeedResponse, error) {
-	// 计算每种类型的数量
-	hotCount := pageSize / 3
-	newCount := pageSize / 3
-	recommendCount := pageSize - hotCount - newCount
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 50 {
+		pageSize = 50
+	}
+	offset := (page - 1) * pageSize
+	sevenDaysAgo := time.Now().AddDate(0, 0, -7)
 
-	// 并发获取各类内容
-	type result struct {
-		items []ExploreItem
-		err   error
+	// 用子查询统计真实热度，按 (浏览+收藏) 与时间综合排序，真实分页
+	type feedRow struct {
+		domain.PhotoSet
+		ViewCount    int `gorm:"column:view_count"`
+		FavCount     int `gorm:"column:fav_count"`
+		PhotoCountDB int `gorm:"column:photo_count_db"`
+	}
+	var rows []feedRow
+	err := s.db.Model(&domain.PhotoSet{}).
+		Select(`photosets.*,
+			(SELECT COUNT(*) FROM view_histories vh WHERE vh.photoset_id = photosets.id AND vh.viewed_at >= ?) AS view_count,
+			(SELECT COUNT(*) FROM favorites f WHERE f.photoset_id = photosets.id) AS fav_count,
+			(SELECT COUNT(*) FROM photos p WHERE p.photoset_id = photosets.id) AS photo_count_db`, sevenDaysAgo).
+		Where("photosets.status = ?", "published").
+		Order("(view_count + fav_count * 3) DESC, photosets.created_at DESC").
+		Offset(offset).Limit(pageSize).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
 	}
 
-	hotCh := make(chan result, 1)
-	newCh := make(chan result, 1)
-	recommendCh := make(chan result, 1)
-
-	// 获取热门套图
-	go func() {
-		items, err := s.getHotPhotosets(hotCount)
-		hotCh <- result{items, err}
-	}()
-
-	// 获取新上架套图
-	go func() {
-		items, err := s.getNewPhotosets(newCount)
-		newCh <- result{items, err}
-	}()
-
-	// 获取推荐套图
-	go func() {
-		items, err := s.getRecommendedPhotosets(userID, recommendCount)
-		recommendCh <- result{items, err}
-	}()
-
-	// 收集结果
-	var allItems []ExploreItem
-
-	hotResult := <-hotCh
-	if hotResult.err == nil {
-		allItems = append(allItems, hotResult.items...)
+	items := make([]ExploreItem, len(rows))
+	for i, r := range rows {
+		source := "recommend"
+		if r.CreatedAt.After(sevenDaysAgo) {
+			source = "new"
+		}
+		if r.ViewCount+r.FavCount > 0 {
+			source = "hot"
+		}
+		ps := r.PhotoSet
+		ps.PhotoCount = r.PhotoCountDB
+		items[i] = newExploreItem(ps, source, r.ViewCount, r.FavCount)
 	}
 
-	newResult := <-newCh
-	if newResult.err == nil {
-		allItems = append(allItems, newResult.items...)
-	}
-
-	recommendResult := <-recommendCh
-	if recommendResult.err == nil {
-		allItems = append(allItems, recommendResult.items...)
-	}
-
-	// 打乱顺序，避免每次都是一样的排列
-	rand.Seed(time.Now().UnixNano())
-	rand.Shuffle(len(allItems), func(i, j int) {
-		allItems[i], allItems[j] = allItems[j], allItems[i]
-	})
-
-	// 计算总数（简化处理，使用估算）
-	total := len(allItems) * 10 // 假设还有更多内容
+	var total int64
+	s.db.Model(&domain.PhotoSet{}).Where("status = ?", "published").Count(&total)
 
 	return &ExploreFeedResponse{
-		Items:   allItems,
+		Items:   items,
 		Page:    page,
-		Total:   total,
-		HasMore: page < 10, // 限制最多10页
+		Total:   int(total),
+		HasMore: int64(offset+len(items)) < total,
 	}, nil
 }
 
@@ -212,7 +201,7 @@ func (s *ExploreService) getRecommendedPhotosets(userID uint, limit int) ([]Expl
 				Limit(limit).
 				Find(&photosets).Error
 
-			if err == nil && len(photosets) >= limit {
+			if err == nil && len(photosets) > 0 {
 				items := make([]ExploreItem, len(photosets))
 				for i, ps := range photosets {
 					items[i] = ExploreItem{

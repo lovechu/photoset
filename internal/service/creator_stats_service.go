@@ -28,11 +28,21 @@ func (s *CreatorStatsService) GetCreatorStats(userID uint) (*domain.CreatorStats
 		Count(&stats.TotalPhotosets)
 
 	// 获取总浏览量、下载量、收藏量
-	s.db.Model(&domain.PhotoSet{}).
-		Where("user_id = ? AND status = ?", userID, "published").
-		Select("COALESCE(SUM(view_count), 0), COALESCE(SUM(download_count), 0), COALESCE(SUM(fav_count), 0)").
-		Row().
-		Scan(&stats.TotalViews, &stats.TotalDownloads, &stats.TotalFavorites)
+	// photosets 表没有 view_count/download_count/fav_count 列，改为从真实表统计
+	var totalViews, totalFavorites int64
+	// 浏览数：该作者已发布套图的浏览记录总数
+	s.db.Model(&domain.ViewHistory{}).
+		Where("photoset_id IN (?)",
+			s.db.Model(&domain.PhotoSet{}).Select("id").Where("user_id = ? AND status = ?", userID, "published")).
+		Count(&totalViews)
+	// 收藏数：该作者已发布套图被收藏总数
+	s.db.Model(&domain.Favorite{}).
+		Where("photoset_id IN (?)",
+			s.db.Model(&domain.PhotoSet{}).Select("id").Where("user_id = ? AND status = ?", userID, "published")).
+		Count(&totalFavorites)
+	stats.TotalViews = totalViews
+	stats.TotalFavorites = totalFavorites
+	stats.TotalDownloads = 0 // 暂无下载记录表
 
 	// 获取总收益（已支付的订单）
 	s.db.Model(&domain.Order{}).
@@ -53,7 +63,7 @@ func (s *CreatorStatsService) GetCreatorStats(userID uint) (*domain.CreatorStats
 	todayStart, _ := time.Parse("2006-01-02", today)
 
 	s.db.Model(&domain.ViewHistory{}).
-		Where("user_id IN (?) AND viewed_at >= ?",
+		Where("photoset_id IN (?) AND viewed_at >= ?",
 			s.db.Model(&domain.PhotoSet{}).Select("id").Where("user_id = ?", userID),
 			todayStart,
 		).
@@ -63,7 +73,7 @@ func (s *CreatorStatsService) GetCreatorStats(userID uint) (*domain.CreatorStats
 	weekStart := todayStart.AddDate(0, 0, -7)
 
 	s.db.Model(&domain.ViewHistory{}).
-		Where("user_id IN (?) AND viewed_at >= ?",
+		Where("photoset_id IN (?) AND viewed_at >= ?",
 			s.db.Model(&domain.PhotoSet{}).Select("id").Where("user_id = ?", userID),
 			weekStart,
 		).
@@ -150,9 +160,16 @@ func (s *CreatorStatsService) GetDailyStats(userID uint, days int) ([]domain.Dai
 func (s *CreatorStatsService) GetPhotoSetStats(userID uint, limit int) ([]domain.PhotoSetStats, error) {
 	var stats []domain.PhotoSetStats
 
+	// photosets 表实际列名为 cover，且没有 view_count/fav_count，改用子查询统计
 	s.db.Model(&domain.PhotoSet{}).
-		Where("user_id = ? AND status = ?", userID, "published").
-		Select("id as photoset_id, title, cover_image, view_count, download_count, fav_count, created_at").
+		Where("photosets.user_id = ? AND photosets.status = ?", userID, "published").
+		Select(`photosets.id as photoset_id,
+			photosets.title,
+			photosets.cover as cover_image,
+			(SELECT COUNT(*) FROM view_histories vh WHERE vh.photoset_id = photosets.id) as view_count,
+			0 as download_count,
+			(SELECT COUNT(*) FROM favorites f WHERE f.photoset_id = photosets.id) as fav_count,
+			photosets.created_at`).
 		Order("view_count DESC").
 		Limit(limit).
 		Scan(&stats)

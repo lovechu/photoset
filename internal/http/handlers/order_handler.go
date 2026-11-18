@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"os"
 	"strconv"
 
 	"photoset/internal/logger"
@@ -116,7 +117,11 @@ func (h *OrderHandler) Pay(c *gin.Context) {
 		})
 
 	case "mock":
-		// 模拟支付（开发测试用）
+		// 模拟支付仅允许开发环境（SERVER_MODE=debug），生产环境必须走真实支付
+		if os.Getenv("SERVER_MODE") == "release" || gin.Mode() == gin.ReleaseMode {
+			response.Error(c, http.StatusForbidden, "mock payment is disabled in production")
+			return
+		}
 		token, err := h.service.MockPay(userID.(uint), uint(orderID))
 		if err != nil {
 			logger.Warn("模拟支付失败", "order_id", orderID, "user_id", userID, "error", err)

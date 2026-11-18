@@ -78,7 +78,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	user, err := h.userService.Register(req.Nickname, req.Email, req.Password)
 	if err != nil {
 		logger.Warn("User registration failed", "email", req.Email, "error", err)
-		response.Error(c, -1, err.Error())
+		response.ServerError(c, err.Error())
 		return
 	}
 
@@ -142,7 +142,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	user, err := h.userService.Login(req.Email, req.Password)
 	if err != nil {
 		logger.Warn("User login failed", "email", req.Email, "error", err)
-		response.Error(c, -1, err.Error())
+		response.ServerError(c, err.Error())
 		return
 	}
 

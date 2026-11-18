@@ -60,8 +60,8 @@ func (h *AdminOAuthHandler) CreateClient(c *gin.Context) {
 		return
 	}
 
-	// 获取当前用户ID
-	userID, exists := middleware.GetOAuthUserID(c)
+	// 获取当前用户ID（管理端走 Auth 中间件，写入的是 UserKey）
+	userID, exists := middleware.GetUserID(c)
 	if !exists {
 		response.Unauthorized(c, "user not authenticated")
 		return
@@ -69,7 +69,7 @@ func (h *AdminOAuthHandler) CreateClient(c *gin.Context) {
 
 	client, err := h.oauthService.CreateClient(req.Name, req.Description, req.RedirectURIs, req.Scopes, req.LogoURL, userID)
 	if err != nil {
-		response.Error(c, -1, err.Error())
+		response.ServerError(c, err.Error())
 		return
 	}
 	response.Success(c, client)
@@ -99,7 +99,7 @@ func (h *AdminOAuthHandler) UpdateClient(c *gin.Context) {
 
 	err = h.oauthService.UpdateClient(uint(id), req.Name, req.Description, req.RedirectURIs, req.Scopes, req.LogoURL, req.Status)
 	if err != nil {
-		response.Error(c, -1, err.Error())
+		response.ServerError(c, err.Error())
 		return
 	}
 	response.Success(c, nil)
@@ -115,7 +115,7 @@ func (h *AdminOAuthHandler) DeleteClient(c *gin.Context) {
 
 	err = h.oauthService.DeleteClient(uint(id))
 	if err != nil {
-		response.Error(c, -1, err.Error())
+		response.ServerError(c, err.Error())
 		return
 	}
 	response.Success(c, nil)

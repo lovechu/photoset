@@ -49,8 +49,8 @@ func (r *UserPrivacyRepository) CreateOrUpdate(setting *domain.UserPrivacySettin
 		}
 		return err
 	}
-	// 存在则更新
-	return r.db.Model(&existing).Updates(setting).Error
+	// 存在则更新（Select("*") 确保 bool 零值 false 也能写入）
+	return r.db.Model(&existing).Select("*").Updates(setting).Error
 }
 
 // Delete deletes privacy settings for a user
