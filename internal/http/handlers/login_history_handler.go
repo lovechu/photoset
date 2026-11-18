@@ -1,8 +1,8 @@
 package handlers
 
 import (
-	"net/http"
 	"photoset/internal/http/middleware"
+	"photoset/internal/pkg/response"
 	"photoset/internal/service"
 	"strconv"
 
@@ -34,7 +34,7 @@ func NewLoginHistoryHandler(historyService *service.LoginHistoryService) *LoginH
 func (h *LoginHistoryHandler) GetLoginHistory(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录"})
+		response.Unauthorized(c, "未登录")
 		return
 	}
 
@@ -43,7 +43,7 @@ func (h *LoginHistoryHandler) GetLoginHistory(c *gin.Context) {
 
 	histories, total, err := h.historyService.GetLoginHistory(userID, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取登录历史失败"})
+		response.ServerError(c, "获取登录历史失败")
 		return
 	}
 
@@ -76,11 +76,8 @@ func (h *LoginHistoryHandler) GetLoginHistory(c *gin.Context) {
 		items = append(items, item)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
-		"data": gin.H{
-			"list":  items,
-			"total": total,
-		},
+	response.Success(c, gin.H{
+		"list":  items,
+		"total": total,
 	})
 }

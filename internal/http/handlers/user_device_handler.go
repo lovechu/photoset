@@ -1,8 +1,8 @@
 package handlers
 
 import (
-	"net/http"
 	"photoset/internal/http/middleware"
+	"photoset/internal/pkg/response"
 	"photoset/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -31,13 +31,13 @@ func NewUserDeviceHandler(deviceService *service.UserDeviceService) *UserDeviceH
 func (h *UserDeviceHandler) GetUserDevices(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录"})
+		response.Unauthorized(c, "未登录")
 		return
 	}
 
 	devices, err := h.deviceService.GetUserDevices(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取设备列表失败"})
+		response.ServerError(c, "获取设备列表失败")
 		return
 	}
 
@@ -72,10 +72,7 @@ func (h *UserDeviceHandler) GetUserDevices(c *gin.Context) {
 		items = append(items, item)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
-		"data": items,
-	})
+	response.Success(c, items)
 }
 
 // @Summary      停用设备
@@ -92,25 +89,22 @@ func (h *UserDeviceHandler) GetUserDevices(c *gin.Context) {
 func (h *UserDeviceHandler) DeactivateDevice(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录"})
+		response.Unauthorized(c, "未登录")
 		return
 	}
 
 	deviceID := c.Param("deviceId")
 	if deviceID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "设备ID不能为空"})
+		response.BadRequest(c, "设备ID不能为空")
 		return
 	}
 
 	if err := h.deviceService.DeactivateDevice(userID, deviceID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "停用设备失败"})
+		response.ServerError(c, "停用设备失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "设备已停用",
-	})
+	response.SuccessWithMessage(c, "设备已停用", nil)
 }
 
 // @Summary      停用其他设备
@@ -127,7 +121,7 @@ func (h *UserDeviceHandler) DeactivateDevice(c *gin.Context) {
 func (h *UserDeviceHandler) DeactivateOtherDevices(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录"})
+		response.Unauthorized(c, "未登录")
 		return
 	}
 
@@ -138,17 +132,14 @@ func (h *UserDeviceHandler) DeactivateOtherDevices(c *gin.Context) {
 	}
 	
 	if currentDeviceID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "当前设备ID不能为空"})
+		response.BadRequest(c, "当前设备ID不能为空")
 		return
 	}
 
 	if err := h.deviceService.DeactivateOtherDevices(userID, currentDeviceID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "操作失败"})
+		response.ServerError(c, "操作失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "已停用其他设备",
-	})
+	response.SuccessWithMessage(c, "已停用其他设备", nil)
 }

@@ -1,8 +1,8 @@
 package handlers
 
 import (
-	"net/http"
 	"photoset/internal/domain"
+	"photoset/internal/pkg/response"
 	"photoset/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -31,20 +31,17 @@ func NewUserPrivacyHandler(privacyService *service.UserPrivacyService) *UserPriv
 func (h *UserPrivacyHandler) GetPrivacySettings(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录"})
+		response.Unauthorized(c, "未登录")
 		return
 	}
 
 	settings, err := h.privacyService.GetPrivacySettings(userID.(uint))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取隐私设置失败"})
+		response.ServerError(c, "获取隐私设置失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
-		"data": settings,
-	})
+	response.Success(c, settings)
 }
 
 // @Summary      更新隐私设置
@@ -61,13 +58,13 @@ func (h *UserPrivacyHandler) GetPrivacySettings(c *gin.Context) {
 func (h *UserPrivacyHandler) UpdatePrivacySettings(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录"})
+		response.Unauthorized(c, "未登录")
 		return
 	}
 
 	var settings domain.UserPrivacySetting
 	if err := c.ShouldBindJSON(&settings); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "无效的请求参数"})
+		response.BadRequest(c, "无效的请求参数")
 		return
 	}
 
@@ -75,12 +72,9 @@ func (h *UserPrivacyHandler) UpdatePrivacySettings(c *gin.Context) {
 	settings.UserID = userID.(uint)
 
 	if err := h.privacyService.UpdatePrivacySettings(userID.(uint), &settings); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新隐私设置失败"})
+		response.ServerError(c, "更新隐私设置失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "隐私设置更新成功",
-	})
+	response.SuccessWithMessage(c, "隐私设置更新成功", nil)
 }

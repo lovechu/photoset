@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"photoset/internal/pkg/jwt"
+	"photoset/internal/pkg/response"
 	"photoset/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -82,7 +83,7 @@ func (h *WebSocketHandler) HandleConnection(c *gin.Context) {
 		claims, err := jwt.ParseToken(token)
 		if err != nil {
 			log.Printf("[WebSocket] Token parse error: %v", err)
-			c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "token 无效或已过期"})
+			response.Unauthorized(c, "token 无效或已过期")
 			return
 		}
 		userID = claims.UserID
@@ -190,7 +191,7 @@ func (h *WebSocketHandler) waitForAuth(conn *websocket.Conn) uint {
 func (h *WebSocketHandler) GetOnlineStatus(c *gin.Context) {
 	userIDsStr := c.QueryArray("user_ids")
 	if len(userIDsStr) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "user_ids is required"})
+		response.BadRequest(c, "user_ids is required")
 		return
 	}
 
@@ -211,11 +212,8 @@ func (h *WebSocketHandler) GetOnlineStatus(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
-		"data": gin.H{
-			"statuses": statuses,
-			"total_online": h.hub.TotalConnections(),
-		},
+	response.Success(c, gin.H{
+		"statuses":     statuses,
+		"total_online": h.hub.TotalConnections(),
 	})
 }

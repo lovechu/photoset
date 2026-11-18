@@ -116,12 +116,17 @@ func (h *SystemHandler) HealthCheck(c *gin.Context) {
 		httpStatus = http.StatusServiceUnavailable
 	}
 
-	c.JSON(httpStatus, gin.H{
+	data := gin.H{
 		"status":    status,
 		"database":  dbStatus,
 		"redis":     redisStatus,
 		"timestamp": time.Now().Unix(),
-	})
+	}
+	if httpStatus == http.StatusOK {
+		response.SuccessWithMessage(c, "ok", data)
+	} else {
+		response.ErrorWithData(c, httpStatus, status, data)
+	}
 }
 
 func (h *SystemHandler) getServerInfo() ServerInfo {

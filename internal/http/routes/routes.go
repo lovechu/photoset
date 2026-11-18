@@ -8,6 +8,7 @@ import (
 	"photoset/internal/http/handlers/admin"
 	"photoset/internal/http/middleware"
 	"photoset/internal/logger"
+	"photoset/internal/pkg/response"
 	"photoset/internal/repository"
 	"photoset/internal/service"
 	"photoset/internal/storage"
@@ -579,7 +580,7 @@ viewHistoryHandler := handlers.NewViewHistoryHandler(viewHistoryService)
 				ip = c.ClientIP()
 			}
 			location := ipGeoService.GetFullLocation(ip)
-			c.JSON(200, gin.H{
+			response.Success(c, gin.H{
 				"ip":       ip,
 				"location": location,
 			})

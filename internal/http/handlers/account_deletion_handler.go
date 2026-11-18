@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 	"photoset/internal/http/middleware"
 	"photoset/internal/pkg/response"
@@ -53,10 +51,7 @@ func (h *AccountDeletionHandler) RequestDeletion(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "注销申请已提交，30天冷静期后将自动处理",
-	})
+	response.SuccessWithMessage(c, "注销申请已提交，30天冷静期后将自动处理", nil)
 }
 
 // @Summary      取消注销申请
@@ -81,10 +76,7 @@ func (h *AccountDeletionHandler) CancelDeletion(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "已取消注销申请",
-	})
+	response.SuccessWithMessage(c, "已取消注销申请", nil)
 }
 
 // @Summary      查询注销状态
@@ -110,8 +102,5 @@ func (h *AccountDeletionHandler) GetDeletionStatus(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
-		"data": status,
-	})
+	response.Success(c, status)
 }

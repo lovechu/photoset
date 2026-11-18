@@ -1,8 +1,8 @@
 package handlers
 
 import (
-	"net/http"
 	"photoset/internal/http/middleware"
+	"photoset/internal/pkg/response"
 	"photoset/internal/service"
 	"strconv"
 	"time"
@@ -22,7 +22,7 @@ func NewViewHistoryHandler(service *service.ViewHistoryService) *ViewHistoryHand
 func (h *ViewHistoryHandler) Record(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录"})
+		response.Unauthorized(c, "未登录")
 		return
 	}
 
@@ -36,23 +36,23 @@ func (h *ViewHistoryHandler) Record(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		response.BadRequest(c, "参数错误")
 		return
 	}
 
 	if err := h.service.Record(userID, req.PhotosetID, req.Title, req.CoverImage, req.PhotoCount, req.IsVip, req.Price); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "记录浏览历史失败"})
+		response.ServerError(c, "记录浏览历史失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok"})
+	response.Success(c, nil)
 }
 
 // List 查询浏览历史列表
 func (h *ViewHistoryHandler) List(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录"})
+		response.Unauthorized(c, "未登录")
 		return
 	}
 
@@ -82,16 +82,13 @@ func (h *ViewHistoryHandler) List(c *gin.Context) {
 	}
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取浏览历史失败"})
+		response.ServerError(c, "获取浏览历史失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
-		"data": gin.H{
-			"list":  histories,
-			"total": total,
-		},
+	response.Success(c, gin.H{
+		"list":  histories,
+		"total": total,
 	})
 }
 
@@ -99,45 +96,45 @@ func (h *ViewHistoryHandler) List(c *gin.Context) {
 func (h *ViewHistoryHandler) Delete(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录"})
+		response.Unauthorized(c, "未登录")
 		return
 	}
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		response.BadRequest(c, "参数错误")
 		return
 	}
 
 	if err := h.service.Delete(userID, uint(id)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除失败"})
+		response.ServerError(c, "删除失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok"})
+	response.Success(c, nil)
 }
 
 // ClearAll 清空所有浏览历史
 func (h *ViewHistoryHandler) ClearAll(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录"})
+		response.Unauthorized(c, "未登录")
 		return
 	}
 
 	if err := h.service.ClearAll(userID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "清空失败"})
+		response.ServerError(c, "清空失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok"})
+	response.Success(c, nil)
 }
 
 // BatchDelete 批量删除浏览历史
 func (h *ViewHistoryHandler) BatchDelete(c *gin.Context) {
 	userID, exists := middleware.GetUserID(c)
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "未登录"})
+		response.Unauthorized(c, "未登录")
 		return
 	}
 
@@ -146,19 +143,19 @@ func (h *ViewHistoryHandler) BatchDelete(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		response.BadRequest(c, "参数错误")
 		return
 	}
 
 	if len(req.IDs) > 50 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "单次最多删除50条"})
+		response.BadRequest(c, "单次最多删除50条")
 		return
 	}
 
 	if err := h.service.BatchDelete(userID, req.IDs); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除失败"})
+		response.ServerError(c, "删除失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "ok"})
+	response.Success(c, nil)
 }

@@ -1,10 +1,10 @@
 package handlers
 
 import (
-	"net/http"
 	"strconv"
 
 	"photoset/internal/http/middleware"
+	"photoset/internal/pkg/response"
 	"photoset/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -24,36 +24,24 @@ func NewCreatorStatsHandler(statsService *service.CreatorStatsService) *CreatorS
 func (h *CreatorStatsHandler) GetCreatorStats(c *gin.Context) {
 	userID, _ := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "请先登录",
-		})
+		response.Unauthorized(c, "请先登录")
 		return
 	}
 
 	stats, err := h.statsService.GetCreatorStats(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取统计数据失败",
-		})
+		response.ServerError(c, "获取统计数据失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
-		"data": stats,
-	})
+	response.Success(c, stats)
 }
 
 // GetDailyStats 获取每日统计数据
 func (h *CreatorStatsHandler) GetDailyStats(c *gin.Context) {
 	userID, _ := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "请先登录",
-		})
+		response.Unauthorized(c, "请先登录")
 		return
 	}
 
@@ -66,27 +54,18 @@ func (h *CreatorStatsHandler) GetDailyStats(c *gin.Context) {
 
 	stats, err := h.statsService.GetDailyStats(userID, days)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取每日统计失败",
-		})
+		response.ServerError(c, "获取每日统计失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
-		"data": stats,
-	})
+	response.Success(c, stats)
 }
 
 // GetPhotoSetStats 获取套图统计数据
 func (h *CreatorStatsHandler) GetPhotoSetStats(c *gin.Context) {
 	userID, _ := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code":    401,
-			"message": "请先登录",
-		})
+		response.Unauthorized(c, "请先登录")
 		return
 	}
 
@@ -99,15 +78,9 @@ func (h *CreatorStatsHandler) GetPhotoSetStats(c *gin.Context) {
 
 	stats, err := h.statsService.GetPhotoSetStats(userID, limit)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取套图统计失败",
-		})
+		response.ServerError(c, "获取套图统计失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
-		"data": stats,
-	})
+	response.Success(c, stats)
 }

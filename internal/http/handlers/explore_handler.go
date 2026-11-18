@@ -2,10 +2,10 @@ package handlers
 
 import (
 	"fmt"
-	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"photoset/internal/http/middleware"
+	"photoset/internal/pkg/response"
 	"photoset/internal/service"
 )
 
@@ -59,17 +59,11 @@ func (h *ExploreHandler) GetExploreFeed(c *gin.Context) {
 	// 获取探索 Feed
 	feed, err := h.exploreService.GetExploreFeed(userID, page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取探索内容失败",
-		})
+		response.ServerError(c, "获取探索内容失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
-		"data": feed,
-	})
+	response.Success(c, feed)
 }
 
 // @Summary      热门套图
@@ -101,15 +95,9 @@ func (h *ExploreHandler) GetHotPhotosets(c *gin.Context) {
 
 	feed, err := h.exploreService.GetHotPhotosets(page, pageSize)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code":    500,
-			"message": "获取热门套图失败",
-		})
+		response.ServerError(c, "获取热门套图失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
-		"data": feed,
-	})
+	response.Success(c, feed)
 }

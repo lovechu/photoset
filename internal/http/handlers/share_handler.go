@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"net/http"
 	"os"
 	"strconv"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"photoset/internal/config"
 	"photoset/internal/http/middleware"
+	"photoset/internal/pkg/response"
 	"photoset/internal/repository"
 )
 
@@ -44,19 +44,19 @@ func NewShareHandler(photosetRepo *repository.PhotoSetRepository, cfg *config.Co
 func (h *ShareHandler) GenerateShareLink(c *gin.Context) {
 	photosetID := c.Param("id")
 	if photosetID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "缺少套图ID"})
+		response.BadRequest(c, "缺少套图ID")
 		return
 	}
 
 	// 验证套图存在
 	photosetIDUint, err := strconv.ParseUint(photosetID, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "无效的套图ID"})
+		response.BadRequest(c, "无效的套图ID")
 		return
 	}
 	_, err = h.photosetRepo.FindByID(uint(photosetIDUint))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "套图不存在"})
+		response.NotFound(c, "套图不存在")
 		return
 	}
 
@@ -76,13 +76,10 @@ func (h *ShareHandler) GenerateShareLink(c *gin.Context) {
 		_ = userID
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
-		"data": gin.H{
-			"share_link": shareLink,
-			"photoset_id": photosetID,
-			"source": source,
-		},
+	response.Success(c, gin.H{
+		"share_link":  shareLink,
+		"photoset_id": photosetID,
+		"source":      source,
 	})
 }
 
@@ -138,7 +135,7 @@ func (h *ShareHandler) VerifyShareLink(c *gin.Context) {
 	signature := c.Query("sig")
 
 	if photosetID == "" || timestamp == "" || signature == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "无效的分享链接"})
+		response.BadRequest(c, "无效的分享链接")
 		return
 	}
 
@@ -152,19 +149,16 @@ func (h *ShareHandler) VerifyShareLink(c *gin.Context) {
 	expectedSignature := generateHMAC(message, secret)
 
 	if signature != expectedSignature {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "分享链接签名无效"})
+		response.BadRequest(c, "分享链接签名无效")
 		return
 	}
 
 	// 检查链接是否过期（可选，例如30天过期）
 	// 这里可以添加时间戳过期检查
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
-		"data": gin.H{
-			"photoset_id": photosetID,
-			"source":      source,
-			"valid":       true,
-		},
+	response.Success(c, gin.H{
+		"photoset_id": photosetID,
+		"source":      source,
+		"valid":       true,
 	})
 }

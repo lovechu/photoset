@@ -2,10 +2,10 @@ package handlers
 
 import (
 	"fmt"
-	"net/http"
 	"strconv"
 
 	"photoset/internal/http/middleware"
+	"photoset/internal/pkg/response"
 	"photoset/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -44,29 +44,29 @@ type CreateReviewRequest struct {
 func (h *ReviewHandler) Create(c *gin.Context) {
 	userID, _ := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "请先登录"})
+		response.Unauthorized(c, "请先登录")
 		return
 	}
 
 	photosetID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "无效的套图ID"})
+		response.BadRequest(c, "无效的套图ID")
 		return
 	}
 
 	var req CreateReviewRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误: " + err.Error()})
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 
 	review, err := h.reviewService.CreateReview(userID, uint(photosetID), req.Rating, req.Tags, req.Content, req.IsAnonymous)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "data": review})
+	response.Success(c, review)
 }
 
 // @Summary      更新评价
@@ -85,29 +85,29 @@ func (h *ReviewHandler) Create(c *gin.Context) {
 func (h *ReviewHandler) Update(c *gin.Context) {
 	userID, _ := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "请先登录"})
+		response.Unauthorized(c, "请先登录")
 		return
 	}
 
 	reviewID, err := strconv.ParseUint(c.Param("reviewId"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "无效的评价ID"})
+		response.BadRequest(c, "无效的评价ID")
 		return
 	}
 
 	var req CreateReviewRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误: " + err.Error()})
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 
 	review, err := h.reviewService.UpdateReview(uint(reviewID), userID, req.Rating, req.Tags, req.Content, req.IsAnonymous)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "data": review})
+	response.Success(c, review)
 }
 
 // @Summary      删除评价
@@ -125,22 +125,22 @@ func (h *ReviewHandler) Update(c *gin.Context) {
 func (h *ReviewHandler) Delete(c *gin.Context) {
 	userID, _ := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "请先登录"})
+		response.Unauthorized(c, "请先登录")
 		return
 	}
 
 	reviewID, err := strconv.ParseUint(c.Param("reviewId"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "无效的评价ID"})
+		response.BadRequest(c, "无效的评价ID")
 		return
 	}
 
 	if err := h.reviewService.DeleteReview(uint(reviewID), userID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
+		response.BadRequest(c, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+	response.SuccessWithMessage(c, "删除成功", nil)
 }
 
 // @Summary      获取评价列表
@@ -159,7 +159,7 @@ func (h *ReviewHandler) Delete(c *gin.Context) {
 func (h *ReviewHandler) List(c *gin.Context) {
 	photosetID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "无效的套图ID"})
+		response.BadRequest(c, "无效的套图ID")
 		return
 	}
 
@@ -179,18 +179,15 @@ func (h *ReviewHandler) List(c *gin.Context) {
 
 	reviews, total, err := h.reviewService.ListReviews(uint(photosetID), page, pageSize, sortBy)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取评价失败"})
+		response.ServerError(c, "获取评价失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
-		"data": gin.H{
-			"list":      reviews,
-			"total":     total,
-			"page":      page,
-			"page_size": pageSize,
-		},
+	response.Success(c, gin.H{
+		"list":      reviews,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
 	})
 }
 
@@ -207,17 +204,17 @@ func (h *ReviewHandler) List(c *gin.Context) {
 func (h *ReviewHandler) GetSummary(c *gin.Context) {
 	photosetID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "无效的套图ID"})
+		response.BadRequest(c, "无效的套图ID")
 		return
 	}
 
 	summary, err := h.reviewService.GetReviewSummary(uint(photosetID))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取评价汇总失败"})
+		response.ServerError(c, "获取评价汇总失败")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "data": summary})
+	response.Success(c, summary)
 }
 
 // @Summary      获取我的评价
@@ -234,21 +231,21 @@ func (h *ReviewHandler) GetSummary(c *gin.Context) {
 func (h *ReviewHandler) GetMyReview(c *gin.Context) {
 	userID, _ := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "请先登录"})
+		response.Unauthorized(c, "请先登录")
 		return
 	}
 
 	photosetID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "无效的套图ID"})
+		response.BadRequest(c, "无效的套图ID")
 		return
 	}
 
 	review, err := h.reviewService.GetUserReview(userID, uint(photosetID))
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "data": nil})
+		response.Success(c, nil)
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"code": 0, "data": review})
+	response.Success(c, review)
 }
