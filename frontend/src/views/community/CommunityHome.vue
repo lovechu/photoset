@@ -75,7 +75,18 @@
                   <span v-if="post.is_pinned" class="tlabel red">置顶</span>
                   <span v-if="post.is_essence" class="tlabel gold">精华</span>
                 </div>
-                <div class="topic-title">{{ post.title || plainText(post.content) }}</div>
+                <div class="topic-title">{{ post.title || plainText(post.content) || (postImages(post).length ? '[图片]' : '') }}</div>
+                <div v-if="postImages(post).length" class="topic-thumbs" @click.stop>
+                  <div
+                    v-for="(img, i) in postImages(post).slice(0, 3)"
+                    :key="i"
+                    class="topic-thumb"
+                    @click.stop="previewImage(post, i)"
+                  >
+                    <img :src="img" :alt="post.title || '帖子图片'" loading="lazy" />
+                    <span v-if="i === 2 && postImages(post).length > 3" class="thumb-more">+{{ postImages(post).length - 3 }}</span>
+                  </div>
+                </div>
                 <div class="topic-sub">
                   <span class="author author-link" @click.stop="goProfile(post.author_id)">{{ post.author_name || '匿名用户' }}</span>
                   <span class="sep">·</span>{{ timeAgo(post.created_at) }}
@@ -138,6 +149,13 @@
         </aside>
       </div>
     </div>
+
+    <el-image-viewer
+      v-if="showViewer"
+      :url-list="viewerImages"
+      :initial-index="viewerIndex"
+      @close="showViewer = false"
+    />
   </div>
 </template>
 
@@ -147,7 +165,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useCommunityStore } from '@/stores/community'
 import { useUserStore } from '@/stores/user'
 import { getPosts } from '@/api'
-import { toPlainText } from '@/utils/post'
+import { toPlainText, extractImages } from '@/utils/post'
 
 const router = useRouter()
 const route = useRoute()
@@ -159,6 +177,9 @@ const total = ref(0)
 const page = ref(1)
 const loading = ref(false)
 const loadingMore = ref(false)
+const showViewer = ref(false)
+const viewerImages = ref([])
+const viewerIndex = ref(0)
 const activeCategory = ref(route.query.category || '')
 const sortBy = ref('latest')
 const categories = ref([])
@@ -242,6 +263,16 @@ function goCreate() {
 
 function plainText(content, len = 180) {
   return toPlainText(content, len)
+}
+
+function postImages(post) {
+  return extractImages(post?.content)
+}
+
+function previewImage(post, index) {
+  viewerImages.value = postImages(post)
+  viewerIndex.value = index
+  showViewer.value = true
 }
 
 function defaultDesc(cat) {
@@ -449,6 +480,13 @@ function timeAgo(str) {
   white-space: nowrap;
 }
 .topic:hover .topic-title { color: #4f6ef7; }
+.topic-thumbs { display: flex; gap: 5px; margin: 6px 0; max-width: 320px; }
+.topic-thumb { position: relative; width: 72px; height: 54px; border-radius: 4px; overflow: hidden; background: #f2f3f5; cursor: zoom-in; flex-shrink: 0; }
+.topic-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb-more {
+  position: absolute; inset: 0; background: rgba(0,0,0,0.5); color: #fff;
+  display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600;
+}
 .topic-sub { font-size: 11px; color: #9aa1ac; }
 .topic-sub .author { color: #6b7280; font-weight: 600; }
 .author-link { cursor: pointer; }
