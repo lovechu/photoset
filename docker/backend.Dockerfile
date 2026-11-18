@@ -9,9 +9,11 @@ WORKDIR /app
 # 安装必要的工具
 RUN apk add --no-cache git ca-certificates tzdata
 
-# 配置 Go 国内镜像代理
-RUN go env -w GOPROXY=https://goproxy.cn,direct
-RUN go env -w GOSUMDB=off
+# Go 依赖代理：默认使用官方 proxy.golang.org（海外服务器直连最快）。
+# 如需覆盖，构建时可用 --build-arg GOPROXY=https://goproxy.cn,direct（国内环境）。
+# 校验保持默认 sum.golang.org，不关闭 GOSUMDB，确保依赖完整性可验证。
+ARG GOPROXY=https://proxy.golang.org,direct
+RUN go env -w GOPROXY=${GOPROXY}
 
 # 复制 go.mod 和 go.sum 并下载依赖
 COPY go.mod go.sum ./
@@ -48,10 +50,9 @@ RUN mkdir -p /app/uploads /app/logs
 # 设置时区
 ENV TZ=Asia/Shanghai
 
-# 使用国内 Alpine 镜像源（解决网络问题）
-RUN echo "https://mirrors.aliyun.com/alpine/v3.19/main" > /etc/apk/repositories && \
-    echo "https://mirrors.aliyun.com/alpine/v3.19/community" >> /etc/apk/repositories && \
-    apk add --no-cache ca-certificates tzdata wget && \
+# Alpine 镜像源：默认官方源（海外服务器直连最快）。
+# 国内环境可先 sed 替换为阿里云源，或用构建参数注入。
+RUN apk add --no-cache ca-certificates tzdata wget && \
     adduser -D -s /bin/sh -h /app nonroot && \
     chown -R nonroot:nonroot /app && \
     chmod -R g+w /app
