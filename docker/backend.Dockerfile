@@ -6,14 +6,38 @@ FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 
-# 安装必要的工具
-RUN apk add --no-cache git ca-certificates tzdata
+# Alpine apk 源：自动探测官方源可达性，国内环境自动回退阿里云源。
+#   默认 auto：5 秒内可访问 dl-cdn.alpinelinux.org 就用官方源（海外直连最快），
+#             否则 sed 替换为 mirrors.aliyun.com（国内可用）。
+#   强制指定：--build-arg APK_MIRROR=aliyun 或 =official
+ARG APK_MIRROR=auto
+RUN if [ "$APK_MIRROR" = "auto" ]; then \
+      if wget -q -O /dev/null -T 5 -t 1 https://dl-cdn.alpinelinux.org/ 2>/dev/null; then \
+        echo ">>> Alpine repo: official (dl-cdn.alpinelinux.org)"; \
+      else \
+        sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' /etc/apk/repositories; \
+        echo ">>> Alpine repo: China mirror (mirrors.aliyun.com)"; \
+      fi; \
+    elif [ "$APK_MIRROR" = "aliyun" ]; then \
+      sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' /etc/apk/repositories; \
+      echo ">>> Alpine repo: China mirror (mirrors.aliyun.com) [forced]"; \
+    fi && \
+    apk add --no-cache git ca-certificates tzdata
 
-# Go 依赖代理：默认使用官方 proxy.golang.org（海外服务器直连最快）。
-# 如需覆盖，构建时可用 --build-arg GOPROXY=https://goproxy.cn,direct（国内环境）。
-# 校验保持默认 sum.golang.org，不关闭 GOSUMDB，确保依赖完整性可验证。
-ARG GOPROXY=https://proxy.golang.org,direct
-RUN go env -w GOPROXY=${GOPROXY}
+# Go 依赖代理：构建时自动探测，选择当前网络最快的源。
+#   默认 auto：5 秒内可访问官方 proxy.golang.org 就用它（海外直连最快），
+#             否则自动回退 goproxy.cn（国内可用）。
+#   强制指定：--build-arg GOPROXY=https://goproxy.cn,direct
+# 校验保持默认 sum.golang.org（goproxy.cn 会代理 sumdb），确保依赖完整性可验证。
+ARG GOPROXY=auto
+RUN if [ "$GOPROXY" = "auto" ]; then \
+      if wget -q -O /dev/null -T 5 -t 1 https://proxy.golang.org/github.com/gin-gonic/gin/@v/list 2>/dev/null; then \
+        GOPROXY="https://proxy.golang.org,direct"; echo ">>> Go proxy: official (proxy.golang.org)"; \
+      else \
+        GOPROXY="https://goproxy.cn,direct"; echo ">>> Go proxy: China mirror (goproxy.cn)"; \
+      fi; \
+    fi; \
+    echo ">>> GOPROXY=$GOPROXY"; go env -w GOPROXY="$GOPROXY"
 
 # 复制 go.mod 和 go.sum 并下载依赖
 COPY go.mod go.sum ./
@@ -50,9 +74,20 @@ RUN mkdir -p /app/uploads /app/logs
 # 设置时区
 ENV TZ=Asia/Shanghai
 
-# Alpine 镜像源：默认官方源（海外服务器直连最快）。
-# 国内环境可先 sed 替换为阿里云源，或用构建参数注入。
-RUN apk add --no-cache ca-certificates tzdata wget && \
+# Alpine apk 源：与编译阶段同样的自动探测（官方源 / 阿里云源）。
+ARG APK_MIRROR=auto
+RUN if [ "$APK_MIRROR" = "auto" ]; then \
+      if wget -q -O /dev/null -T 5 -t 1 https://dl-cdn.alpinelinux.org/ 2>/dev/null; then \
+        echo ">>> Alpine repo: official (dl-cdn.alpinelinux.org)"; \
+      else \
+        sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' /etc/apk/repositories; \
+        echo ">>> Alpine repo: China mirror (mirrors.aliyun.com)"; \
+      fi; \
+    elif [ "$APK_MIRROR" = "aliyun" ]; then \
+      sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' /etc/apk/repositories; \
+      echo ">>> Alpine repo: China mirror (mirrors.aliyun.com) [forced]"; \
+    fi && \
+    apk add --no-cache ca-certificates tzdata wget && \
     adduser -D -s /bin/sh -h /app nonroot && \
     chown -R nonroot:nonroot /app && \
     chmod -R g+w /app
