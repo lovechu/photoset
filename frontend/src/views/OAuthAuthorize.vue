@@ -118,10 +118,10 @@ async function loadAuthorizeInfo() {
       response_type: response_type || 'code'
     })
 
-    if (res.data?.code === 0) {
-      clientInfo.value = res.data.data
+    if (res.code === 0) {
+      clientInfo.value = res.data
     } else {
-      error.value = res.data?.message || '获取应用信息失败'
+      error.value = res.message || '获取应用信息失败'
     }
   } catch (e) {
     if (e.response?.data?.message) {
@@ -148,14 +148,14 @@ async function handleApprove() {
       approved: true
     })
 
-    if (res.data?.code === 0) {
+    if (res.code === 0) {
       // 重定向到第三方应用
-      const redirectUrl = res.data.data?.redirect_url
+      const redirectUrl = res.data?.redirect_url
       if (redirectUrl) {
         window.location.href = redirectUrl
       }
     } else {
-      alert(res.data?.message || '授权失败，请重试')
+      alert(res.message || '授权失败，请重试')
     }
   } catch (e) {
     alert(e.response?.data?.message || '授权失败，请重试')
@@ -176,8 +176,8 @@ async function handleDeny() {
       approved: false
     })
 
-    if (res.data?.code === 0) {
-      const redirectUrl = res.data.data?.redirect_url
+    if (res.code === 0) {
+      const redirectUrl = res.data?.redirect_url
       if (redirectUrl) {
         window.location.href = redirectUrl
       }

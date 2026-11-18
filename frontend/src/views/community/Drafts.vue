@@ -1,5 +1,5 @@
 <template>
-  <MyContentLayout title="草稿箱" :fetcher="fetcher" empty-text="还没有草稿">
+  <MyContentLayout :key="refreshKey" title="草稿箱" :fetcher="fetcher" empty-text="还没有草稿">
     <template #default="{ items }">
       <div v-for="draft in items" :key="draft.id" class="draft-card">
         <div class="draft-title" @click="editDraft(draft)">{{ draft.title || '无标题草稿' }}</div>
@@ -32,7 +32,7 @@ const fetcher = (params) => getMyDrafts(params).then(res => {
 })
 
 function editDraft(draft) {
-  router.push({ path: '/community/create', query: { draft: draft.id } })
+  router.push({ path: '/community/create', query: { draft: draft.id }, state: { draft } })
 }
 
 async function removeDraft(draft) {

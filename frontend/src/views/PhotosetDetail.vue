@@ -153,10 +153,10 @@
                 <h3>此套图为付费内容</h3>
                 <p>成为会员或单独购买即可解锁全部 {{ photoCount }} 张图片</p>
                 <div class="paywall-actions">
-                  <el-button type="primary" size="large">
+                  <el-button type="primary" size="large" @click="router.push('/membership')">
                     开通会员 ¥{{ memberPrice }}/月
                   </el-button>
-                  <el-button size="large">
+                  <el-button size="large" @click="handleBuyPhotoset">
                     单独购买 ¥{{ detail.price?.toFixed(2) }}
                   </el-button>
                 </div>
@@ -221,10 +221,10 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   getPhotosetDetail, addFavorite, removeFavorite,
   getShareLink, listCollections, addCollectionItem, removeCollectionItem,
-  getCollectionsForPhotoset, recordViewHistory
+  getCollectionsForPhotoset, recordViewHistory, createOrder, payOrder
 } from '@/api'
 import { useUserStore } from '@/stores/user'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ArrowLeft, Picture, Lock, Star, StarFilled, Edit, Loading,
   FolderAdd, Share, DocumentCopy
@@ -345,6 +345,29 @@ const loadDetail = async () => {
 const openViewer = (index) => {
   viewerIndex.value = index
   showViewer.value = true
+}
+
+// 单独购买付费套图
+const handleBuyPhotoset = async () => {
+  if (!userStore.isLoggedIn) {
+    ElMessage.info('请先登录')
+    router.push({ name: 'Login', query: { redirect: route.fullPath } })
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认支付 ¥${detail.value.price?.toFixed(2) || '0'} 购买此套图？`,
+      '购买套图',
+      { confirmButtonText: '确认支付', cancelButtonText: '取消', type: 'warning' }
+    )
+    const res = await createOrder({ type: 'single', photoset_id: detail.value.id })
+    const order = res.data
+    await payOrder(order.id)
+    ElMessage.success('购买成功，已解锁全部图片')
+    await loadDetail()
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error('购买失败，请重试')
+  }
 }
 
 // 切换收藏

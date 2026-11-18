@@ -120,7 +120,7 @@ const handleSelectPlan = async (plan) => {
       type: 'membership',
       membership_id: plan.id
     })
-    const order = res.data.order
+    const order = res.data
 
     // 确认支付
     await ElMessageBox.confirm(
@@ -135,10 +135,18 @@ const handleSelectPlan = async (plan) => {
 
     // 模拟支付
     const payRes = await payOrder(order.id)
-    const { token, user } = payRes.data
+    const token = payRes.data?.token || userStore.token
 
-    // 更新状态
-    userStore.afterPayment(token, user)
+    // 用最新用户信息刷新本地状态（支付接口不一定返回 user）
+    let user = payRes.data?.user
+    if (!user) {
+      try {
+        const { getCurrentUser } = await import('@/api')
+        const me = await getCurrentUser()
+        user = me.data?.user
+      } catch (e) { /* 保留原用户 */ }
+    }
+    userStore.afterPayment(token, user || userStore.user)
 
     ElMessage.success('支付成功，欢迎成为会员！')
 

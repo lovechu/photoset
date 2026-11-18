@@ -15,6 +15,7 @@
         :key="item.id"
         :data="item"
         class="card-hover"
+        @deleted="handleDeleted"
       />
     </div>
     <div class="pagination-wrapper" v-if="total > 0">
@@ -41,6 +42,11 @@ const photosets = ref([])
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(12)
+
+const handleDeleted = (deletedId) => {
+  photosets.value = photosets.value.filter(item => item.id !== deletedId)
+  total.value = Math.max(0, total.value - 1)
+}
 
 const loadFavorites = async () => {
   loading.value = true

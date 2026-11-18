@@ -143,7 +143,7 @@ import { ElMessage } from 'element-plus'
 import { useCommunityStore } from '@/stores/community'
 import {
   createPost, updatePost, uploadCommunityImage, uploadCommunityVideo,
-  saveDraft as apiSaveDraft, getPostDetail
+  saveDraft as apiSaveDraft, getPostDetail, getMyDrafts
 } from '@/api'
 
 const route = useRoute()
@@ -159,6 +159,7 @@ const videoInput = ref(null)
 const contentArea = ref(null)
 const uploadedImages = ref([])
 const editId = ref(null)
+const draftId = ref(null)
 
 const isEdit = ref(false)
 const form = ref({
@@ -188,6 +189,33 @@ onMounted(async () => {
         tags: (p.tags || []).map(t => t.name),
         topics: (p.topics || []).map(t => t.name)
       }
+    }
+  } else if (route.query.draft) {
+    // 草稿继续编辑：优先读路由 state 里携带的草稿对象
+    const draft = window.history.state?.draft
+    if (draft) {
+      form.value = {
+        content: draft.content || '', title: draft.title || '', category: draft.category || '',
+        post_type: draft.post_type || 'dynamic', visibility: draft.visibility || 'public',
+        is_original: draft.is_original !== false,
+        tags: draft.tags || [], topics: draft.topics || []
+      }
+      draftId.value = route.query.draft
+    } else {
+      // 刷新后 state 丢失，从草稿列表回退查找
+      try {
+        const res = await getMyDrafts({ page: 1, page_size: 100 })
+        const found = (res?.data?.drafts || []).find(d => String(d.id) === String(route.query.draft))
+        if (found) {
+          form.value = {
+            content: found.content || '', title: found.title || '', category: found.category || '',
+            post_type: found.post_type || 'dynamic', visibility: found.visibility || 'public',
+            is_original: found.is_original !== false,
+            tags: found.tags || [], topics: found.topics || []
+          }
+          draftId.value = found.id
+        }
+      } catch (e) { /* 忽略，使用空白编辑器 */ }
     }
   } else if (categories.value.length && !form.value.category) {
     form.value.category = categories.value[0].slug

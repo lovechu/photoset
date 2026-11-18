@@ -80,7 +80,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getCaptcha, forgotPassword } from '@/api'
+import { forgotPassword } from '@/api'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 import { Camera, Message, Refresh } from '@element-plus/icons-vue'

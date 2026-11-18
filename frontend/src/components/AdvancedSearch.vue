@@ -114,7 +114,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, defineEmits, defineProps } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { getCategories } from '@/api'
 
 const props = defineProps({

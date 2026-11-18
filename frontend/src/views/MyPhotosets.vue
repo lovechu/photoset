@@ -51,12 +51,10 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Edit, Delete } from '@element-plus/icons-vue'
 import { getPhotosetListAdvanced, deletePhotoset as apiDeletePhotoset } from '@/api'
 
-const router = useRouter()
 const list = ref([])
 const total = ref(0)
 const page = ref(1)

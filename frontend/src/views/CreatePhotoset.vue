@@ -221,7 +221,7 @@ import { useRouter } from 'vue-router'
 import { createPhotoset, getTags, uploadImage, getCategories } from '@/api'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
-import { Delete, Plus, UploadFilled, Close, Check } from '@element-plus/icons-vue'
+import { Plus, Close, Check } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -362,15 +362,13 @@ const genPreview = (file) => {
 }
 
 // 处理图片上传（串行队列 + 进度条）
-const handlePhotoUpload = async ({ file, fileList }) => {
-  const files = fileList && fileList.length > 1 ? fileList : [file]
-
-  // 先加入队列显示预览
-  for (const f of files) {
-    const preview = await genPreview(f)
-    const tempId = genId()
-    uploadQueue.value.push({ tempId, name: f.name, preview, progress: 0, file: f })
-  }
+// Element Plus 对多选文件会逐个调用 http-request，每次传单个 file；
+// 只取 file 本身，避免用 fileList 造成同一批文件被重复入队
+const handlePhotoUpload = async ({ file }) => {
+  if (!file) return
+  const preview = await genPreview(file)
+  const tempId = genId()
+  uploadQueue.value.push({ tempId, name: file.name, preview, progress: 0, file })
 
   if (isUploading.value) return
   isUploading.value = true

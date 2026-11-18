@@ -415,8 +415,8 @@ async function toggleReplyLike(reply) {
   if (!userStore.isLoggedIn) return ElMessage.info('请先登录')
   try {
     await toggleReplyLikeApi(reply.id)
-    reply.like_count = (reply.like_count || 0) + 1
-    reply.is_liked = true
+    reply.is_liked = !reply.is_liked
+    reply.like_count = (reply.like_count || 0) + (reply.is_liked ? 1 : -1)
   } catch (e) { ElMessage.error('操作失败') }
 }
 

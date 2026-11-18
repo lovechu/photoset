@@ -24,7 +24,6 @@ const page = ref(1)
 const loading = ref(false)
 
 onMounted(() => load())
-function reload() { page.value = 1; posts.value = []; load() }
 async function load() {
   loading.value = true
   try {

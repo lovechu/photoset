@@ -7,8 +7,8 @@
       </div>
       <el-card class="share-card">
         <el-image
-          v-if="photoset.cover_image"
-          :src="photoset.cover_image"
+          v-if="photoset.cover || photoset.cover_image"
+          :src="photoset.cover || photoset.cover_image"
           fit="cover"
           class="share-cover"
         />
@@ -17,7 +17,7 @@
           <div class="share-meta">
             <span>{{ photoset.photo_count || 0 }} 张图片</span>
             <span>{{ photoset.view_count || 0 }} 浏览</span>
-            <el-tag v-if="photoset.is_vip" size="small" type="warning">VIP</el-tag>
+            <el-tag v-if="photoset.is_vip || photoset.is_free === 0" size="small" type="warning">VIP</el-tag>
           </div>
           <p class="share-desc">{{ photoset.description || '暂无描述' }}</p>
           <div class="share-actions">

@@ -164,10 +164,18 @@ const handlePay = async (order) => {
     )
 
     const res = await payOrder(order.id)
-    const { token, user } = res.data
+    const token = res.data?.token || userStore.token
 
-    // 更新状态
-    userStore.afterPayment(token, user)
+    // 支付接口不一定返回 user，用最新用户信息刷新本地状态
+    let user = res.data?.user
+    if (!user) {
+      try {
+        const { getCurrentUser } = await import('@/api')
+        const me = await getCurrentUser()
+        user = me.data?.user
+      } catch (e) { /* 保留原用户 */ }
+    }
+    userStore.afterPayment(token, user || userStore.user)
 
     ElMessage.success('支付成功！')
 

@@ -27,7 +27,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Refresh } from '@element-plus/icons-vue'
 import { getConversations, getMessageUnreadCount } from '@/api'
@@ -47,6 +47,13 @@ onMounted(() => {
     loadConversations()
     loadUnread()
   })
+})
+
+onUnmounted(() => {
+  if (unsubscribe) {
+    unsubscribe()
+    unsubscribe = null
+  }
 })
 
 async function loadConversations() {

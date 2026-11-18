@@ -66,6 +66,7 @@
         :data="item"
         :search-keyword="keyword"
         class="card-hover"
+        @deleted="handleDeleted"
       />
     </div>
 
@@ -114,11 +115,15 @@ const showAdvancedSearch = ref(false)
 const currentUser = ref({})
 const advancedFilters = ref({})
 
-// 加载用户信息
+// 加载用户信息（仅登录态，避免游客访问首页被 401 拦截跳登录）
 const loadCurrentUser = async () => {
+  if (!localStorage.getItem('photoset_token')) {
+    currentUser.value = {}
+    return
+  }
   try {
     const res = await getCurrentUser()
-    currentUser.value = res.data.user || {}
+    currentUser.value = res.data?.user || {}
   } catch (e) {
     console.warn('获取用户信息失败或未登录')
     currentUser.value = {}
@@ -175,11 +180,16 @@ const loadPhotosets = async () => {
   }
 }
 
-// 处理高级搜索
+// 删除套图后从列表移除该卡片
+const handleDeleted = (deletedId) => {
+  photosets.value = photosets.value.filter(item => item.id !== deletedId)
+  total.value = Math.max(0, total.value - 1)
+}
+
+// 处理高级搜索（交给下方 watch 统一触发，避免重复请求）
 const handleAdvancedSearch = (filters) => {
   advancedFilters.value = filters
   currentPage.value = 1 // 重置到第一页
-  loadPhotosets()
 }
 
 // 清除高级筛选
@@ -296,12 +306,10 @@ watch(() => route.query.tag, (newTag) => {
   loadPhotosets()
 })
 
-// 监听高级筛选变化
+// 监听高级筛选变化（含清空筛选）
 watch(advancedFilters, () => {
-  if (hasAdvancedFilters.value) {
-    currentPage.value = 1
-    loadPhotosets()
-  }
+  currentPage.value = 1
+  loadPhotosets()
 }, { deep: true })
 </script>
 
