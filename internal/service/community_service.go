@@ -239,6 +239,10 @@ func (s *CommunityService) CreatePost(userID uint, req *CreatePostRequest, autho
 	// Send mention notifications (non-critical, async)
 	go s.mentionService.SendMentionNotifications(userID, post.ID, req.Content)
 
+	// 帖子发布成功后，清除正文图片的付费状态缓存：
+	// 图片上传预览时可能已被缓存为 missing（403），此时 content 已含图片 URL，需重新判断放行
+	InvalidateImagePaidCache(post.Content)
+
 	// Load associations
 	post, err = s.postRepo.FindByID(post.ID)
 	if err != nil {
@@ -296,6 +300,9 @@ func (s *CommunityService) CreateReply(userID, postID uint, req *CreateReplyRequ
 
 	// Send mention notifications (non-critical, async)
 	go s.mentionService.SendMentionNotifications(userID, postID, req.Content)
+
+	// 回复发布成功后，清除正文图片的付费状态缓存（同发帖逻辑）
+	InvalidateImagePaidCache(reply.Content)
 
 	// Load associations
 	reply, err = s.replyRepo.FindByID(reply.ID)

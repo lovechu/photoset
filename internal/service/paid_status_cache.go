@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -12,8 +13,44 @@ import (
 // 付费状态缓存常量
 const (
 	CachePrefixPaidStatus = "photoset:paid:"
-	PaidStatusTTL         = 30 * time.Minute // 缓存 30 分钟
+	PaidStatusTTL         = 30 * time.Minute // 图片归属/付费状态缓存 30 分钟
+	MissingStatusTTL      = 10 * time.Second // "图片未命中"缓存只保留极短时间，避免上传预览早于发帖导致长期 403
 )
+
+// imagePaidCacheKey 构建单张图片的付费状态缓存 key（供查询与主动失效共用）
+func imagePaidCacheKey(imageURL string) string {
+	return "photoset:imgpaid:" + imageURL
+}
+
+// InvalidateImagePaidCache 在帖子/回复发布后主动清除正文里所有图片的付费状态缓存。
+// 背景：图片上传后会先被预览请求，此时正文尚未写入，ImagePaidStatus 会把该图缓存为
+// "missing"（fail-closed 返回 403）。发帖/回帖成功后调用本函数失效这些 key，
+// 下次访问会重新走库判断（此时 content 已包含图片 URL，识别为社区图片并放行）。
+// 缓存键使用 cleanPath（/uploads/... 相对路径），这里同时覆盖绝对 URL 与相对路径两种写法。
+func InvalidateImagePaidCache(content string) {
+	if content == "" {
+		return
+	}
+	cache := NewCacheService()
+	ctx := context.Background()
+
+	seen := make(map[string]bool)
+	var keys []string
+	// 匹配 /uploads/... 图片地址（Markdown/裸 URL/HTML 里的均会被这段命中）
+	re := regexp.MustCompile(`/uploads/[^\s)"'<>\\]+?\.(?:jpg|jpeg|png|gif|webp|avif|bmp)(?:[?#][^\s)"'<>]*)?`)
+	for _, m := range re.FindAllString(content, -1) {
+		for _, u := range []string{m, "/" + strings.TrimPrefix(m, "/")} {
+			if seen[u] {
+				continue
+			}
+			seen[u] = true
+			keys = append(keys, imagePaidCacheKey(u))
+		}
+	}
+	if len(keys) > 0 {
+		_ = cache.Delete(ctx, keys...)
+	}
+}
 
 // PaidStatusCacheKey 构建付费状态缓存 key
 func PaidStatusCacheKey(photosetID uint) string {
@@ -65,7 +102,7 @@ type freeStatus struct {
 func ImagePaidStatus(imageURL string) (isPaid bool, exists bool, err error) {
 	ctx := context.Background()
 	cache := NewCacheService()
-	key := "photoset:imgpaid:" + imageURL
+	key := imagePaidCacheKey(imageURL)
 
 	// 缓存存 "1"=付费 / "0"=免费 / "missing"=不存在
 	var cached string
@@ -129,7 +166,9 @@ func ImagePaidStatus(imageURL string) (isPaid bool, exists bool, err error) {
 				_ = cache.Set(ctx, key, "0", PaidStatusTTL)
 				return false, true, nil
 			}
-			_ = cache.Set(ctx, key, "missing", PaidStatusTTL)
+			// missing 只缓存极短时间：图片常在发帖前被上传预览请求过，
+			// 若缓存 30 分钟会导致发帖后 30 分钟内一直 403（缓存早于数据写入）。
+			_ = cache.Set(ctx, key, "missing", MissingStatusTTL)
 			return false, false, nil
 		}
 		isPaid = cover.IsFree == 0
