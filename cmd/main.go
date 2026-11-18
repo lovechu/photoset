@@ -193,6 +193,12 @@ func main() {
 		// User collections
 		&domain.UserCollection{},
 		&domain.CollectionItem{},
+		// Tables that were historically only created via manual SQL migrations.
+		// Include them in AutoMigrate so fresh deployments never hit "table doesn't exist" 500s.
+		&domain.PhotoSetReview{}, // photoset_reviews
+		&domain.PostFavorite{},   // post_favorites
+		&domain.UserPointLog{},   // user_point_logs
+		&domain.PushToken{},      // push_tokens
 	); err != nil {
 		// 忽略多对多关联表的重复主键错误（表已存在时 GORM 会尝试重复添加主键）
 		if !isMultiplePrimaryKeyError(err) {
