@@ -2,11 +2,14 @@
   <div class="profile-page">
     <div class="page-header">
       <h1>个人中心</h1>
+      <el-button type="primary" plain size="small" class="header-edit" @click="$router.push('/edit-profile')">编辑资料</el-button>
     </div>
 
     <!-- 用户信息卡片 -->
     <div class="user-card">
-      <el-avatar :size="64">{{ userStore.user?.nickname?.charAt(0) }}</el-avatar>
+      <el-avatar :size="64" :src="userStore.avatar" class="avatar-clickable" @click="$router.push('/edit-profile')">
+        {{ userStore.user?.nickname?.charAt(0) }}
+      </el-avatar>
       <div class="user-info">
         <h2>{{ userStore.user?.nickname }}</h2>
         <el-tag size="small" :type="roleTagType">{{ roleLabel }}</el-tag>
@@ -30,7 +33,7 @@
           <div class="info-item">
             <span class="label">昵称</span>
             <span class="value">{{ userStore.user?.nickname }}</span>
-            <el-button size="small" text disabled>编辑</el-button>
+            <el-button size="small" text type="primary" @click="$router.push('/edit-profile')">编辑</el-button>
           </div>
           <div class="info-item">
             <span class="label">邮箱</span>
@@ -207,8 +210,11 @@ onMounted(() => {
 
 <style scoped>
 .profile-page { padding: 0 0 60px; max-width: 1000px; margin: 0 auto; }
-.page-header { text-align: center; padding: 40px 0; }
+.page-header { position: relative; text-align: center; padding: 40px 0; }
 .page-header h1 { font-size: 28px; font-weight: 600; color: #1a1a1a; }
+.header-edit { position: absolute; right: 0; top: 44px; }
+.avatar-clickable { cursor: pointer; transition: opacity .2s; }
+.avatar-clickable:hover { opacity: .8; }
 .user-card {
   background: #fff; border-radius: 12px; padding: 24px;
   display: flex; align-items: center; gap: 20px;

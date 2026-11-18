@@ -42,12 +42,12 @@
       <el-empty v-if="!loading && list.length === 0" description="暂无评论，来抢沙发吧" :image-size="60" />
 
       <div v-for="item in list" :key="item.id" class="comment-item">
-        <el-avatar :size="36" :src="item.user?.avatar">
+        <el-avatar :size="36" :src="item.user?.avatar" class="author-link" @click="goProfile(item.user?.id)">
           {{ item.user?.nickname?.charAt(0) || 'U' }}
         </el-avatar>
         <div class="comment-main">
           <div class="comment-head">
-            <span class="commenter">{{ item.user?.nickname || '匿名用户' }}</span>
+            <span class="commenter author-link" @click="goProfile(item.user?.id)">{{ item.user?.nickname || '匿名用户' }}</span>
             <span v-if="item.user?.ip_location" class="ip-loc">{{ item.user.ip_location }}</span>
             <span class="comment-time">{{ formatTime(item.created_at) }}</span>
           </div>
@@ -79,12 +79,12 @@
           <!-- 楼中楼回复 -->
           <div v-if="expandedReplies.has(item.id)" class="replies-box">
             <div v-for="reply in item.replies" :key="reply.id" class="reply-item">
-              <el-avatar :size="26" :src="reply.user?.avatar">
+              <el-avatar :size="26" :src="reply.user?.avatar" class="author-link" @click="goProfile(reply.user?.id)">
                 {{ reply.user?.nickname?.charAt(0) || 'U' }}
               </el-avatar>
               <div class="reply-main">
                 <div class="reply-head">
-                  <span class="replyer">{{ reply.user?.nickname || '匿名用户' }}</span>
+                  <span class="replyer author-link" @click="goProfile(reply.user?.id)">{{ reply.user?.nickname || '匿名用户' }}</span>
                   <span class="comment-time">{{ formatTime(reply.created_at) }}</span>
                 </div>
                 <div class="reply-content">{{ reply.content }}</div>
@@ -327,6 +327,10 @@ function goLogin() {
   router.push({ name: 'Login', query: { redirect: router.currentRoute.value.fullPath } })
 }
 
+function goProfile(userId) {
+  if (userId) router.push(`/community/user/${userId}`)
+}
+
 function formatTime(str) {
   if (!str) return ''
   const d = new Date(str)
@@ -344,6 +348,8 @@ function formatTime(str) {
 </script>
 
 <style scoped>
+.author-link { cursor: pointer; }
+.author-link:hover { text-decoration: underline; }
 .comment-section {
   background: #fff;
   border-radius: 12px;

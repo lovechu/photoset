@@ -29,8 +29,8 @@
       <!-- 主楼 -->
       <article class="post-floor">
         <div class="floor-author">
-          <el-avatar :size="46" :src="post.author_avatar">{{ post.author_name?.charAt(0) || 'U' }}</el-avatar>
-          <div class="floor-author-name">{{ post.author_name || '匿名用户' }}</div>
+          <el-avatar :size="46" :src="post.author_avatar" class="author-link" @click="goProfile(post.author_id)">{{ post.author_name?.charAt(0) || 'U' }}</el-avatar>
+          <div class="floor-author-name author-link" @click="goProfile(post.author_id)">{{ post.author_name || '匿名用户' }}</div>
           <div class="floor-author-meta" v-if="post.author_ip_location">IP {{ post.author_ip_location }}</div>
           <button v-if="userStore.isLoggedIn && post.author_id !== userStore.user?.id" class="follow-btn" @click="toggleFollow">
             {{ post.is_following ? '取消关注' : '+ 关注' }}
@@ -86,8 +86,8 @@
           <el-empty v-if="!repliesLoading && replies.length === 0" description="暂无回复" :image-size="60" />
           <div v-for="(reply, i) in replies" :key="reply.id" class="post-floor reply-floor">
             <div class="floor-author">
-              <el-avatar :size="40" :src="reply.user?.avatar">{{ reply.user?.nickname?.charAt(0) || 'U' }}</el-avatar>
-              <div class="floor-author-name">{{ reply.user?.nickname || '用户' }}</div>
+              <el-avatar :size="40" :src="reply.user?.avatar" class="author-link" @click="goProfile(reply.user?.id)">{{ reply.user?.nickname?.charAt(0) || 'U' }}</el-avatar>
+              <div class="floor-author-name author-link" @click="goProfile(reply.user?.id)">{{ reply.user?.nickname || '用户' }}</div>
               <div class="floor-author-meta" v-if="reply.author_ip_location">IP {{ reply.author_ip_location }}</div>
             </div>
             <div class="floor-body">
@@ -173,6 +173,10 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const postId = route.params.id
+
+function goProfile(userId) {
+  if (userId) router.push(`/community/user/${userId}`)
+}
 
 const loading = ref(false)
 const post = ref(null)
@@ -480,6 +484,8 @@ function canDeleteReply(reply) {
 }
 .floor-author :deep(.el-avatar) { background: #eef0f3; color: #6b7280; margin-bottom: 2px; }
 .floor-author-name { font-size: 13px; font-weight: 600; color: #3d444e; word-break: break-all; }
+.author-link { cursor: pointer; }
+.author-link:hover { color: #4f6ef7; }
 .floor-author-meta { font-size: 11px; color: #9aa1ac; }
 .follow-btn {
   margin-top: 6px; padding: 4px 12px; font-size: 11px; cursor: pointer;

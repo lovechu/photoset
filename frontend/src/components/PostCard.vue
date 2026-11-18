@@ -21,7 +21,7 @@
       </div>
 
       <div class="topic-meta">
-        <span class="author">{{ post.author_name || '匿名用户' }}</span>
+        <span class="author author-link" @click.stop="goProfile">{{ post.author_name || '匿名用户' }}</span>
         <span class="sep">·</span>
         <span>{{ formatTime(post.created_at) }}</span>
         <span v-if="post.author_ip_location" class="sep">·</span>
@@ -46,8 +46,8 @@
     <div class="topic-last">
       <div>{{ formatTime(post.created_at) }}</div>
       <div>
-        <span class="u">{{ post.author_name || '用户' }}</span>
-        <span class="last-av" :style="{ background: avatarColor(post.author_name || 'U') }">{{ (post.author_name || 'U').charAt(0) }}</span>
+        <span class="u author-link" @click.stop="goProfile">{{ post.author_name || '用户' }}</span>
+        <span class="last-av author-link" :style="{ background: avatarColor(post.author_name || 'U') }" @click.stop="goProfile">{{ (post.author_name || 'U').charAt(0) }}</span>
       </div>
     </div>
 
@@ -85,6 +85,9 @@ const plainText = computed(() => toPlainText(props.post.content, 200))
 
 function goDetail() {
   router.push(`/community/post/${props.post.id}`)
+}
+function goProfile() {
+  if (props.post.author_id) router.push(`/community/user/${props.post.author_id}`)
 }
 function goTopic(name) {
   router.push(`/community/topic/${encodeURIComponent(name)}`)
@@ -205,6 +208,8 @@ function avatarColor(name) {
 }
 .topic-meta { display: flex; align-items: center; gap: 4px; margin-top: 10px; font-size: 11px; color: #9aa1ac; flex-wrap: wrap; }
 .topic-meta .author { color: #6b7280; font-weight: 600; }
+.author-link { cursor: pointer; }
+.author-link:hover { color: #4f6ef7; text-decoration: underline; }
 .topic-meta .sep { color: #c6cbd2; }
 .follow-tag { margin-left: 4px; transform: scale(0.9); transform-origin: left center; }
 .mini-actions { display: flex; gap: 12px; margin-left: auto; }

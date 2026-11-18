@@ -21,9 +21,6 @@
         <el-form-item label="封面图">
           <el-input v-model="form.cover_image" placeholder="封面图地址（选填）" />
         </el-form-item>
-        <el-form-item label="IP属地">
-          <el-input v-model="form.ip_location" placeholder="选填" />
-        </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="saving" @click="saveProfile">保存修改</el-button>
           <el-button @click="$router.back()">取消</el-button>
@@ -42,7 +39,7 @@ import { uploadAvatar } from '@/api'
 
 const userStore = useUserStore()
 const avatarInput = ref(null)
-const form = ref({ nickname: '', bio: '', cover_image: '', ip_location: '' })
+const form = ref({ nickname: '', bio: '', cover_image: '' })
 const previewAvatar = ref('')
 const uploadingAvatar = ref(false)
 const saving = ref(false)
@@ -52,8 +49,7 @@ onMounted(() => {
   form.value = {
     nickname: u.nickname || '',
     bio: u.bio || '',
-    cover_image: u.cover_image || '',
-    ip_location: u.ip_location || ''
+    cover_image: u.cover_image || ''
   }
   previewAvatar.value = u.avatar || ''
 })

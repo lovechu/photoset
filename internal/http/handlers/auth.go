@@ -340,18 +340,17 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		Bio        string `json:"bio"`
 		Avatar     string `json:"avatar"`
 		CoverImage string `json:"cover_image"`
-		IPLocation string `json:"ip_location"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, http.StatusBadRequest, "参数错误")
 		return
 	}
 
-	// DEBUG: 打印收到的参数，确认 avatar 是否传入
-	log.Printf("[UpdateProfile] userID=%d nickname=%q bio=%q avatar=%q cover_image=%q ip_location=%q",
-		userID, req.Nickname, req.Bio, req.Avatar, req.CoverImage, req.IPLocation)
+	// IP 属地只由服务端根据请求 IP 解析更新，不接受客户端自填，防止伪造
+	log.Printf("[UpdateProfile] userID=%d nickname=%q bio=%q avatar=%q cover_image=%q",
+		userID, req.Nickname, req.Bio, req.Avatar, req.CoverImage)
 
-	user, err := h.userService.UpdateProfile(userID, req.Nickname, req.Bio, req.Avatar, req.CoverImage, req.IPLocation)
+	user, err := h.userService.UpdateProfile(userID, req.Nickname, req.Bio, req.Avatar, req.CoverImage, "")
 	if err != nil {
 		log.Printf("[UpdateProfile] UpdateProfile error: %v", err)
 		response.Error(c, http.StatusBadRequest, err.Error())

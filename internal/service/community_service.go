@@ -95,10 +95,7 @@ func (s *CommunityService) CreatePost(userID uint, req *CreatePostRequest, autho
 		Status:           string(domain.PostStatusApproved), // Auto-approve on creation
 	}
 
-	// 用户手动指定位置时覆盖 IP 定位
-	if req.Location != "" {
-		post.AuthorIPLocation = req.Location
-	}
+	// IP 属地始终采用服务端根据请求 IP 的解析结果，忽略客户端传入的 location 以防伪造
 
 	// 解析定时发布时间
 	if req.ScheduledAt != nil && *req.ScheduledAt != "" {

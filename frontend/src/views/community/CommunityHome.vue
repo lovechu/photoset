@@ -77,7 +77,7 @@
                 </div>
                 <div class="topic-title">{{ post.title || plainText(post.content) }}</div>
                 <div class="topic-sub">
-                  <span class="author">{{ post.author_name || '匿名用户' }}</span>
+                  <span class="author author-link" @click.stop="goProfile(post.author_id)">{{ post.author_name || '匿名用户' }}</span>
                   <span class="sep">·</span>{{ timeAgo(post.created_at) }}
                 </div>
               </div>
@@ -88,8 +88,8 @@
               <div class="topic-last">
                 <div>{{ lastReplyTime(post) }}</div>
                 <div>
-                  <span class="u">{{ lastReplyName(post) }}</span>
-                  <span class="last-av" :style="{ background: avatarColor(lastReplyName(post)) }">{{ lastReplyName(post).charAt(0) }}</span>
+                  <span class="u author-link" @click.stop="goProfile(lastReplyUserId(post))">{{ lastReplyName(post) }}</span>
+                  <span class="last-av author-link" :style="{ background: avatarColor(lastReplyName(post)) }" @click.stop="goProfile(lastReplyUserId(post))">{{ lastReplyName(post).charAt(0) }}</span>
                 </div>
               </div>
             </div>
@@ -222,6 +222,14 @@ function loadMore() {
 
 function goPost(post) {
   router.push(`/community/post/${post.id}`)
+}
+
+function goProfile(userId) {
+  if (userId) router.push(`/community/user/${userId}`)
+}
+
+function lastReplyUserId(post) {
+  return post.last_reply_user?.id || post.last_reply_user_id || post.author_id
 }
 
 function goCreate() {
@@ -443,6 +451,8 @@ function timeAgo(str) {
 .topic:hover .topic-title { color: #4f6ef7; }
 .topic-sub { font-size: 11px; color: #9aa1ac; }
 .topic-sub .author { color: #6b7280; font-weight: 600; }
+.author-link { cursor: pointer; }
+.author-link:hover { color: #4f6ef7; text-decoration: underline; }
 .topic-sub .sep { margin: 0 4px; color: #c6cbd2; }
 .topic-stats { display: flex; }
 .tstat { width: 74px; text-align: center; font-size: 12px; color: #6b7280; }
