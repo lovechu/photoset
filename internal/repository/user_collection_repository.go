@@ -80,7 +80,7 @@ func (r *UserCollectionRepository) AddItem(collectionID, photosetID uint) error 
 		// 检查是否已存在
 		var count int64
 		if err := tx.Model(&domain.CollectionItem{}).
-			Where("collection_id = ? AND photoset_id = ?", collectionID, photosetID).
+			Where("collection_id = ? AND photo_set_id = ?", collectionID, photosetID).
 			Count(&count).Error; err != nil {
 			return err
 		}
@@ -103,7 +103,7 @@ func (r *UserCollectionRepository) AddItem(collectionID, photosetID uint) error 
 // RemoveItem 从合集移除套图
 func (r *UserCollectionRepository) RemoveItem(collectionID, photosetID uint) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		result := tx.Where("collection_id = ? AND photoset_id = ?", collectionID, photosetID).
+		result := tx.Where("collection_id = ? AND photo_set_id = ?", collectionID, photosetID).
 			Delete(&domain.CollectionItem{})
 		if result.Error != nil {
 			return result.Error
@@ -127,7 +127,7 @@ func (r *UserCollectionRepository) BatchAddItems(collectionID uint, photosetIDs 
 		for _, photosetID := range photosetIDs {
 			var count int64
 			if err := tx.Model(&domain.CollectionItem{}).
-				Where("collection_id = ? AND photoset_id = ?", collectionID, photosetID).
+				Where("collection_id = ? AND photo_set_id = ?", collectionID, photosetID).
 				Count(&count).Error; err != nil {
 				return err
 			}
@@ -155,7 +155,7 @@ func (r *UserCollectionRepository) BatchAddItems(collectionID uint, photosetIDs 
 func (r *UserCollectionRepository) IsInCollection(collectionID, photosetID uint) (bool, error) {
 	var count int64
 	err := r.db.Model(&domain.CollectionItem{}).
-		Where("collection_id = ? AND photoset_id = ?", collectionID, photosetID).
+		Where("collection_id = ? AND photo_set_id = ?", collectionID, photosetID).
 		Count(&count).Error
 	return count > 0, err
 }
@@ -163,8 +163,10 @@ func (r *UserCollectionRepository) IsInCollection(collectionID, photosetID uint)
 // GetUserCollectionsContaining 获取包含指定套图的用户合集
 func (r *UserCollectionRepository) GetUserCollectionsContaining(userID, photosetID uint) ([]domain.UserCollection, error) {
 	var collections []domain.UserCollection
+	// 注意：GORM 把 PhotoSetID 映射为 photo_set_id（带下划线），手写 SQL 必须用真实列名，
+	// 否则报 Unknown column 'photoset_id'（合集页"加入合集"查询会 500）。
 	err := r.db.Joins("JOIN collection_items ON collection_items.collection_id = user_collections.id").
-		Where("user_collections.user_id = ? AND collection_items.photoset_id = ?", userID, photosetID).
+		Where("user_collections.user_id = ? AND collection_items.photo_set_id = ?", userID, photosetID).
 		Find(&collections).Error
 	return collections, err
 }
