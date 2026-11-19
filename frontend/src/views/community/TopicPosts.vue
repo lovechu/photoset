@@ -19,9 +19,15 @@ import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import PostCard from '@/components/PostCard.vue'
 import { getPostsByTopicName } from '@/api'
+import { useSeo } from '@/composables/useSeo'
 
 const route = useRoute()
 const topicName = decodeURIComponent(route.params.name || '')
+useSeo(() => ({
+  title: topicName ? `话题 #${topicName}#` : '话题',
+  description: `浏览 #${topicName}# 话题下的社区帖子与讨论`,
+  path: route.fullPath
+}))
 const posts = ref([])
 const total = ref(0)
 const page = ref(1)

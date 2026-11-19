@@ -167,7 +167,8 @@ import {
   toggleReplyLike as toggleReplyLikeApi, togglePostFavorite, checkPostFavorite, reportPost,
   deletePost, followUser, unfollowUser, recordShare, uploadCommunityImage
 } from '@/api'
-import { renderContent, extractVideos, formatTime } from '@/utils/post'
+import { renderContent, extractVideos, formatTime, extractImages, toPlainText } from '@/utils/post'
+import { useSeo, SITE_URL } from '@/composables/useSeo'
 
 const route = useRoute()
 const router = useRouter()
@@ -179,6 +180,7 @@ function goProfile(userId) {
 }
 
 const loading = ref(false)
+const postLoadFailed = ref(false)
 const post = ref(null)
 const replies = ref([])
 const pagination = ref({ total: 0, page: 1, page_size: 20 })
@@ -202,6 +204,34 @@ const childUploading = ref(false)
 
 const renderedContent = computed(() => renderContent(post.value?.content))
 const videos = computed(() => extractVideos(post.value?.content))
+
+// SEO：帖子详情动态 head + DiscussionForumPosting 结构化数据 + 软 404
+useSeo(() => {
+  const p = post.value
+  if (postLoadFailed.value || !p) {
+    return { title: '帖子不存在', path: route.fullPath, statusCode: 404, noindex: true }
+  }
+  const path = `/community/post/${p.id || postId}`
+  const image = p.images?.[0] || extractImages(p.content)[0] || ''
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'DiscussionForumPosting',
+    headline: p.title || '社区帖子',
+    text: toPlainText(p.content, 500),
+    url: `${SITE_URL}${path}`,
+    datePublished: p.created_at || undefined,
+    author: p.author_name ? { '@type': 'Person', name: p.author_name } : undefined,
+    image: image ? [image.startsWith('http') ? image : `${SITE_URL}${image}`] : undefined
+  }
+  return {
+    title: p.title || '社区帖子',
+    description: toPlainText(p.content, 160) || `查看 ${p.author_name || '用户'} 发布的社区帖子`,
+    path,
+    image,
+    type: 'article',
+    jsonLd
+  }
+})
 const canEdit = computed(() => userStore.isLoggedIn &&
   (post.value?.author_id === userStore.user?.id || userStore.user?.role === 'admin'))
 
@@ -213,11 +243,14 @@ onMounted(() => {
 
 async function loadPost() {
   loading.value = true
+  postLoadFailed.value = false
   try {
     const res = await getPostDetail(postId)
     post.value = res?.data?.post || res?.data || null
+    if (!post.value) postLoadFailed.value = true
   } catch (e) {
     console.warn('加载帖子失败:', e.message)
+    postLoadFailed.value = true
   } finally {
     loading.value = false
   }

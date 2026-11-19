@@ -1,0 +1,14 @@
+{
+  "name": "photoset-seo-renderer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "PhotoSet 独立 SEO 预渲染服务：消费 Redis Stream 事件，无头浏览器渲染公开页面，带状态元数据的 HTML 文件缓存。",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ioredis": "5.4.1",
+    "puppeteer-core": "23.11.1"
+  }
+}

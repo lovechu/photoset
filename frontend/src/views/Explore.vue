@@ -50,6 +50,9 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getExploreFeed, getHotPhotosets } from '@/api'
+import { useSeo } from '@/composables/useSeo'
+
+useSeo({ title: '发现', description: '发现 PhotoSet 上的热门摄影套图与精选图集。', path: '/explore' })
 
 const router = useRouter()
 const activeTab = ref('feed')

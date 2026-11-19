@@ -26,7 +26,7 @@
           <el-button size="small" :icon="Picture" @click="openImagePicker">配图</el-button>
           <input ref="imageInput" type="file" accept="image/*" style="display:none" @change="onImagePicked" />
           <span v-if="imageUrl" class="image-preview">
-            <el-image :src="imageUrl" fit="cover" style="width:40px;height:40px;border-radius:4px" />
+            <el-image :src="imageUrl" alt="评论配图预览" fit="cover" style="width:40px;height:40px;border-radius:4px" />
             <el-icon class="remove-image" @click="imageUrl = ''"><Close /></el-icon>
           </span>
           <el-button type="primary" size="small" :loading="submitting" @click="submitComment">发表评论</el-button>
@@ -55,6 +55,7 @@
           <el-image
             v-if="item.image_url"
             :src="item.image_url"
+            alt="评论配图"
             fit="cover"
             class="comment-image"
             :preview-src-list="[item.image_url]"

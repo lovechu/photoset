@@ -18,6 +18,7 @@ type PhotoSetService struct {
 	repo         *repository.PhotoSetRepository
 	orderRepo    *repository.OrderRepository
 	cacheService *CacheService
+	seo          *SeoEventService
 	cfg          *config.Config
 	storage      storage.Storage
 }
@@ -27,6 +28,7 @@ func NewPhotoSetService(repo *repository.PhotoSetRepository, orderRepo *reposito
 		repo:         repo,
 		orderRepo:    orderRepo,
 		cacheService: NewCacheService(),
+		seo:          NewSeoEventService(),
 		cfg:          cfg,
 		storage:      stor,
 	}
@@ -99,6 +101,12 @@ func (s *PhotoSetService) CreatePhotoSet(photoset *domain.PhotoSet, tagNames []s
 	s.InvalidateAllPhotosetListCache()
 	// 同步写入付费状态缓存
 	SetPaidStatus(photoset.ID, photoset.IsFree == 0)
+	// SEO：失效 sitemap 缓存并异步触发详情页预渲染
+	if photoset.Status == "published" {
+		s.seo.PhotosetChanged(photoset.ID)
+	} else {
+		s.seo.InvalidateSitemap()
+	}
 
 	return nil
 }
@@ -321,6 +329,7 @@ func (s *PhotoSetService) UpdatePhotoSet(id uint, updates map[string]interface{}
 	s.InvalidateAllPhotosetListCache()
 	s.InvalidateTagsCache()
 	s.InvalidateCategoriesCache()
+	s.seo.PhotosetChanged(id)
 
 	// 如果 is_free 发生变化，同步刷新付费状态缓存
 	if isFreeVal, ok := updates["is_free"]; ok {
@@ -349,6 +358,7 @@ func (s *PhotoSetService) DeletePhotoSet(id uint) error {
 	s.InvalidateTagsCache()
 	s.InvalidateCategoriesCache()
 	InvalidatePaidStatus(id)
+	s.seo.PhotosetRemoved(id)
 	return nil
 }
 

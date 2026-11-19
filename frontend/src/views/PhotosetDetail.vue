@@ -111,7 +111,7 @@
             >
               <el-image
                 :src="photo.url"
-                :alt="`图片 ${index + 1}`"
+                :alt="`${detail?.title || '摄影套图'} - 第 ${index + 1} 张`"
                 fit="cover"
                 class="gallery-image"
                 :lazy="true"
@@ -231,6 +231,7 @@ import {
 } from '@element-plus/icons-vue'
 import CommentSection from '@/components/CommentSection.vue'
 import ReviewSection from '@/components/ReviewSection.vue'
+import { useSeo, SITE_URL } from '@/composables/useSeo'
 
 const route = useRoute()
 const router = useRouter()
@@ -261,6 +262,35 @@ const loadingMoreTriggered = ref(false)
 
 // 图片列表（可能为空）
 const photos = computed(() => detail.value?.photos || [])
+
+// SEO：套图详情动态 head + ImageGallery 结构化数据 + 软 404 标记
+useSeo(() => {
+  const d = detail.value
+  if (error.value) {
+    return { title: '套图不存在', path: route.fullPath, statusCode: 404, noindex: true }
+  }
+  if (!d) {
+    return { title: '套图详情', path: route.fullPath }
+  }
+  const path = `/photoset/${d.id || route.params.id}`
+  const image = d.cover || (d.photos?.[0]?.url) || ''
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'ImageGallery',
+    name: d.title || '摄影套图',
+    description: d.description || '',
+    url: `${SITE_URL}${path}`,
+    image: image ? [image.startsWith('http') ? image : `${SITE_URL}${image}`] : undefined
+  }
+  return {
+    title: d.title || '套图详情',
+    description: d.description || `查看 ${d.title || '摄影套图'} 的高清图片与图集`,
+    path,
+    image,
+    type: 'article',
+    jsonLd
+  }
+})
 
 // 当前可见的图片
 const visiblePhotos = computed(() => photos.value.slice(0, visibleCount.value))

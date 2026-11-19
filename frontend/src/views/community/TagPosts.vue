@@ -19,9 +19,15 @@ import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import PostCard from '@/components/PostCard.vue'
 import { getPostsByTagName } from '@/api'
+import { useSeo } from '@/composables/useSeo'
 
 const route = useRoute()
 const tagName = decodeURIComponent(route.params.name || '')
+useSeo(() => ({
+  title: tagName ? `标签 ${tagName}` : '标签',
+  description: `浏览 ${tagName} 标签下的社区帖子与讨论`,
+  path: route.fullPath
+}))
 const posts = ref([])
 const total = ref(0)
 const page = ref(1)

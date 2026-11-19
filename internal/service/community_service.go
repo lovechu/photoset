@@ -35,6 +35,7 @@ type CommunityService struct {
 	pointService   *PointService
 	filterService  *SensitiveFilterService
 	mentionService *MentionService
+	seo            *SeoEventService
 	storage        storage.Storage
 }
 
@@ -75,6 +76,7 @@ func NewCommunityService(
 		pointService:   pointService,
 		filterService:  filterService,
 		mentionService: mentionService,
+		seo:            NewSeoEventService(),
 		storage:        stor,
 	}
 }
@@ -242,6 +244,8 @@ func (s *CommunityService) CreatePost(userID uint, req *CreatePostRequest, autho
 	// 帖子发布成功后，清除正文图片的付费状态缓存：
 	// 图片上传预览时可能已被缓存为 missing（403），此时 content 已含图片 URL，需重新判断放行
 	InvalidateImagePaidCache(post.Content)
+	// SEO：失效 sitemap 并请求详情页预渲染（renderer 端按实际公开状态决定是否缓存）
+	s.seo.PostChanged(post.ID)
 
 	// Load associations
 	post, err = s.postRepo.FindByID(post.ID)
@@ -303,6 +307,8 @@ func (s *CommunityService) CreateReply(userID, postID uint, req *CreateReplyRequ
 
 	// 回复发布成功后，清除正文图片的付费状态缓存（同发帖逻辑）
 	InvalidateImagePaidCache(reply.Content)
+	// SEO：帖子有新回复，重新预渲染帖子页
+	s.seo.PostChanged(postID)
 
 	// Load associations
 	reply, err = s.replyRepo.FindByID(reply.ID)
@@ -638,6 +644,9 @@ func (s *CommunityService) UpdatePost(userID, postID uint, req *UpdatePostReques
 		}
 	}
 
+	// SEO：帖子更新，失效 sitemap 并重新预渲染
+	s.seo.PostChanged(postID)
+
 	// Reload post
 	return s.postRepo.FindByID(postID)
 }
@@ -658,7 +667,11 @@ func (s *CommunityService) DeletePost(userID, postID uint) error {
 	// 异步清理帖子内容中引用的上传文件
 	go s.cleanupPostFiles(post.Content)
 
-	return s.postRepo.Delete(postID)
+	if err := s.postRepo.Delete(postID); err != nil {
+		return err
+	}
+	s.seo.PostRemoved(postID)
+	return nil
 }
 
 // AdminDeletePost 管理员删除帖子（无需验证所有权）
@@ -671,7 +684,11 @@ func (s *CommunityService) AdminDeletePost(postID uint) error {
 	// 异步清理帖子内容中引用的上传文件
 	go s.cleanupPostFiles(post.Content)
 
-	return s.postRepo.Delete(postID)
+	if err := s.postRepo.Delete(postID); err != nil {
+		return err
+	}
+	s.seo.PostRemoved(postID)
+	return nil
 }
 
 // cleanupPostFiles 从帖子内容中提取上传文件 URL 并删除
@@ -747,6 +764,8 @@ func (s *CommunityService) DeleteReply(userID, replyID uint) error {
 
 	// Decrement post reply count (non-critical)
 	s.postRepo.DecrementReplyCount(reply.PostID)
+	// SEO：帖子回复变化，重新预渲染帖子页
+	s.seo.PostChanged(reply.PostID)
 
 	return nil
 }

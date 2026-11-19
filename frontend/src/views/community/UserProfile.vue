@@ -107,6 +107,7 @@ import {
   getUserAchievementsById,
   followUser, unfollowUser, checkFollowing
 } from '@/api'
+import { useSeo } from '@/composables/useSeo'
 
 const route = useRoute()
 const userStore = useUserStore()
@@ -124,6 +125,22 @@ const isFollowing = ref(false)
 const activeTab = ref('posts')
 
 const isSelf = computed(() => userStore.isLoggedIn && Number(userId) === userStore.user?.id)
+
+// SEO：有公开作品的用户主页可索引；空主页 noindex
+useSeo(() => {
+  const p = profile.value
+  const path = `/community/user/${userId}`
+  if (!p) return { title: '用户主页', path, noindex: true }
+  const hasContent = (postsTotal.value || 0) > 0 || (p.post_count || 0) > 0
+  return {
+    title: p.nickname ? `${p.nickname} 的主页` : '用户主页',
+    description: p.bio || `查看 ${p.nickname || '用户'} 在 PhotoSet 分享的摄影作品与帖子`,
+    path,
+    image: p.avatar || '',
+    noindex: !hasContent,
+    statusCode: !p ? 404 : undefined
+  }
+})
 const unlockedAchievements = computed(() => achievements.value.filter(a => a.is_unlocked))
 const coverStyle = computed(() => {
   const url = profile.value?.cover_image

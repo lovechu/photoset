@@ -75,7 +75,9 @@
                   <span v-if="post.is_pinned" class="tlabel red">置顶</span>
                   <span v-if="post.is_essence" class="tlabel gold">精华</span>
                 </div>
-                <div class="topic-title">{{ post.title || plainText(post.content) || (postImages(post).length ? '[图片]' : '') }}</div>
+                <div class="topic-title">
+                  <router-link :to="`/community/post/${post.id}`" class="title-link" @click.stop>{{ post.title || plainText(post.content) || (postImages(post).length ? '[图片]' : '') }}</router-link>
+                </div>
                 <div v-if="postImages(post).length" class="topic-thumbs" @click.stop>
                   <div
                     v-for="(img, i) in postImages(post).slice(0, 3)"
@@ -166,6 +168,9 @@ import { useCommunityStore } from '@/stores/community'
 import { useUserStore } from '@/stores/user'
 import { getPosts } from '@/api'
 import { toPlainText, extractImages } from '@/utils/post'
+import { useSeo } from '@/composables/useSeo'
+
+useSeo({ title: '社区', description: 'PhotoSet 摄影社区，浏览用户分享的摄影作品、热门话题与原创讨论。', path: '/community' })
 
 const router = useRouter()
 const route = useRoute()
@@ -480,6 +485,7 @@ function timeAgo(str) {
   white-space: nowrap;
 }
 .topic:hover .topic-title { color: #4f6ef7; }
+.title-link { color: inherit; text-decoration: none; }
 .topic-thumbs { display: flex; gap: 5px; margin: 6px 0; max-width: 320px; }
 .topic-thumb { position: relative; width: 72px; height: 54px; border-radius: 4px; overflow: hidden; background: #f2f3f5; cursor: zoom-in; flex-shrink: 0; }
 .topic-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }

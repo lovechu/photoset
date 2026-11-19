@@ -10,7 +10,9 @@
         <span v-if="post.is_essence" class="tlabel gold">精华</span>
       </div>
 
-      <h3 class="topic-title" v-if="post.title">{{ post.title }}</h3>
+      <h3 class="topic-title" v-if="post.title">
+        <router-link :to="`/community/post/${post.id}`" class="title-link">{{ post.title }}</router-link>
+      </h3>
       <p class="topic-excerpt">{{ plainText }}</p>
 
       <div v-if="images.length" class="topic-thumbs" :class="'n-' + Math.min(images.length, 3)">
@@ -192,6 +194,7 @@ function avatarColor(name) {
   margin: 0 0 4px; line-height: 1.45;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.title-link { color: inherit; text-decoration: none; }
 .post-card:hover .topic-title { color: #4f6ef7; }
 .topic-excerpt {
   color: #8d95a0; font-size: 12px; line-height: 1.5; margin: 0;

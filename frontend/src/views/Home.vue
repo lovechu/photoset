@@ -100,6 +100,9 @@ import { getCurrentUser } from '@/api'
 import PhotosetCard from '@/components/PhotosetCard.vue'
 import AdvancedSearch from '@/components/AdvancedSearch.vue'
 import { Search } from '@element-plus/icons-vue'
+import { useSeo } from '@/composables/useSeo'
+
+useSeo({ title: '首页', path: '/' })
 
 const route = useRoute()
 

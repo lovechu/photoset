@@ -63,10 +63,18 @@ import { ArrowLeft, Plus, Delete } from '@element-plus/icons-vue'
 import {
   getCollection, removeCollectionItem, batchAddCollectionItems, getFavorites
 } from '@/api'
+import { useSeo } from '@/composables/useSeo'
 
 const route = useRoute()
 const router = useRouter()
 const collectionId = route.params.id
+
+useSeo(() => ({
+  title: collection.value?.name ? `${collection.value.name} - 合集` : '合集详情',
+  description: collection.value?.description || '查看 PhotoSet 用户创建的摄影合集',
+  path: route.fullPath,
+  noindex: true
+}))
 
 const loading = ref(false)
 const collection = ref(null)

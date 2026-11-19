@@ -9,9 +9,11 @@ import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import App from './App.vue'
 import router from './router'
 import { useUserStore } from './stores/user'
+import { createHead } from '@unhead/vue'
 
 const app = createApp(App)
 const pinia = createPinia()
+const head = createHead()
 
 // 注册所有 Element Plus 图标
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
@@ -20,6 +22,7 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 
 app.use(pinia)
 app.use(router)
+app.use(head)
 app.use(ElementPlus)
 
 // 初始化用户状态

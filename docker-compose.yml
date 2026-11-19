@@ -130,6 +130,41 @@ services:
       timeout: 10s
       retries: 5
 
+  # ========== SEO 独立渲染服务 ==========
+  # 仅供搜索引擎/社交爬虫使用，普通用户仍访问 SPA。1GB 内存起步，并发 1。
+  seo-renderer:
+    build:
+      context: .
+      dockerfile: ./seo-renderer/Dockerfile
+    container_name: photoset-seo-renderer
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      FRONTEND_ORIGIN: http://frontend
+      REDIS_URL: redis://redis:6379
+      SEO_INTERNAL_TOKEN: photoset-seo-internal-2026
+      CACHE_DIR: /var/cache/seo
+      CACHE_TTL: "3600"
+      CONCURRENCY: "1"
+      RENDER_TIMEOUT: "30000"
+      CHROME_PATH: /usr/bin/chromium
+    volumes:
+      - seo_cache:/var/cache/seo
+    networks:
+      - photoset-network
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
 # ========== 网络与存储卷 ==========
 networks:
   photoset-network:
@@ -141,6 +176,8 @@ volumes:
   redis_data:
     driver: local
   uploads_volume:
+    driver: local
+  seo_cache:
     driver: local
 
 # ========== 开发模式（热重载） ==========

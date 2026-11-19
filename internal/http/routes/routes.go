@@ -48,6 +48,14 @@ func Setup(r *gin.Engine, cfg *config.Config) {
 		r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	}
 
+	// SEO：robots 与 sitemap（公开、根路径，不进 /api group）
+	seoHandler := handlers.NewSeoHandler()
+	r.GET("/robots.txt", seoHandler.Robots)
+	r.GET("/sitemap_index.xml", seoHandler.Index)
+	r.GET("/sitemap-static.xml", seoHandler.Static)
+	r.GET("/sitemap-photosets.xml", seoHandler.Photosets)
+	r.GET("/sitemap-posts.xml", seoHandler.Posts)
+
 	// 初始化服务和处理器
 	userRepo := repository.NewUserRepository()
 	userService := service.NewUserService(userRepo)

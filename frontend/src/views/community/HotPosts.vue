@@ -17,6 +17,9 @@
 import { ref, onMounted } from 'vue'
 import PostCard from '@/components/PostCard.vue'
 import { getHotPosts } from '@/api'
+import { useSeo } from '@/composables/useSeo'
+
+useSeo({ title: '热帖排行', description: 'PhotoSet 社区热门帖子排行，最受欢迎的摄影讨论与作品分享。', path: '/community/hot' })
 
 const posts = ref([])
 const total = ref(0)
